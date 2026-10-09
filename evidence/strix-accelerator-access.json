@@ -1,0 +1,207 @@
+{
+  "recorded_at": "2026-10-09T09:16:28Z",
+  "agent": "Codex",
+  "source_revision": "500e9da299bbd291fbe8cd8b16ca028a521b3d3e",
+  "source_dirty": true,
+  "scope": "Verify the two remote SSH targets, bring up signed Intel NPU userspace access on strix, prove a tiny OpenVINO NPU graph, inspect CPU capabilities, and inventory current Strata quantization surfaces. No Strata runtime code or default behavior was changed.",
+  "baseline": {
+    "branch": "main",
+    "source_revision": "500e9da299bbd291fbe8cd8b16ca028a521b3d3e",
+    "source_dirty": false,
+    "note": "The checkout was clean before the documentation and evidence changes were added."
+  },
+  "remote_hosts": [
+    {
+      "aliases": ["B550", "compute"],
+      "address": "192.168.1.171",
+      "reported_hostname": "compute",
+      "kernel": "7.0.0-34-generic",
+      "gpus": ["NVIDIA GeForce RTX 3090 Ti (24564 MiB)", "NVIDIA GeForce RTX 3090 Ti (24564 MiB)"],
+      "driver": "595.91.07",
+      "role": "Bounded heavy-CUDA execution; no authoritative project state"
+    },
+    {
+      "aliases": ["strix"],
+      "address": "192.168.1.182",
+      "reported_hostname": "compute",
+      "product": "ASUSTeK COMPUTER INC. ROG Strix G615LP_G615LP",
+      "kernel": "7.0.0-34-generic",
+      "gpus": ["NVIDIA GeForce RTX 5070 Laptop GPU (8151 MiB), driver 595.91.07"],
+      "role": "Bounded heterogeneous NVIDIA/NPU/CPU validation; no authoritative project state"
+    }
+  ],
+  "intel_npu": {
+    "pci": "0000:00:0b.0",
+    "pci_id": "8086:ad1d",
+    "device": "Intel Corporation Arrow Lake NPU (rev 01)",
+    "kernel_driver": "intel_vpu",
+    "node": "/dev/accel/accel0",
+    "udev_tags": [":uaccess:", ":seat:", ":xaccess-accel:"],
+    "before": {
+      "userspace_packages": [],
+      "render_member": false,
+      "ssh_open": "PermissionError",
+      "explanation": "The accel node has seat-oriented uaccess/xaccess tags; a plain non-graphical SSH session received no ACL. Mode remained root:render 0660."
+    },
+    "installed": {
+      "archive": "linux-npu-driver-v1.38.0.20260910-34487311128-ubuntu2604.tar.gz",
+      "archive_sha256": "83685e6d92f4db1ca65e442846d487c7feb1335634b33994292ceb38f933bcc7",
+      "release_url": "https://github.com/intel/linux-npu-driver/releases/tag/v1.38.0",
+      "gpg_key_fingerprint": "EA267657A608300C296B8F8AD52C9665A4077678",
+      "signed_packages_verified": [
+        "intel-driver-compiler-npu_1.38.0.20260910-34487311128~ubuntu26.04_amd64.deb",
+        "intel-fw-npu_1.38.0.20260910-34487311128~ubuntu26.04_amd64.deb",
+        "intel-level-zero-npu_1.38.0.20260910-34487311128~ubuntu26.04_amd64.deb"
+      ],
+      "package_versions": {
+        "intel-driver-compiler-npu": "1.38.0.20260910-34487311128~ubuntu26.04",
+        "intel-fw-npu": "1.38.0.20260910-34487311128~ubuntu26.04",
+        "intel-level-zero-npu": "1.38.0.20260910-34487311128~ubuntu26.04",
+        "libze1": "1.32.0-1~26.04~ppa1"
+      },
+      "libze1_url": "https://snapshot.ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu/20260830T100000Z/pool/main/l/level-zero-loader/libze1_1.32.0-1~26.04~ppa1_amd64.deb",
+      "libze1_sha256": "ddd80bf4c5cef21716bc1d7370cc055dc8803451c6e644a98d3dd534d91bc1b2",
+      "access_change": "sudo gpasswd -a kearm render",
+      "after": {
+        "render_member": true,
+        "fresh_ssh_open": "OK (read/write file descriptor)"
+      }
+    },
+    "openvino": {
+      "version": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "environment": "/home/kearm/npu-stack/openvino-venv (uv-managed Python 3.12.14)",
+      "wheel_sha256": "40bf3724ec70bce0fce4f9547cd1f19a576ef299172ce4ce2552249d10064acc",
+      "devices": {
+        "CPU": "Intel(R) Core(TM) Ultra 9 275HX",
+        "GPU": "NVIDIA GeForce RTX 5070 Laptop GPU (dGPU)",
+        "NPU": "Intel(R) AI Boost"
+      },
+      "graph": "f32[1,4] + constant[10,20,30,40] compiled for NPU",
+      "input": [[1.0, 2.0, 3.0, 4.0]],
+      "output": [[11.0, 22.0, 33.0, 44.0]],
+      "result": "PASS"
+    },
+    "firmware": {
+      "running": "20260219*MTL_CLIENT_SILICON-NVR+NN-deployment*f693e2c0dc3ce525f34822f263cc12192ff0722f*f693e2c0dc3",
+      "installed_pending_reboot": "v1.38.0 package supplies the release's August 20, 2026 firmware",
+      "reboot_performed": false
+    }
+  },
+  "cpu": {
+    "model": "Intel(R) Core(TM) Ultra 9 275HX",
+    "threads": 24,
+    "flags_verified": ["avx2", "avx_vnni"],
+    "flags_absent": ["avx512f", "avx512_vnni", "avx512_vbmi", "amx"],
+    "strata_relevance": "Use the existing AVX2/AVX-VNNI CPU kernel family; the separate AVX-512 fast paths are unavailable."
+  },
+  "quantization_inventory": {
+    "setup_choices": ["Q2_0", "IQ2_XS", "IQ3_XXS", "IQ3_S", "Coder IQ1_M", "UD-Q4_K_XL", "UD-IQ4_XS"],
+    "normal_smallest_overall": "Q2_0 / IQ2-class",
+    "coder_iq1_m": "Half the routed experts with mixed IQ2/IQ3/IQ4-like storage; not globally 1-bit",
+    "custom_cpu_fast_formats": ["Q2_0", "IQ2_XXS", "IQ2_XS", "IQ2_S", "IQ3_XXS", "IQ3_S", "IQ4_XS", "Q4_K", "Q5_1", "Q8_0"],
+    "ggml_cpu_only_examples": ["IQ1_M"],
+    "recognized_but_not_normal_execution": ["IQ1_S", "TQ1_0", "TQ2_0", "MXFP4", "NVFP4"],
+    "source_refs": [
+      "setup.py:201-234",
+      "tools/iq_pack.py:1-37",
+      "tools/strata_pack.py:1-354",
+      "include/strata/kernels/cpu/native_expert.hpp:1-50",
+      "src/kernels/cpu/native_expert.cpp:32-83",
+      "src/kernels/cpu/iq_avx2.cpp:1-22",
+      "src/kernels/cuda/iq_kernels.cu:608-616",
+      "src/prefill/moe_mmq.cu:121-139"
+    ]
+  },
+  "research": {
+    "release": "v1.38.0, published 2026-09-11, adds Ubuntu 26.04 LTS and verifies Arrow Lake with kernel 7.0.0-31, August 20 2026 firmware, Level Zero 1.32.0, OpenVINO 2026.3.1, and npu_ud_2026_38_rc1.",
+    "historical_issue_134": "Intel said kernel 7.0 NPU support was present while Ubuntu 26.04 testing was pending; v1.38.0 added that tested matrix. The module is intel_vpu, not ivpu.",
+    "historical_issue_144": "An Arrow Lake 8086:ad1d 'No available backend' report with v1.35.0 was answered by asking whether the release-required libze1 loader was installed.",
+    "worker": {
+      "model": "zai,glm-5.3-flashx",
+      "outcome": "timed_out at 600 seconds with no final text",
+      "role": "Partial research leads only; parent live probes and primary-source requests above are the acceptance evidence."
+    }
+  },
+  "checks": [
+    {
+      "command": "ssh B550/strix identity, address, kernel, GPU, and NPU probes",
+      "exit": 0,
+      "result": "Both aliases resolve to their intended distinct addresses despite both reporting hostname compute."
+    },
+    {
+      "command": "ssh strix 'dpkg-query ... Intel NPU packages'",
+      "exit": 0,
+      "result": "No Intel NPU user-space package was installed before this work."
+    },
+    {
+      "command": "download Intel v1.38.0 Ubuntu 26.04 archive and libze1 1.32.0",
+      "exit": 0,
+      "result": "Recorded SHA-256 values above; archive digest matches the GitHub release asset."
+    },
+    {
+      "command": "gpg --verify each signed .deb against EA267657A608300C296B8F8AD52C9665A4077678",
+      "exit": 0,
+      "result": "Good signatures for all three signed release packages."
+    },
+    {
+      "command": "sudo apt-get install libtbb12; sudo dpkg -i signed Intel packages and libze1",
+      "exit": 0,
+      "result": "All target packages report install ok installed."
+    },
+    {
+      "command": "sudo gpasswd -a kearm render; fresh ssh Python open(/dev/accel/accel0, r+b)",
+      "exit": 0,
+      "result": "Group membership is durable and the fresh SSH identity opens the node read/write."
+    },
+    {
+      "command": "uv venv --python 3.12; install hash-pinned OpenVINO 2026.3.1 wheel; Core.available_devices",
+      "exit": 0,
+      "result": "CPU, NVIDIA dGPU, and Intel AI Boost are visible."
+    },
+    {
+      "command": "compile and infer a small f32 elementwise OpenVINO graph on NPU",
+      "exit": 0,
+      "result": "Output equals input plus the constant exactly in the printed float values."
+    },
+    {
+      "command": "lscpu capability inspection",
+      "exit": 0,
+      "result": "AVX2 and AVX-VNNI present; AVX-512 and AMX absent."
+    },
+    {
+      "command": "gh api intel/linux-npu-driver issues 134 and 144 plus release v1.38.0",
+      "exit": 0,
+      "result": "Primary-source timeline and missing-loader diagnosis recorded above."
+    },
+    {
+      "command": "source inventory over setup.py, pack tools, and CPU/GPU format dispatch",
+      "exit": 0,
+      "result": "Quantization inventory and integration seams recorded in docs/architecture.md."
+    },
+    {
+      "command": "jq empty evidence/strix-accelerator-access.json && git diff --check",
+      "exit": 0,
+      "result": "Evidence JSON parses and the documentation diff has no whitespace errors."
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "All seven host-safe structural/process checks passed and build/reports/quality/receipt.json recorded aggregate_passed=true."
+    }
+  ],
+  "side_effects": [
+    "Installed Intel NPU v1.38.0 user-space packages, libze1 1.32.0, libtbb12, and their apt dependencies on strix.",
+    "Added strix user kearm to the render group.",
+    "Downloaded and retained the verified release archive, packages, uv 0.12.24, and isolated OpenVINO environment under /home/kearm/npu-stack.",
+    "No reboot, firmware reload, model download, GPU/NPU benchmark, or authoritative state migration was performed."
+  ],
+  "non_claims": [
+    "The tiny NPU graph does not prove Strata model acceleration, expert-shaped throughput, quality, stability, or heterogeneous routing benefit.",
+    "No Strata model was downloaded and no Strata engine inference, output comparison, or performance measurement ran on either host.",
+    "The existing Strata CUDA/CPU engine has no NPU backend; OpenVINO enumeration is external runtime evidence only.",
+    "No representative MoE matmul, npu-umd-test suite, AVX2 kernel benchmark, or CPU-only Strata build acceptance ran.",
+    "The running NPU firmware remained the February 2026 build; matching the v1.38.0 August 2026 verified configuration requires a later reboot or firmware reload, which was not forced.",
+    "B550 was identity-probed only; no B550 project build or workload claim is made.",
+    "The libze1 snapshot package hash was recorded, but that individual snapshot artifact was not covered by the Intel release's detached .asc signatures."
+  ]
+}

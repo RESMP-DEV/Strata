@@ -9,9 +9,10 @@
 | Engine, installer, local API, web app | Implemented and documented by the inherited upstream code at `fb58e0d`; not rebuilt or measured locally by the governance change on 2026-10-09 |
 | Local project governance | Lapis-style authority structure in place: [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [stand-up evidence](evidence/project-standup.json) |
 | Common verification | `just quality` runs on this macOS host; it does not claim a CUDA, HIP, or SYCL build |
+| Strix hardware evidence | An 8 GB RTX 5070 engine build launched, and the laptop's Intel NPU ran a tiny OpenVINO graph; neither is a Strata model-run claim. See [accelerator evidence](evidence/strix-accelerator-access.json) |
 
 <p align="center"><b>Run a 125-billion-parameter AI model on your own gaming PC</b><br>
-NVIDIA or AMD graphics card (12 GB or more) · Windows or Linux · free and open source</p>
+NVIDIA or AMD graphics card (12 GB recommended) · Windows or Linux · free and open source</p>
 
 <p align="center"><a href="https://github.com/Niko1221/Strata/releases/download/v0.1.10/Pagoda.mp4"><img src="docs/media/pagoda-preview.webp" width="720" alt="A voxel pagoda garden that Strata's model wrote, running in the browser"></a><br>
 <sub>A voxel pagoda garden, 1 shot prompt running on an RTX 5070 with Strata (IQ3_S, 128K context) ·
@@ -63,7 +64,7 @@ about 100-140 tokens per second. Long chats and other cards: [speed of each mode
 
 | | |
 | --- | --- |
-| **Graphics card** | **NVIDIA** GeForce RTX 20, 30, 40 or 50 series, or **AMD** Radeon RX 7900 XT / XTX, RX 7800 XT / 7700 XT, RX 9060 XT, RX 9070 / 9070 XT, Radeon AI PRO R9700 or RX 6800 / 6900 series. It needs **12 GB of VRAM or more**. |
+| **Graphics card** | **NVIDIA** GeForce RTX 20, 30, 40 or 50 series, or **AMD** Radeon RX 7900 XT / XTX, RX 7800 XT / 7700 XT, RX 9060 XT, RX 9070 / 9070 XT, Radeon AI PRO R9700 or RX 6800 / 6900 series. **12 GB is recommended**; an NVIDIA card with 8 GB runs, but slowly. |
 | **RAM** | 32 GB or more. Your RAM decides [which model](#which-model-should-i-pick) fits. 64 GB runs every size. |
 | **Disk** | About 80 GB free. Use an SSD if you can: the first start is much faster. |
 | **System** | Windows 10 / 11 or Linux, and a current graphics driver from NVIDIA or AMD. |

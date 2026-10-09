@@ -34,6 +34,47 @@ change did not modify runtime behavior.
 | Installer | `setup.py`, shell and Windows launchers | Existing installer tests cover many choices without downloads | Run affected setup tests and a platform-appropriate smoke test |
 | Local API and web app | `serve/` | OpenAI-, Anthropic-, and Responses-compatible surfaces are implemented in the inherited tree | Exercise the changed protocol and lifecycle boundary |
 | Verification state | `build/reports/`, `evidence/` | Generated receipts are transient; durable evidence is tracked | Receipts must bind revision, dirty state, scope, commands, and non-claims |
+| Remote hardware | SSH aliases `B550`/`compute` and `strix` | B550 owns bounded heavy-CUDA execution; Strix owns bounded heterogeneous NVIDIA/NPU/CPU validation | The main machine remains authoritative; select remotes by alias and verify identity live |
+
+## Current quantization surface
+
+The setup labels describe whole releases, not always one on-disk GGUF type. A
+model file commonly mixes gate/up and down formats by tensor and layer.
+
+| Setup choice | Effective expert storage | Current boundary |
+| --- | --- | --- |
+| `Q2_0` | Strata GSQ-RCO 2-bit blocks in the canonical pack | Fastest normal path; `tools/strata_pack.py` owns the relayout and exact inverse checks |
+| `IQ2_XS` | Native mixed i-quant blocks, around 2 bits overall | Preserved in raw GGUF form by `tools/iq_pack.py`; the label does not mean every tensor is IQ2_XS |
+| `IQ3_XXS` | Native mixed i-quant blocks, around 3 bits overall | Slower CPU work per token than the 2-bit packs |
+| `IQ3_S` | Native mixed i-quant blocks, around 3.5 bits overall | Best-quality normal setup choice; the published full-model comparison belongs to upstream evidence |
+| Coder `IQ1_M` | Half the routed experts, stored in mixed IQ2/IQ3/IQ4-like forms | The historical name is misleading: this is not a globally 1-bit pack |
+| `UD-Q4_K_XL` | Mixed Q4_K/Q5_K gate-up with Q5_1/Q8_0 down paths | Experimental, NVIDIA-only in setup, and may stream experts from SSD under RAM pressure |
+| `UD-IQ4_XS` | IQ3_S-style gate/up with IQ4_NL and Q8_0 down paths | Regular setup choice; still uses an expert RAM budget on smaller systems |
+
+The CPU path has ggml-backed native rows for the mixed formats plus Strata
+AVX2/AVX-VNNI kernels for Q2_0, IQ2_XXS/XS/S, IQ3_XXS/S, IQ4_XS, Q4_K, Q5_1,
+and Q8_0. IQ1_M and the remaining K-quants stay on the ggml-cpu dot. The Strix Core Ultra
+9 275HX has AVX2 and AVX-VNNI but no AVX-512 or AMX, so its relevant fast path
+is the AVX2/AVX-VNNI family, not the AVX-512 kernels.
+
+`tools/quantscope.py` and `tools/gguf_reader.py` can identify additional GGUF
+types such as IQ1_S, TQ1_0, TQ2_0, MXFP4, and NVFP4. Recognition is not
+execution support; the normal engine and setup choices above remain the
+executable set. An NVFP4 research fork is referenced by inherited benchmarks
+but is not a current setup path.
+
+The first implementation seam for substantially smaller routed experts is
+experimental, not a default-path replacement: add the pack type in
+`tools/strata_pack.py` with an exact inverse, preserve mixed native slices in
+`tools/iq_pack.py`, then extend CPU dispatch in
+`include/strata/kernels/cpu/native_expert.hpp`,
+`src/kernels/cpu/native_expert.cpp`, and `src/kernels/cpu/iq_avx2*.cpp`, plus
+the corresponding CUDA/HIP implementations under `src/kernels/` and
+`src/prefill/`. Acceptance starts with the existing parity binaries
+(`iq_avx2_parity`, `q2_bitplane_parity`, and backend parity), then adds bounded
+reference differences and a real-model output comparison. A proposal that uses
+the NPU must separately prove a representative expert-shaped operation through
+Level Zero/OpenVINO before any Strata routing claim.
 
 ## Open choices
 
@@ -43,6 +84,9 @@ change did not modify runtime behavior.
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
+| Strix Intel NPU integration | OpenVINO 2026.3.1 enumerates the NPU and executes a tiny graph; no Strata operator or model path uses it | First prove a representative expert-shaped operation with parity and memory/transfer accounting, then integrate opt-in and measure a real model |
+| Strix heterogeneous routing | NVIDIA dGPU, Intel NPU, and CPU are independently visible; Strata currently routes only its existing CUDA/CPU paths | A routing proposal needs per-part correctness, scheduling, and same-day throughput/latency controls before it can replace a default |
+| Sub-two-bit routed experts | Proposed research direction only; the smallest normal overall path remains Q2_0/IQ2-class | Define the format, prove pack inversion and reference parity, then measure model quality, memory, PCIe traffic, and speed against a same-day control |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -97,3 +141,27 @@ sharing a model, and `SPLIT_PROMPT_VRAM_GB = 12` is only a split-stage prompt
 buffer recommendation. The engine built 135/135 for sm_120 and its binary
 launched `--help`, but no real-model inference was measured. Full evidence and
 side effects are in [Strix VRAM boundary evidence](../evidence/strix-vram-boundary.json).
+
+### Remote access, Intel NPU/CPU, and quantization inventory, 2026-10-09
+
+The two SSH execution aliases were verified live and are now contractual in
+`AGENTS.md`: `B550`/`compute` at 192.168.1.171 is the dual-RTX-3090-Ti heavy
+GPU host, while `strix` at 192.168.1.182 is the heterogeneous validation host.
+Both report hostname `compute`, so aliases, not hostnames, select them. The
+main machine remains the authority.
+
+On Strix, the Arrow Lake NPU was already bound to `intel_vpu` at PCI
+`8086:ad1d` with `/dev/accel/accel0`, but a plain SSH session was outside the
+seat-based udev ACL. Intel's signed v1.38.0 Ubuntu 26.04 user-space stack and
+Level Zero loader 1.32.0 were installed after archive SHA-256 and per-package
+GPG verification, and `kearm` was added to the documented `render` group. A
+fresh SSH session can open the device read/write. OpenVINO 2026.3.1 in an
+isolated Python 3.12 environment enumerates CPU, the NVIDIA dGPU, and
+`Intel(R) AI Boost`, and a small elementwise graph compiled and executed on the
+NPU with the expected output. The host currently booted the February 2026
+firmware even though the August 2026 package is installed on disk; no reboot
+was forced. Its CPU has AVX2 and AVX-VNNI, but no AVX-512 or AMX. The source
+inventory and research gates above were derived from `setup.py`, the pack
+tools, and CPU/GPU format dispatch. Full commands, package identities,
+signatures, side effects, and non-claims are in
+[Strix accelerator access evidence](../evidence/strix-accelerator-access.json).

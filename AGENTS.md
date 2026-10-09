@@ -43,6 +43,26 @@ that does not belong in `docs/architecture.md`; do not create another roadmap,
 status summary, or architecture file.
 </ownership_map>
 
+<remote_execution_hosts>
+The main machine remains the sole authority for Git, credentials, planning, task
+state, and acceptance. Two SSH aliases identify the two remote execution hosts;
+both currently report the hostname `compute`, so never select either host by
+hostname. Verify address and hardware before each operational claim.
+
+| Alias | Identity | Boundary |
+| --- | --- | --- |
+| `B550` (also `compute`) | 192.168.1.171; dual RTX 3090 Ti | Bounded CUDA/heavy-GPU execution only; no authoritative project state |
+| `strix` | 192.168.1.182; ROG Strix G615LP with RTX 5070 Laptop, Arrow Lake NPU, and AVX2/AVX-VNNI CPU | Bounded heterogeneous validation only; no authoritative project state. The host is intentionally modified |
+
+For Strix, use the SSH alias rather than its reported hostname. The NVIDIA path
+is the existing CUDA engine. Intel NPU and CPU execution are available through
+the installed Level Zero/OpenVINO runtime, but are not Strata engine backends
+until an opt-in integration is implemented and measured. The `kearm` account is
+a member of `render` for `/dev/accel/accel0`; preserve that access boundary.
+Do not download a model on either remote host without current-task
+authorization.
+</remote_execution_hosts>
+
 <quality_and_receipts>
 Use `just quality` for the host-safe repository gate. It checks project
 structure, selected setup regressions, script unit tests, Ruff on maintained
