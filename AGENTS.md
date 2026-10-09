@@ -1,36 +1,93 @@
-# AGENTS.md
+# Strata agent instructions
 
-Strata runs the Qwen3.8-Flash-Next mixture-of-experts model (and its Coder, Swift 1.5 and Unsloth variants) on a
-normal PC: one NVIDIA or AMD graphics card plus system RAM, on Windows or Linux. It has a C++/CUDA/HIP engine
-(`src/`, `include/`), a Python server with an OpenAI- and Anthropic-compatible API and a web app (`serve/`), and a
-one-click installer (`setup.py`, started by `START-HERE.bat` / `setup.sh`).
+<purpose>
+Strata runs Qwen3.8-Flash-Next and its Coder, Swift 1.5 and Unsloth variants
+on an ordinary PC with one NVIDIA, AMD, or supported Intel graphics card plus
+system RAM. The project has a C++/CUDA/HIP/SYCL engine in `src/`, `include/`,
+and `sycl/`; a Python server and web app in `serve/`; and a one-click installer
+in `setup.py`, `setup.sh`, and the Windows launchers.
 
-## Installing Strata for a user
+The canonical repository is `RESMP-DEV/Strata`. `AGENTS.md` is the only
+instruction file; `CLAUDE.md` is a relative symlink to it. Do not add another
+agent-specific instruction file.
+</purpose>
 
-Follow **[docs/AI_SETUP.md](docs/AI_SETUP.md)**: check the PC, pick the model by RAM, run setup non-interactively,
-start and verify the server, and connect the user's apps. Never expose the server beyond `127.0.0.1` without
-`--api-key`. As an alternative to shell commands, Strata's MCP server ([docs/MCP_SERVER.md](docs/MCP_SERVER.md))
-offers the same steps as tools.
+<establish_context>
+1. Read this file, inspect `git status --short`, and identify the requested
+   scope before editing. Preserve unrelated dirty work and active worktrees.
+2. Read `docs/architecture.md` for ownership and open decisions. Read
+   `CONTRIBUTING.md` for checks, evidence, and backend requirements.
+3. Treat existing technical documentation as observations, not live proof.
+   Probe the actual installer, API, engine binary, accelerator, or service
+   before making an operational claim.
+4. The README status table owns current implementation and exercise status.
+   Dated evidence and work-log entries record observations at a revision; they
+   never upgrade a proposed feature into an implemented feature.
+</establish_context>
 
-## Working on the code
+<ownership_map>
+| Concern | Canonical owner |
+| --- | --- |
+| Agent and contributor contract | `AGENTS.md` |
+| Product status and entry point | `README.md` |
+| Architecture, ownership, open choices, append-only work log | `docs/architecture.md` |
+| Procedure, code standards, check matrix | `CONTRIBUTING.md` |
+| Engine and backend build | `src/`, `include/`, `CMakeLists.txt`, `sycl/` |
+| Installer | `setup.py`, `setup.sh`, `START-HERE.bat`, `SETUP.bat`, `UPDATE.bat` |
+| Local server and API | `serve/` |
+| Durable sanitized receipts | `evidence/` |
+| Generated receipts and logs | ignored `build/reports/` |
 
-- How the engine works, every measured number, the API and all settings: [docs/DETAILS.md](docs/DETAILS.md) and
-  the [paper](docs/paper/Strata-Paper.pdf).
-- AMD (HIP) build and validation: [docs/AMD_HIP.md](docs/AMD_HIP.md); multi-GPU: [docs/MULTI_GPU.md](docs/MULTI_GPU.md).
-- Setup's own tests run without a GPU or downloads: `python tools/test_setup_<name>.py` (for example
-  `tools/test_setup_amd.py`, `tools/test_setup_choices.py`).
-- Keep the docs' style: plain words, measured numbers with what they were measured on, no claims without a
-  measurement.
+Specialized docs under `docs/` are allowed when they contain operational detail
+that does not belong in `docs/architecture.md`; do not create another roadmap,
+status summary, or architecture file.
+</ownership_map>
 
-## Contributing a change or report
+<quality_and_receipts>
+Use `just quality` for the host-safe repository gate. It checks project
+structure, selected setup regressions, script unit tests, Ruff on maintained
+scripts, ShellCheck at warning severity, whitespace, and writes
+`build/reports/quality/receipt.json`. The runner removes an old receipt before
+starting and writes a failure receipt on startup errors.
 
-- Search the open issues and pull requests first, and add to a thread that already covers your point.
-- Open an issue with the form that fits (bug report, feature request or question).
-- One change per pull request. Say what it changes and what it leaves alone.
-- A new feature is opt-in, and the default path stays byte-identical to the last release. Say how you checked.
-- Build every backend a file touches (CUDA, HIP, SYCL) before asking for review.
-- Change a default only where you measured it faster, and show the numbers with what they were measured on.
-- A report from hardware the maintainers do not have is welcome. Follow
-  [docs/COMMUNITY_BENCHMARKS.md](docs/COMMUNITY_BENCHMARKS.md), compare against a same-day run of the build you are
-  testing, and say what you did not test.
-- Open test requests and the hardware that is wanted are listed in [docs/TEST_REQUESTS.md](docs/TEST_REQUESTS.md).
+That gate does not compile a backend or prove an engine change. Apply the
+affected rows in `CONTRIBUTING.md`: build every backend a file touches, test
+the affected setup or server behavior, and use real hardware for performance
+claims. Compare performance against a same-day control and name the hardware,
+revision, model, quantization, workload, and what was not measured.
+
+Every non-trivial state change or trusted finding leaves a receipt. Prefer
+`build/reports/<mode>/receipt.json`; copy a sanitized durable result into
+`evidence/` when later work must be able to find it. Record command, exit,
+revision, dirty state, scope, platform, and non-claims. A worker completion is
+evidence, not acceptance.
+</quality_and_receipts>
+
+<project_boundaries>
+- User setup follows `docs/AI_SETUP.md`; check the PC, choose by RAM, install
+  non-interactively, verify the server, and connect applications. Never expose
+  the server beyond `127.0.0.1` without `--api-key`.
+- A new feature is opt-in. The default install and default runtime path stay
+  byte-identical unless a measured decision recorded in architecture changes
+  them.
+- Published claims follow the existing docs style: plain words, measured
+  numbers, named hardware, and explicit limits. No unmeasured speed or support
+  claim enters documentation.
+- Never create GitHub Actions or author `.github/workflows/`. Local commands
+  and receipts are the verification path.
+- Use the existing CLI/server interfaces before desktop automation. The MCP
+  interface in `docs/MCP_SERVER.md` remains an alternative surface, not a
+  reason to build another one.
+- Preserve upstream technical content while this private RESMP-DEV mirror
+  evolves. Do not push to `upstream`; upstream contribution requires an explicit
+  instruction in the active task.
+</project_boundaries>
+
+<coordination>
+For multi-agent implementation, create one ignored worktree per writer under
+`.worktrees/`, define file ownership and one build owner, and have the parent
+integrate and verify the combined result. Green tests in a worker checkout do
+not establish integration acceptance. Hand off changed files, exact source
+revision and dirty state, commands and results, evidence paths, unresolved
+findings, and limits.
+</coordination>

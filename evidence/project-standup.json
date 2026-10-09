@@ -1,0 +1,58 @@
+{
+  "recorded_at": "2026-10-09T06:35:19Z",
+  "agent": "Codex",
+  "source_revision": "fb58e0dbc8399662c0e47c76578c6e878b14f6cf",
+  "source_dirty": true,
+  "scope": "Lapis-style project stand-up only: instruction authority, architecture/procedure documents, README status, check dispatcher, focused setup regressions, and receipt safety. Runtime engine, installer, server, model data, and defaults were not modified.",
+  "baseline": {
+    "branch": "main",
+    "source_revision": "fb58e0dbc8399662c0e47c76578c6e878b14f6cf",
+    "source_dirty": false,
+    "note": "The checkout was clean before the stand-up files were added."
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s tools -p 'test_setup_*.py' -v",
+      "exit": 1,
+      "result": "418 tests: 2 failures, 4 errors, 1 skipped on macOS Python 3.14.8",
+      "role": "baseline probe, not an accepted common gate"
+    },
+    {
+      "command": "python3 scripts/tests/test_strata.py -v",
+      "exit": 0,
+      "result": "2 tests passed"
+    },
+    {
+      "command": "python3 scripts/tests/test_check_structure.py -v",
+      "exit": 0,
+      "result": "8 tests passed"
+    },
+    {
+      "command": "python3 scripts/tests/test_check_setup.py -v",
+      "exit": 0,
+      "result": "3 tests passed"
+    },
+    {
+      "command": "ruff format --check scripts",
+      "exit": 0,
+      "result": "6 files already formatted"
+    },
+    {
+      "command": "ruff check scripts",
+      "exit": 0,
+      "result": "All checks passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "13 structural/process checks passed and build/reports/quality/receipt.json recorded aggregate_passed=true",
+      "source_dirty": true
+    }
+  ],
+  "non_claims": [
+    "No CUDA, HIP, or SYCL backend was compiled on this Apple-silicon host.",
+    "The six selected setup modules do not replace the affected installer test or platform smoke test required by CONTRIBUTING.md.",
+    "The full setup discovery failure remains an open macOS-host limitation, not proof that the upstream installer is broken.",
+    "No model was downloaded and no server, API, WebUI, installer path, or performance behavior was exercised."
+  ]
+}

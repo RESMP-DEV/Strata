@@ -2,6 +2,14 @@
 
 **English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português](README.pt-BR.md)
 
+## Project status and governance
+
+| Area | Current status |
+| --- | --- |
+| Engine, installer, local API, web app | Implemented and documented by the inherited upstream code at `fb58e0d`; not rebuilt or measured locally by the governance change on 2026-10-09 |
+| Local project governance | Lapis-style authority structure in place: [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [stand-up evidence](evidence/project-standup.json) |
+| Common verification | `just quality` runs on this macOS host; it does not claim a CUDA, HIP, or SYCL build |
+
 <p align="center"><b>Run a 125-billion-parameter AI model on your own gaming PC</b><br>
 NVIDIA or AMD graphics card (12 GB or more) · Windows or Linux · free and open source</p>
 

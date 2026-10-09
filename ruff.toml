@@ -1,0 +1,16 @@
+target-version = "py310"
+line-length = 100
+extend-exclude = [
+  ".git",
+  ".venv",
+  "build",
+  "serve",
+  "setup.py",
+  "tools",
+]
+
+[lint]
+select = ["B", "E", "F", "I", "SIM", "UP"]
+
+[lint.per-file-ignores]
+"scripts/tests/test_*.py" = ["E402"]

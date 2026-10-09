@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-10-09T06:31:12Z",
+  "agent": "Codex",
+  "source_revision": "fb58e0dbc8399662c0e47c76578c6e878b14f6cf",
+  "source_dirty": true,
+  "scope": "Receipt-contract probe only: validate startup invalidation, failure receipt handling, and atomic replacement of a symlinked final path.",
+  "checks": [
+    {
+      "command": "python3 scripts/tests/test_strata.py -v",
+      "exit": 0,
+      "result": "2 tests passed"
+    }
+  ],
+  "non_claims": [
+    "This does not validate shell commands, backend compilation, model execution, or generated receipt content beyond the two dispatcher contracts."
+  ]
+}
