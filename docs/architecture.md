@@ -84,9 +84,9 @@ Level Zero/OpenVINO before any Strata routing claim.
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
-| Strix Intel NPU integration | OpenVINO 2026.3.1 enumerates the NPU and executes a tiny graph; no Strata operator or model path uses it | First prove a representative expert-shaped operation with parity and memory/transfer accounting, then integrate opt-in and measure a real model |
+| Strix Intel NPU integration | OpenVINO and llama.cpp execute a tiny F32 llama on NPU, but the real qwen4exp IQ graph falls back on every IQ2_XS/Q2_0 expert matmul and then fails an NPU input-layout check; Strata does not link the backend | Require target-graph NPU operation support or a layout repair, representative expert-shaped parity, and memory/transfer accounting before integration |
 | Strix heterogeneous routing | NVIDIA dGPU, Intel NPU, and CPU are independently visible; Strata currently routes only its existing CUDA/CPU paths | A routing proposal needs per-part correctness, scheduling, and same-day throughput/latency controls before it can replace a default |
-| Sub-two-bit routed experts | Proposed research direction only; the smallest normal overall path remains Q2_0/IQ2-class | Define the format, prove pack inversion and reference parity, then measure model quality, memory, PCIe traffic, and speed against a same-day control |
+| iMatrix low-bit routed experts | An experimental 3.01-BPW whole-file mix uses IQ2_XS gate/up, Q2_0 down, and exact BF16 pack routers; Strix loaded it and generated one token through CUDA/CPU | Promote nothing until perplexity/output quality and same-day throughput/memory controls beat the current Q2_0/IQ2 choices |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -165,3 +165,37 @@ inventory and research gates above were derived from `setup.py`, the pack
 tools, and CPU/GPU format dispatch. Full commands, package identities,
 signatures, side effects, and non-claims are in
 [Strix accelerator access evidence](../evidence/strix-accelerator-access.json).
+
+### iMatrix expert mix and llama.cpp NPU boundary, 2026-10-09
+
+A pinned public iMatrix for this exact model (319 chunks of 512 tokens, 902
+tensor entries, and per-expert coverage for all but 0.33% of expert rows) was
+used to requantize the routed experts of the 98.4 GB IQ4_XS source. Gate and
+up experts became IQ2_XS; down experts became Q2_0 because their 640-value
+inner dimension is not a whole IQ2_S block. Every non-target tensor kept its
+source type. The result is 66,649,935,616 bytes (llama.cpp reports 63,551.82
+MiB of quantized model data, 3.01 BPW), and its 48 gate, 48 up, and 48 down
+expert tensors passed exact type checks. The standalone GGUF retains F32
+routers because llama.cpp hard-skips `ffn_gate_inp` before manual overrides;
+the Strata pack then converts all 96 router tensors to exact BF16. The pack
+maps 34,603,008,000 bytes of native experts.
+
+The experimental artifact was transferred to Strix with matching SHA-256 and
+loaded by engine 0.1.41 with the shipped expert profile. The engine loaded
+32.23 GiB of experts at 18.26 GiB/s, selected 2,233 expert-cache slots on the
+8 GB RTX 5070, completed a three-token prompt, and emitted greedy token 198.
+That one-token run measured 24.78 tokens/s decode and 5.47 tokens/s prefill,
+but it does not establish general throughput or quality.
+
+llama.cpp's pinned `ggml-openvino` backend is present even though Strata does
+not link it. Forced to NPU, it executes a tiny F32 llama model and produces
+the same text as CPU. On the real qwen4exp artifact it assigns all layers to
+OPENVINO0 but reports thousands of unsupported IQ4_XS/IQ4_NL MUL_MAT and
+IQ2_XS/Q2_0 MUL_MAT_ID operations, leaves most weights CPU-mapped, splits the
+graph 660 ways, and finally fails in Intel's NPU infer request with input
+shape `[1,1,3,2560]` where the compiled graph expects `[1,3,1,2560]`. Thus
+the obstacle is not that NPUs cannot run graphs in general; this specific
+llama.cpp/OpenVINO path does not run the target quantized qwen4exp graph
+correctly. Full hashes, sampled reconstruction errors, commands, timings,
+and non-claims are in
+[IQ2/iMatrix and NPU evidence](../evidence/iq2-imatrix-npu-experiment.json).

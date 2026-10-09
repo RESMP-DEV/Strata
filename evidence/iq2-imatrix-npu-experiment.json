@@ -1,0 +1,407 @@
+{
+  "recorded_at": "2026-10-09T14:45:00Z",
+  "agent": "Codex",
+  "source_revision": "9668bdce90c53eb1ff43dae36cb54b33c5a8788e",
+  "source_dirty": true,
+  "scope": "Research experiment only: inventory executable IQ formats, test llama.cpp's OpenVINO NPU backend, and build a real iMatrix-calibrated routed-expert mix with a Strata pack. No default setup choice or runtime backend was changed.",
+  "iq_inventory": {
+    "executable_llama_cpp_iq_types": {
+      "IQ1_S": 1.56,
+      "IQ1_M": 1.75,
+      "IQ2_XXS": 2.06,
+      "IQ2_XS": 2.31,
+      "IQ2_S": 2.5,
+      "IQ2_M": 2.7,
+      "IQ3_XXS": 3.06,
+      "IQ3_XS": 3.3,
+      "IQ3_S": 3.44,
+      "IQ3_M": 3.66,
+      "IQ4_XS": 4.25,
+      "IQ4_NL": 4.5
+    },
+    "strata_normal_setup_choices": [
+      "Q2_0",
+      "IQ2_XS",
+      "IQ3_XXS",
+      "IQ3_S",
+      "Coder IQ1_M",
+      "UD-Q4_K_XL",
+      "UD-IQ4_XS"
+    ],
+    "imatrix_required_by_ggml": [
+      "IQ2_XXS",
+      "IQ2_XS",
+      "IQ1_S"
+    ],
+    "imatrix_optional_but_consumed": "The pinned ggml_quantize_chunk passes the same importance pointer to every listed quantizer, including IQ2_S and the K-quants.",
+    "calibration distinction": "llama.cpp iMatrix is summed squared activation importance, not GPTQ's Hessian/OBQ solve. GSQ explicitly uses GPTQ initialization followed by Gumbel-Softmax refinement, but its current wrappers do not cover Qwen3.8 Flash Next's hybrid qwen4exp structure."
+  },
+  "inputs": {
+    "source_model": {
+      "repository": "mradermacher/Qwen3.8-Flash-Next-GGUF",
+      "revision": "68d514cd9f411c9d6b62f8a422102a202d57c18c",
+      "file": "Qwen3.8-Flash-Next.IQ4_XS.gguf",
+      "sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb",
+      "bytes": 98421788160
+    },
+    "imatrix": {
+      "repository": "mradermacher/Qwen3.8-Flash-Next-i1-GGUF",
+      "revision": "9547b1c8fbdf6e37d208f91ce626270fdae0066c",
+      "file": "Qwen3.8-Flash-Next.imatrix.gguf",
+      "sha256": "78661751ccf1e2e301c4313d1feb1394cfa978784daf518e4fe2e0cccdc1c290",
+      "bytes": 579788928,
+      "dataset": "imatrix-training-full-3",
+      "chunks": 319,
+      "chunk_size": 512,
+      "entries_loaded": 902
+    },
+    "imatrix_expert_coverage": {
+      "expert_tensor_slots": 144,
+      "expert_rows": 73728,
+      "zero_count_rows": 246,
+      "zero_fraction": 0.0033,
+      "all_values_finite": true,
+      "max_observed_count": 104587
+    },
+    "llama_cpp_pin": "3cf03257f219afbe7334045ff7c6a06ac68c627d"
+  },
+  "quantized_artifact": {
+    "path_main_cache": "/Users/kearm/.cache/strata-quant/expert-iq2xs/Qwen3.8-Flash-Next.experts-iq2xs-down-q2-routers-bf16.gguf",
+    "sha256": "3f61fa27b4279272cfa3c7a3925763c8c2cd9dcafb75cba23c8b2e8babf431b0",
+    "bytes": 66649935616,
+    "reported_quant_size": "63551.82 MiB at 3.01 BPW over the model's 93851.82 MiB / 4.45 BPW source",
+    "recipe": [
+      "All non-target tensors retain their exact source GGUF type.",
+      "ffn_gate_exps and ffn_up_exps use IQ2_XS with the provided per-expert iMatrix.",
+      "ffn_down_exps uses Q2_0 because the 640-value inner dimension is not a whole 256-value block for IQ2_S.",
+      "The intermediate GGUF's routers remain F32 because llama.cpp hard-skips ffn_gate_inp before manual tensor overrides."
+    ],
+    "validated_type_counts": {
+      "IQ4_XS": 466,
+      "F32": 388,
+      "IQ4_NL": 140,
+      "IQ2_XS": 96,
+      "Q5_K": 54,
+      "Q2_0": 48,
+      "BF16": 24,
+      "Q5_1": 6,
+      "Q6_K": 1,
+      "F16": 1
+    },
+    "contract_checks": {
+      "gate_exps_type": "PASS: all 48 IQ2_XS",
+      "up_exps_type": "PASS: all 48 IQ2_XS",
+      "down_exps_type": "PASS: all 48 Q2_0",
+      "non_target_types_unchanged_from_source": "PASS: 0 changes"
+    },
+    "execution": {
+      "host": "Apple-silicon main machine, AppleClang 21.0.0.21000334",
+      "threads": 16,
+      "wall_seconds": 2537.59,
+      "user_seconds": 35218.86,
+      "system_seconds": 165.16,
+      "peak_rss_bytes": 13967572992,
+      "exit": 0
+    },
+    "sampled_reconstruction_check": {
+      "comparison": "source IQ4_XS dequantized values versus new iMatrix IQ2_XS values on selected routed expert slices",
+      "samples": [
+        {
+          "layer": 0,
+          "role": "gate",
+          "expert": 0,
+          "weighted_relative_squared_error": 0.10001120685728591,
+          "rmse": 0.004346861038357019,
+          "max_abs_error": 0.04826098680496216
+        },
+        {
+          "layer": 0,
+          "role": "gate",
+          "expert": 123,
+          "weighted_relative_squared_error": 0.11923965943614076,
+          "rmse": 0.0044619012624025345,
+          "max_abs_error": 0.05316704511642456
+        },
+        {
+          "layer": 0,
+          "role": "gate",
+          "expert": 511,
+          "weighted_relative_squared_error": 0.11823143811569906,
+          "rmse": 0.003977680113166571,
+          "max_abs_error": 0.04503875970840454
+        },
+        {
+          "layer": 24,
+          "role": "up",
+          "expert": 0,
+          "weighted_relative_squared_error": 0.09276694551630923,
+          "rmse": 0.003924804739654064,
+          "max_abs_error": 0.030460834503173828
+        },
+        {
+          "layer": 24,
+          "role": "up",
+          "expert": 123,
+          "weighted_relative_squared_error": 0.0951062941104825,
+          "rmse": 0.003858367449855804,
+          "max_abs_error": 0.028823375701904297
+        },
+        {
+          "layer": 24,
+          "role": "up",
+          "expert": 511,
+          "weighted_relative_squared_error": 0.09558739581232574,
+          "rmse": 0.003967592027038336,
+          "max_abs_error": 0.02706378698348999
+        },
+        {
+          "layer": 47,
+          "role": "gate",
+          "expert": 0,
+          "weighted_relative_squared_error": 0.1072979350745919,
+          "rmse": 0.005090945865958929,
+          "max_abs_error": 0.12501895427703857
+        },
+        {
+          "layer": 47,
+          "role": "up",
+          "expert": 123,
+          "weighted_relative_squared_error": 0.09565772114420079,
+          "rmse": 0.00445375544950366,
+          "max_abs_error": 0.04679393768310547
+        },
+        {
+          "layer": 47,
+          "role": "gate",
+          "expert": 511,
+          "weighted_relative_squared_error": 0.09140130756138945,
+          "rmse": 0.00427666399627924,
+          "max_abs_error": 0.045327067375183105
+        }
+      ],
+      "median_weighted_relative_squared_error": 0.09565772114420079,
+      "mean_weighted_relative_squared_error": 0.10169998929204727,
+      "max_weighted_relative_squared_error": 0.11923965943614076,
+      "role": "diagnostic reconstruction only; not task quality or perplexity"
+    }
+  },
+  "strata_pack": {
+    "path_main_cache": "/Users/kearm/.cache/strata-quant/expert-iq2xs/pack",
+    "command_mode": "tools/iq_pack.py --compat-bf16",
+    "dense_bytes": 1485606400,
+    "arena": "1.38 GiB",
+    "index_tensors": 1079,
+    "natively_served_tensors": 303,
+    "conversions": {
+      "total": 459,
+      "exact": 96,
+      "rounded": 363,
+      "max_abs_error": 0.0146
+    },
+    "routers": {
+      "converted": 96,
+      "exact": 96,
+      "max_abs_error": 0.0,
+      "result": "PASS: every main and shared router row is pack kind 4, raw BF16"
+    },
+    "native_experts": {
+      "layers": 48,
+      "experts_per_layer": 512,
+      "gate_up_type_id": 17,
+      "down_type_id": 42,
+      "expert_bytes": 34603008000
+    },
+    "sha256": {
+      "index.txt": "5247fc9bb75896ec26a10b28cf796abc377b2de46f92be7a6efc2266862187f0",
+      "dense.bin": "1fab0d62440d5ffeaf3cdbf0aa2a3f64961b77ebcea62f6915096cba4765d01a",
+      "native_experts.txt": "c8f1bef4431bc0d8c82db8523667fae7549ceb2fc0c54f04d6094ba4ae584448",
+      "conversions.json": "51a7cd68183930bf7023a5a7dfac8477b661ba06716e5d946684d6971228c48c",
+      "compat-bf16.json": "f51e204196f09abb164594493dc65f991638de8adbeb5c186a47c7b02b808360"
+    },
+    "strix_status_at_record_time": "The pack and intermediate GGUF are both present on strix with matching SHA-256 hashes. A real Strata CUDA/CPU engine run completed one generated token."
+  },
+  "llama_npu_backend": {
+    "strata_current_engine": "No NPU backend: the built engine links CUDA/cuBLAS and its custom CPU pool; ldd has no OpenVINO backend.",
+    "llama_cpp_pinned_source": "Contains ggml/src/ggml-openvino and translates GGML MUL_MAT_ID, including quantized MoE expert tensors, through OpenVINO.",
+    "build": {
+      "host": "strix",
+      "openvino": "2026.3.1",
+      "target": "build/llama-openvino/bin/llama-bench and llama-simple",
+      "exit": 0
+    },
+    "device_enumeration": "GGML_OPENVINO_DEVICE=NPU reports OpenVINO: using device NPU and exposes OPENVINO0.",
+    "tiny_model": {
+      "repository": "ggml-org/models",
+      "revision": "96f460f9c1e2ca43d0adc1c682b832525a2c0ea3",
+      "file": "tinyllamas/stories260K.gguf",
+      "sha256": "270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d"
+    },
+    "bench": {
+      "device": "NPU",
+      "pp32_tokens_per_second": 2022.04,
+      "tg8_tokens_per_second": 78.48,
+      "repetitions": 1
+    },
+    "simple_generation": {
+      "prompt": "The dog said",
+      "npu_output": "<s> The dog said, \"Hi, cat! What are you do",
+      "cpu_output": "<s> The dog said, \"Hi, cat! What are you do",
+      "comparison": "identical"
+    },
+    "target_model_attempt": {
+      "model": "experimental 66.65 GB expert mix",
+      "command": "llama-simple -m <experimental.gguf> -ngl 99 -n 1 with GGML_OPENVINO_DEVICE=NPU",
+      "exit": 1,
+      "loading": "All 49 model layers were assigned to OPENVINO0, but only 1543.35 MiB lived in the OPENVINO0 model buffer; 63049.58 MiB and 27465.95 MiB remained CPU-mapped.",
+      "graph_splits": 660,
+      "fatal_error": "Intel NPU zero_infer_request.cpp:1202 input tensor shape mismatch: got [1,1,3,2560], expecting [1,3,1,2560]",
+      "unsupported_op_counts": {
+        "MUL_MAT iq4_xs": 8370,
+        "MUL_MAT_ID iq2_xs": 1728,
+        "MUL_MAT_ID q2_0": 864,
+        "MUL_MAT iq4_nl": 278,
+        "GET_ROWS iq4_xs": 17,
+        "GET_ROWS iq4_nl": 16
+      },
+      "conclusion": "The pinned llama.cpp OpenVINO backend can target NPU, but this real qwen4exp quantized graph falls back on every routed expert matmul and then hits an NPU layout mismatch. It is not a usable Strata replacement path as-is."
+    }
+  },
+  "research_mirrors": {
+    "GSQ": {
+      "upstream_revision": "03fc16484c369e3127225615d5e03e8d3a6043e3e",
+      "private_mirror": "RESMP-DEV/GSQ",
+      "actions_disabled": true,
+      "compatibility": "uv dry-run resolves 260 downloads / 266 installs on Strix, but the current Qwen3 MoE wrapper does not implement qwen4exp hybrid attention/PLE."
+    },
+    "RCO": {
+      "upstream_revision": "9a1e09c07d468109cbe60a1b87d5036034a79d10",
+      "private_mirror": "RESMP-DEV/RCO",
+      "actions_disabled": true
+    }
+  },
+  "checks": [
+    {
+      "command": "hfd download pinned source, verify full",
+      "exit": 0,
+      "result": "SHA-256 matches the Hub LFS digest."
+    },
+    {
+      "command": "download pinned iMatrix and parse GGUF header/statistics",
+      "exit": 0,
+      "result": "Dataset, chunk count, 902 entries, per-expert coverage, and finiteness recorded above."
+    },
+    {
+      "command": "build pinned llama.cpp quantize/imatrix/perplexity/bench tools on macOS",
+      "exit": 0,
+      "result": "All requested CPU tools linked."
+    },
+    {
+      "command": "llama-quantize --dry-run with corrected exact-type recipe",
+      "exit": 0,
+      "result": "Projected 63551.82 MiB / 3.01 BPW and loaded all iMatrix entries."
+    },
+    {
+      "command": "llama-quantize real run",
+      "exit": 0,
+      "result": "Produced the hash-verified 66649935616-byte artifact in 2537.59 seconds."
+    },
+    {
+      "command": "parse output GGUF and compare every tensor type with source",
+      "exit": 0,
+      "result": "All routed expert and non-target tensor contracts passed."
+    },
+    {
+      "command": "tools/iq_pack.py --compat-bf16",
+      "exit": 0,
+      "result": "Strata pack and exact BF16 router conversion passed with hashes recorded."
+    },
+    {
+      "command": "build llama.cpp OpenVINO backend on strix and force GGML_OPENVINO_DEVICE=NPU",
+      "exit": 0,
+      "result": "NPU bench and generation executed; tiny-model output matched CPU."
+    },
+    {
+      "command": "transfer Strata pack to strix and compare SHA-256",
+      "exit": 0,
+      "result": "All five pack files match the main-machine hashes."
+    },
+    {
+      "command": "dequantize selected source IQ4_XS and output IQ2_XS expert slices and weight squared error by the exact per-expert iMatrix",
+      "exit": 0,
+      "result": "Nine samples recorded; median iMatrix-weighted relative squared error 0.09566 versus the already quantized IQ4_XS source."
+    },
+    {
+      "command": "checkpointed SSH transfer of quantized artifact to strix",
+      "exit": 0,
+      "result": "66649935616 bytes transferred in 951 seconds; remote SHA-256 matches 3f61fa27b4279272cfa3c7a3925763c8c2cd9dcafb75cba23c8b2e8babf431b0."
+    },
+    {
+      "command": "Strata engine first real run with experimental native pack",
+      "exit": 0,
+      "result": "Loaded 32.23 GiB experts, completed prefill, generated token 198 at 24.78 tok/s decode."
+    },
+    {
+      "command": "llama-simple target-model NPU diagnostic with GGML_OPENVINO_LOG_UNSUPPORTED_OPS=1",
+      "exit": 1,
+      "result": "Real target graph reached NPU execution but failed on [1,1,3,2560] vs [1,3,1,2560]; unsupported MUL_MAT/MUL_MAT_ID counts recorded."
+    }
+  ],
+  "side_effects": [
+    "Downloaded and retained the pinned source model and iMatrix in the main-machine cache.",
+    "Created a 66.65 GB experimental intermediate GGUF and 1.4 GiB Strata pack in ignored cache paths; neither is committed.",
+    "Created private RESMP-DEV mirrors of GSQ and RCO with GitHub Actions disabled.",
+    "Built ignored llama.cpp CPU tools on the main machine and OpenVINO tools on strix.",
+    "Transferred the pack to strix; the intermediate GGUF transfer completed and its hash was verified on strix."
+  ],
+  "non_claims": [
+    "No perplexity, benchmark score, output-quality comparison, or same-day throughput comparison has run for the new expert mix.",
+    "The intermediate GGUF retains F32 routers. BF16 routers exist in the Strata pack, where all 96 router tensor conversions are exact.",
+    "The 98.4 GB IQ4_XS source is already quantized; this is a real requantization experiment, not a quality-equivalent BF16-source calibration.",
+    "The public iMatrix has 246 of 73728 expert-row count slots with zero observations; llama.cpp substitutes those paths rather than failing.",
+    "GSQ/RCO were mirrored and inspected, but their GPTQ-style pipeline was not run on Qwen3.8 because the required qwen4exp wrapper is absent.",
+    "The tiny llama NPU result does not establish Strata NPU performance or compatibility with Qwen3.8."
+  ],
+  "strix_execution": {
+    "host": "strix",
+    "engine_revision": "f3be3794e56991c9e333fea605ae543c7465cf6a (engine 0.1.41)",
+    "artifact_sha256": "3f61fa27b4279272cfa3c7a3925763c8c2cd9dcafb75cba23c8b2e8babf431b0",
+    "artifact_bytes": 66649935616,
+    "pack_hash_verification": "all five pack files match the main-machine hashes",
+    "required_flags": [
+      "--native",
+      "--ple-gguf",
+      "--spec 2",
+      "--prefill 512",
+      "--expert-profile data/expert-profile.bin",
+      "--expert-cache auto"
+    ],
+    "successful_command": "engine/strata --pack <pack> --native <gguf> --ple-gguf <gguf> --gpu 0 --tokens 100,101,102 --max-context 2048 --max-new 1 --kv int8 --ple-io direct --spec 2 --prefill 512 --expert-profile data/expert-profile.bin --expert-cache auto --stats",
+    "exit": 0,
+    "observed": {
+      "cpu_path": "AVX2 multi-token i-quant gate/up rows; no AVX-512",
+      "native_expert_bytes_loaded": "32.23 GiB at 18.26 GiB/s",
+      "expert_cache": "auto selected 2233 slots / 2.93 GiB and pre-filled from the profile",
+      "prompt_tokens": [
+        100,
+        101,
+        102
+      ],
+      "output_token": 198,
+      "decode_tokens_per_second": 24.78,
+      "prefill_tokens_per_second": 5.47,
+      "time_to_first_token_ms": 1065.9,
+      "expert_cache_hit_rate": 0.0751
+    },
+    "earlier_refusals": [
+      {
+        "exit": 2,
+        "reason": "Native IQ pack requires --native SHARD1, --spec T >= 2, and --prefill CHUNK"
+      },
+      {
+        "exit": 2,
+        "reason": "Speculation requires --expert-profile and --expert-cache for the native token graph"
+      }
+    ],
+    "non_claim": "One three-token prompt and one greedy token prove loading and execution, not general throughput or quality."
+  }
+}
