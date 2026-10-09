@@ -183,6 +183,19 @@
       "mean_weighted_relative_squared_error": 0.10169998929204727,
       "max_weighted_relative_squared_error": 0.11923965943614076,
       "role": "diagnostic reconstruction only; not task quality or perplexity"
+    },
+    "strix_native_rebuild": {
+      "source_path": "/home/kearm/models/qwen-flash-next/static-iq4xs-full/Qwen3.8-Flash-Next.IQ4_XS.gguf",
+      "source_sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb",
+      "output_path": "/home/kearm/models/qwen-flash-next/expert-iq2xs-strix/Qwen3.8-Flash-Next.experts-iq2xs-down-q2-routers-bf16.gguf",
+      "output_sha256": "a643e4aef1a7d5d839186869446ea164d387a1949a7651c427c28bc863119362",
+      "output_bytes": 66649935616,
+      "threads": 24,
+      "wall_seconds": 1713.8746,
+      "peak_rss_kbytes": 29314752,
+      "exit": 0,
+      "type_contract": "PASS: 48 IQ2_XS gate, 48 IQ2_XS up, 48 Q2_0 down, zero non-target type changes",
+      "byte_reproducibility": "FAIL vs main-machine artifact: same size and tensor plan, different SHA-256. Parallel IQ quantization is not byte-reproducible across these hosts/toolchains."
     }
   },
   "strata_pack": {
@@ -344,6 +357,16 @@
       "command": "llama-simple target-model NPU diagnostic with GGML_OPENVINO_LOG_UNSUPPORTED_OPS=1",
       "exit": 1,
       "result": "Real target graph reached NPU execution but failed on [1,1,3,2560] vs [1,3,1,2560]; unsupported MUL_MAT/MUL_MAT_ID counts recorded."
+    },
+    {
+      "command": "full llama-quantize rerun on strix with 24 threads",
+      "exit": 0,
+      "result": "Produced a 66649935616-byte artifact in 1713.8746 seconds with 29314752 KiB peak RSS; all target tensor types passed."
+    },
+    {
+      "command": "Strata engine run using the strix-native quantized artifact",
+      "exit": 0,
+      "result": "Generated token 220 at 25.88 tok/s decode and 6.66 tok/s prefill."
     }
   ],
   "side_effects": [
@@ -359,7 +382,8 @@
     "The 98.4 GB IQ4_XS source is already quantized; this is a real requantization experiment, not a quality-equivalent BF16-source calibration.",
     "The public iMatrix has 246 of 73728 expert-row count slots with zero observations; llama.cpp substitutes those paths rather than failing.",
     "GSQ/RCO were mirrored and inspected, but their GPTQ-style pipeline was not run on Qwen3.8 because the required qwen4exp wrapper is absent.",
-    "The tiny llama NPU result does not establish Strata NPU performance or compatibility with Qwen3.8."
+    "The tiny llama NPU result does not establish Strata NPU performance or compatibility with Qwen3.8.",
+    "The main-machine and Strix quantizations are not byte-identical; the whole-file hash difference and one-token output difference do not quantify quality."
   ],
   "strix_execution": {
     "host": "strix",
@@ -402,6 +426,21 @@
         "reason": "Speculation requires --expert-profile and --expert-cache for the native token graph"
       }
     ],
-    "non_claim": "One three-token prompt and one greedy token prove loading and execution, not general throughput or quality."
+    "non_claim": "One three-token prompt and one greedy token prove loading and execution, not general throughput or quality.",
+    "strix_native_artifact_run": {
+      "exit": 0,
+      "prompt_tokens": [
+        100,
+        101,
+        102
+      ],
+      "output_token": 220,
+      "decode_tokens_per_second": 25.88,
+      "prefill_tokens_per_second": 6.66,
+      "time_to_first_token_ms": 1325.6,
+      "native_expert_load_gib_per_second": 13.53,
+      "expert_cache_hit_rate": 0.0593,
+      "non_claim": "A second successful one-token execution of the artifact quantized natively on Strix; output differs from the main-machine artifact (220 vs 198), consistent with non-byte-reproducible quantization."
+    }
   }
 }

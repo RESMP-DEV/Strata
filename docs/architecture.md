@@ -86,7 +86,7 @@ Level Zero/OpenVINO before any Strata routing claim.
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
 | Strix Intel NPU integration | OpenVINO and llama.cpp execute a tiny F32 llama on NPU, but the real qwen4exp IQ graph falls back on every IQ2_XS/Q2_0 expert matmul and then fails an NPU input-layout check; Strata does not link the backend | Require target-graph NPU operation support or a layout repair, representative expert-shaped parity, and memory/transfer accounting before integration |
 | Strix heterogeneous routing | NVIDIA dGPU, Intel NPU, and CPU are independently visible; Strata currently routes only its existing CUDA/CPU paths | A routing proposal needs per-part correctness, scheduling, and same-day throughput/latency controls before it can replace a default |
-| iMatrix low-bit routed experts | An experimental 3.01-BPW whole-file mix uses IQ2_XS gate/up, Q2_0 down, and exact BF16 pack routers; Strix loaded it and generated one token through CUDA/CPU | Promote nothing until perplexity/output quality and same-day throughput/memory controls beat the current Q2_0/IQ2 choices |
+| iMatrix low-bit routed experts | Strix natively built an experimental 3.01-BPW whole-file mix with IQ2_XS gate/up, Q2_0 down, and exact BF16 pack routers, then generated one token through CUDA/CPU | Promote nothing until quantization is reproducible or bounded and perplexity/output quality plus same-day throughput/memory controls beat the current Q2_0/IQ2 choices |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -186,6 +186,14 @@ loaded by engine 0.1.41 with the shipped expert profile. The engine loaded
 8 GB RTX 5070, completed a three-token prompt, and emitted greedy token 198.
 That one-token run measured 24.78 tokens/s decode and 5.47 tokens/s prefill,
 but it does not establish general throughput or quality.
+
+The same full quantization was then rerun on Strix from a hash-verified local
+copy of the IQ4_XS source. It passed in 1,713.87 seconds with 29,314,752 KiB
+peak RSS, kept the same size and every target tensor type, and loaded through
+the same pack. It produced a different whole-file SHA-256 and greedy token
+(220 rather than 198), so parallel IQ quantization is not currently
+byte-reproducible across the two hosts. The Strix-native run measured 25.88
+tokens/s decode and 6.66 tokens/s prefill for its one-token prompt.
 
 llama.cpp's pinned `ggml-openvino` backend is present even though Strata does
 not link it. Forced to NPU, it executes a tiny F32 llama model and produces
