@@ -1,0 +1,64 @@
+{
+  "recorded_at": "2026-10-09T07:05:00Z",
+  "agent": "Codex",
+  "source_revision": "f3be3794e56991c9e333fea605ae543c7465cf6a",
+  "source_dirty": false,
+  "scope": "Read-only identity/hardware probes plus a Strata CUDA build on the SSH host named strix. Determines whether 12 GB VRAM is enforced and whether the 8 GB RTX 5070 Laptop GPU can build and launch the engine.",
+  "host": {
+    "ssh_alias": "strix",
+    "reported_hostname": "compute",
+    "address": "192.168.1.182",
+    "product": "ASUSTeK COMPUTER INC. ROG Strix G16 G615LP_G615LP",
+    "os": "Ubuntu 26.04.1 LTS, kernel 7.0.0-34-generic",
+    "ram_gb": 91,
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 5070 Laptop GPU",
+      "memory_total_mib": 8151,
+      "memory_free_mib_at_probe": 7707,
+      "driver": "595.91.07",
+      "compute_capability": "12.0"
+    }
+  },
+  "limitation_finding": {
+    "single_gpu": "No hard VRAM minimum is enforced. setup.py gpu_problem() rejects architecture before Turing, but not a supported single GPU for low VRAM.",
+    "warning": "setup.py warns below 11 GB: Strata will run, but most experts stay on the CPU and it will be slow.",
+    "multi_gpu": "A card participating in a layer split must be at least SPLIT_MIN_VRAM_GB = 8 GB, with a 0.5 GB tolerance in gpu_problem().",
+    "split_prompt_recommendation": "SPLIT_PROMPT_VRAM_GB = 12 is a split-stage prompt-buffer recommendation, not the single-GPU requirement.",
+    "docs": "docs/INSTALL.md and docs/AI_SETUP.md state that a 12 GB card is recommended and an NVIDIA 8 GB card runs slowly. README.md compresses this to 12 GB or more and omits the 8 GB qualifier."
+  },
+  "checks": [
+    {
+      "command": "ssh strix 'python3 setup.py --check --yes'",
+      "exit": 0,
+      "result": "Detected RTX 5070 Laptop GPU 8.0 GB, warned below 12 GB, and concluded: This PC can run Strata."
+    },
+    {
+      "command": "build/reports/remote-engine/build.sh on strix",
+      "exit": 0,
+      "result": "CUDA engine built 135/135 for sm_120 with CUDA 13.4 and g++-13; BUILD.json source hash 62eb4907c92a8cb7."
+    },
+    {
+      "command": "ssh strix 'ldd engine/strata && engine/strata --help'",
+      "exit": 0,
+      "result": "Binary resolves CUDA 13.4 runtime/cuBLAS libraries and prints help successfully."
+    }
+  ],
+  "artifacts": {
+    "engine": "/home/kearm/Strata/engine/strata",
+    "engine_sha256": "e557634f8e56c4e43a7f241a449b29c2219bfebba06900231326b998829df70b",
+    "build_receipt_status": "/home/kearm/Strata/build/reports/remote-engine/status.txt",
+    "build_log": "/home/kearm/Strata/build/reports/remote-engine/build.log"
+  },
+  "side_effects": {
+    "remote_checkout": "Created /home/kearm/Strata at detached revision f3be3794e56991c9e333fea605ae543c7465cf6a from a Git bundle.",
+    "remote_build": "Downloaded pinned llama.cpp source and built ignored third_party, build, and engine artifacts.",
+    "system_packages": "setup.sh installed Ubuntu Python venv/pip support (python3-venv, python3-pip, python3-dev, python3.14-dev and related development packages) using sudo before running --check.",
+    "hostname": "No hostname change was made; strix intentionally remains reported as compute."
+  },
+  "non_claims": [
+    "No model download, pack preparation, server start, inference request, output-quality check, or performance measurement was run.",
+    "A successful sm_120 build and --help launch do not establish stable runtime at 8 GB with a real model.",
+    "The idle PCIe width probe reported x8 of a possible x16; no load-time link measurement was made.",
+    "Ubuntu 26.04 is outside setup.py's automatic Ubuntu 22.04/24.04 CUDA install path; this build used the preinstalled system CUDA 13.4."
+  ]
+}

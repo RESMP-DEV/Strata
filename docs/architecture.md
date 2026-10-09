@@ -42,6 +42,7 @@ change did not modify runtime behavior.
 | Common quality mode | `just quality` checks host-safe structure and selected regressions | Add a check only with a test and an explicit non-claim |
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
+| Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -83,3 +84,16 @@ inside the guarded region, a startup failure writes a failing receipt, and
 publication atomically replaces even a symlinked final path. The focused
 contract result is recorded in
 [unlink safety evidence](../evidence/unlink-safety-check.json).
+
+### Strix VRAM boundary, 2026-10-09
+
+The SSH host `strix` is a ROG Strix G16 G615LP at 192.168.1.182 (although its
+reported hostname remains `compute`) with an 8 GB RTX 5070 Laptop GPU, 91 GB
+RAM, CUDA 13.4, and driver 595.91.07. `setup.py --check` accepts it while
+warning that most experts stay on the CPU. Source review confirms that a
+supported single GPU has no hard 12 GB gate; 12 GB is the documented
+performance recommendation. The separate 8 GB requirement applies to a card
+sharing a model, and `SPLIT_PROMPT_VRAM_GB = 12` is only a split-stage prompt
+buffer recommendation. The engine built 135/135 for sm_120 and its binary
+launched `--help`, but no real-model inference was measured. Full evidence and
+side effects are in [Strix VRAM boundary evidence](../evidence/strix-vram-boundary.json).
