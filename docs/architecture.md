@@ -31,6 +31,7 @@ change did not modify runtime behavior.
 | Architecture and decisions | `docs/architecture.md` | Stable ownership/open-choice front matter plus append-only work log | A lasting decision needs claim, evidence, revision, and non-claims |
 | Procedure and checks | `CONTRIBUTING.md` | Host-safe common gate plus affected-backend matrix | Expand only after a command is runnable and scoped |
 | Engine | `src/`, `include/`, `CMakeLists.txt` | CUDA and HIP are primary; SYCL remains separately qualified | Compile every backend touched; measure behavior on real hardware |
+| Accelerator plugin seam | `include/strata/runtime/`, `src/runtime/`, `plugins/` | Backend-neutral ABI v1, reference CPU plugin, probe, and external OpenVINO/NPU router plugin; no default engine call site | An accelerator becomes a routing candidate only after real-operation parity, explicit opt-in configuration, failure tests, and same-day transfer/latency accounting |
 | Installer | `setup.py`, shell and Windows launchers | Existing installer tests cover many choices without downloads | Run affected setup tests and a platform-appropriate smoke test |
 | Local API and web app | `serve/` | OpenAI-, Anthropic-, and Responses-compatible surfaces are implemented in the inherited tree | Exercise the changed protocol and lifecycle boundary |
 | Verification state | `build/reports/`, `evidence/` | Generated receipts are transient; durable evidence is tracked | Receipts must bind revision, dirty state, scope, commands, and non-claims |
@@ -84,9 +85,9 @@ Level Zero/OpenVINO before any Strata routing claim.
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
-| Strix Intel NPU integration | OpenVINO and llama.cpp execute a tiny F32 llama on NPU, but the real qwen4exp IQ graph falls back on every IQ2_XS/Q2_0 expert matmul and then fails an NPU input-layout check; Strata does not link the backend | Require target-graph NPU operation support or a layout repair, representative expert-shaped parity, and memory/transfer accounting before integration |
+| Strix Intel NPU integration | llama.cpp's whole qwen4exp IQ graph fails on unsupported IQ matmuls plus an NPU layout mismatch, but the explicit Strata plugin ABI now runs a representative one-token `2560x512` router on `Intel(R) AI Boost` through OpenVINO, translating BF16 ABI tensors to F16 because this driver rejects BF16 inference precision; the model engine does not load the plugin | Integration requires explicit opt-in CLI/config, real-model parity and failure tests, plus same-day CPU/CUDA/NPU latency and transfer accounting |
 | Strix heterogeneous routing | NVIDIA dGPU, Intel NPU, and CPU are independently visible; Strata currently routes only its existing CUDA/CPU paths | A routing proposal needs per-part correctness, scheduling, and same-day throughput/latency controls before it can replace a default |
-| iMatrix low-bit routed experts | Strix natively built an experimental 3.01-BPW whole-file mix with IQ2_XS gate/up, Q2_0 down, and exact BF16 pack routers, then generated one token through CUDA/CPU | Promote nothing until quantization is reproducible or bounded and perplexity/output quality plus same-day throughput/memory controls beat the current Q2_0/IQ2 choices |
+| iMatrix low-bit routed experts | The cross-host IQ2_XS difference is isolated to the derived-weight square-root expression before codebook selection; `STRATA_DETERMINISTIC_IQ=1` applies the validated double-precision expression to downloaded llama.cpp source while the default pinned path stays unchanged | A full patched rerun, perplexity/output quality, and same-day throughput/memory controls remain required before replacing a normal quantization choice |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -207,3 +208,37 @@ llama.cpp/OpenVINO path does not run the target quantized qwen4exp graph
 correctly. Full hashes, sampled reconstruction errors, commands, timings,
 and non-claims are in
 [IQ2/iMatrix and NPU evidence](../evidence/iq2-imatrix-npu-experiment.json).
+
+### IQ2_XS reproducibility and accelerator plugin seam, 2026-10-10
+
+The whole-artifact and per-tensor comparison isolated the previous cross-host
+difference to IQ2_XS gate/up tensors; every Q2_0 `ffn_down_exps` tensor matched.
+With bit-identical layer-0 gate-expert-0 input and iMatrix data, both hosts were
+internally repeatable but produced different IQ2_XS bytes. Equal block variances
+and unequal derived `w = qw * sqrtf(sigma2 + x*x)` bit patterns place the root
+cause in host single-precision square-root/contraction arithmetic before codebook
+selection. Promoting that add, square, and square root to double precision while
+compiling the quantizer with `-ffp-contract=off` made Apple Clang and Strix GCC
+produce the same 640-row expert bytes,
+`e5b46bc8dbee76ad6c6975755436c77ee55be859b9d08f2d4fa9a4c0c19ffe2a`. Setup now
+applies this only when `STRATA_DETERMINISTIC_IQ=1`, refuses a moved upstream
+expression, and leaves the default third-party path unchanged. Full quantization
+and quality controls were not rerun. Full hashes and non-claims are in
+[IQ2 reproducibility evidence](../evidence/iq2-xs-reproducibility.json).
+
+K-Transformers at `6160538c81fc1d2cbc1952302a6d4b77a8adcd2e` informed the seam
+shape without being imported: its archived YAML optimizer imports an explicit
+replacement class for each matched module, while current KT-Kernel validates a
+method name and maps it to a specific Python wrapper/backend. Strata's analogous
+first boundary is a C ABI for one router operation. The loader/reference test
+passed on macOS and Linux, and an OpenVINO plugin compiled on Strix. The first
+NPU attempt exposed two real contracts: this driver accepts F16/I8 inference
+precision but rejects BF16, and its compiler requires a static one-token shape
+rather than an unbounded dynamic token dimension. The BF16-to-F16 plugin then
+passed a representative `2560x512`, one-token router probe with max absolute
+error `4.5975e-09`; execution was `25.189 ms`, correctness evidence rather than
+a performance claim. No model-generation path loads a plugin yet. Commands and
+outputs are in
+[accelerator plugin evidence](../evidence/accelerator-plugin-router-probe.json).
+Operational build and probe instructions live in
+[accelerator plugins](ACCELERATOR_PLUGINS.md).

@@ -1,0 +1,72 @@
+{
+  "recorded_at": "2026-10-10T06:03:38Z",
+  "agent": "Codex",
+  "source_revision": "bdf692ffb1c67c7c687b771048fa3f8287d1b8bec",
+  "source_dirty": true,
+  "scope": "Adds and exercises a backend-neutral opt-in router-logits plugin ABI with a reference CPU implementation and an external OpenVINO NPU implementation. It does not integrate the plugin into Strata model generation.",
+  "reference_architecture": {
+    "project": "kvcache-ai/ktransformers",
+    "commit": "6160538c81fc1d2cbc1952302a6d4b77a8adcd2e",
+    "findings": [
+      "The archived YAML optimizer matches a module and imports an explicit replacement Python class path with per-stage generate/prefill devices and operations.",
+      "Current KT-Kernel validates a method string and maps it to a specific wrapper/backend implementation rather than treating a device as a global graph replacement.",
+      "The inspected tree has Ascend NPU integration, but no Intel OpenVINO/NPU backend was found."
+    ]
+  },
+  "checks": [
+    {
+      "name": "macos-plugin-abi",
+      "commands": [
+        "cmake -S . -B build/plugin-check -G Ninja -DSTRATA_BUILD_TESTS=ON",
+        "cmake --build build/plugin-check --target strata-plugin-probe plugin_loader_test -j8",
+        "ctest --test-dir build/plugin-check -R '^plugin_loader_test$' --output-on-failure",
+        "./build/plugin-check/strata-plugin-probe ./build/plugin-check/reference_accelerator_plugin.so 8 4 2 0.001"
+      ],
+      "exit": 0,
+      "result": "The dynamic loader accepted ABI 1, loaded reference-cpu, executed the BF16 router, and all logits matched the CPU reference with max_abs_error 0. The failure paths rejected a nonexistent library path and invalid router dimensions."
+    },
+    {
+      "name": "strix-plugin-abi",
+      "commands": [
+        "cmake -S . -B build/plugin-remote -G Ninja -DSTRATA_BUILD_TESTS=ON",
+        "cmake --build build/plugin-remote --target strata-plugin-probe plugin_loader_test -j8",
+        "ctest --test-dir build/plugin-remote -R '^plugin_loader_test$' --output-on-failure"
+      ],
+      "exit": 0,
+      "platform": "ROG Strix G615LP, Ubuntu 26.04, GCC 15.2.0"
+    },
+    {
+      "name": "openvino-npu-boundaries",
+      "results": [
+        "A BF16 INFERENCE_PRECISION_HINT request failed because this NPU configuration supports f16 and i8, not bf16.",
+        "A dynamic first-dimension graph failed NPU compilation with 'Missing upper bound for one or more nodes'.",
+        "After explicit BF16-to-F16 conversion and a static one-token graph, set_input_tensor/set_output_tensor worked."
+      ]
+    },
+    {
+      "name": "representative-router-probe",
+      "command": "timeout 120s ./build/plugin-remote/strata-plugin-probe ./build/plugin-remote/libstrata_openvino_npu.so 2560 512 1 0.05",
+      "exit": 0,
+      "result": {
+        "abi": 1,
+        "device": "Intel(R) AI Boost",
+        "runtime_precision": "f16",
+        "input_abi_precision": "bf16",
+        "max_tokens": 1,
+        "n_in": 2560,
+        "n_out": 512,
+        "max_abs_error": 4.5975e-09,
+        "load_seconds": 0.0214891,
+        "execute_seconds": 0.0251889,
+        "passed": true
+      }
+    }
+  ],
+  "non_claims": [
+    "No Strata model-generation path, CLI, or server invokes the plugin ABI yet.",
+    "The NPU result does not establish useful routing performance, especially because one synchronous execution measured 25.189 ms.",
+    "No same-day CUDA/CPU router control, transfer accounting, repeated-run latency distribution, or real-model output comparison was run.",
+    "The OpenVINO plugin is not built by default and has not been compiled on Windows or against another OpenVINO release.",
+    "The K-Transformers inspection is pinned to one upstream commit and does not import or endorse its code for Strata."
+  ]
+}

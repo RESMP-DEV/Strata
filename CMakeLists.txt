@@ -220,6 +220,27 @@ if(STRATA_WERROR)
     $<$<COMPILE_LANGUAGE:HIP>:-Werror>)
 endif()
 
+# ---- accelerator plugin ABI -----------------------------------------------
+# This library is backend-neutral by design. The normal CUDA/HIP engine does not
+# load a plugin; an explicit caller (probe or future router configuration) does.
+add_library(strata_accelerator_plugin STATIC src/runtime/accelerator_plugin.cpp)
+target_include_directories(strata_accelerator_plugin PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(strata_accelerator_plugin PUBLIC strata_warnings)
+
+add_executable(strata-plugin-probe src/runtime/plugin_probe_main.cpp)
+target_link_libraries(strata-plugin-probe PRIVATE strata_accelerator_plugin)
+
+if(STRATA_BUILD_TESTS)
+  add_library(reference_accelerator_plugin MODULE tests/runtime/reference_router_plugin.cpp)
+  target_link_libraries(reference_accelerator_plugin PRIVATE strata_warnings)
+  set_target_properties(reference_accelerator_plugin PROPERTIES PREFIX "")
+  add_executable(plugin_loader_test tests/runtime/plugin_loader_test.cpp)
+  target_link_libraries(plugin_loader_test PRIVATE strata_accelerator_plugin)
+  add_dependencies(plugin_loader_test reference_accelerator_plugin)
+  add_test(NAME plugin_loader_test COMMAND plugin_loader_test $<TARGET_FILE:reference_accelerator_plugin>)
+  set_tests_properties(plugin_loader_test PROPERTIES TIMEOUT 30)
+endif()
+
 # ---- strata_artifact -------------------------------------------------------
 # Header-only, and that is a deliberate property rather than an unfinished split: the GGUF reader and the
 # scalar dequantizers hold no state worth hiding, and a header-only boundary cannot introduce a

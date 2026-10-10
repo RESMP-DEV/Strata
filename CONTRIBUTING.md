@@ -44,13 +44,15 @@ roadmap.
 
 Run `just quality` first on a host without GPU toolchains. It writes
 `build/reports/quality/receipt.json` and covers maintained structure, selected
-setup regressions, script tests, Ruff, ShellCheck warning severity, and Git
-whitespace. It intentionally does not compile an engine.
+setup regressions, the host-safe accelerator-plugin ABI test, script tests,
+Ruff, ShellCheck warning severity, and Git whitespace. It intentionally does
+not compile an engine.
 
 | Changed area | Required evidence |
 | --- | --- |
 | `AGENTS.md`, `CONTRIBUTING.md`, governance docs, receipt runner | `just quality` |
 | `scripts/` | `just quality`; add or update the colocated test for each check domain |
+| Host-safe plugin ABI and probe | `python3 scripts/check_plugins.py` (included in `just quality`) |
 | `setup.py` or installer behavior | Affected `python3 tools/test_setup_<name>.py`, plus a fresh installer smoke test appropriate to the platform |
 | `serve/` | Affected `serve/test_*.py` and an API/request lifecycle check that exercises the changed boundary |
 | Engine source shared by CUDA and HIP | CUDA and HIP builds for the affected target; no SYCL claim unless SYCL also builds |

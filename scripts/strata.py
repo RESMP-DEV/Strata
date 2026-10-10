@@ -19,9 +19,10 @@ ROOT = SCRIPTS.parent
 REPORT = ROOT / "build" / "reports" / "quality" / "receipt.json"
 LOG_ROOT = ROOT / "build" / "reports" / "quality" / "logs"
 SCOPE = (
-    "Validates repository governance, six selected setup regressions, script tests, "
-    "maintained-script Ruff lint/format, shell warning lint, and Git whitespace on this "
-    "host. It does not compile CUDA, HIP, or SYCL, run the full setup matrix, start the "
+    "Validates repository governance, seven selected setup regressions, the host-safe "
+    "accelerator-plugin ABI test, script tests, maintained-script Ruff lint/format, "
+    "shell warning lint, and Git whitespace on this host. It does not compile CUDA, "
+    "HIP, or SYCL, run the full setup matrix, start the "
     "server, download a model, or measure performance."
 )
 
@@ -133,6 +134,10 @@ def quality() -> int:
                 run_logged(
                     "selected-setup-tests",
                     [sys.executable, "scripts/check_setup.py"],
+                ),
+                run_logged(
+                    "plugin-abi",
+                    [sys.executable, "scripts/check_plugins.py"],
                 ),
                 run_logged("ruff-check", ["ruff", "check", "scripts"]),
                 run_logged("ruff-format", ["ruff", "format", "--check", "scripts"]),

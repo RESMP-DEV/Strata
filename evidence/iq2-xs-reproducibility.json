@@ -1,0 +1,56 @@
+{
+  "recorded_at": "2026-10-10T06:03:38Z",
+  "agent": "Codex",
+  "source_revision": "bdf692ffb1c67c7c687b771048fa3f8287d1b8bec",
+  "source_dirty": true,
+  "scope": "Isolates the main-machine/Strix IQ2_XS artifact difference and validates an opt-in double-precision derived-weight patch against one identical 640-row expert. This receipt does not claim reproducibility for other i-quant types or a full rerun of the 66,649,935,616-byte model.",
+  "artifacts": {
+    "source_gguf_sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb",
+    "imatrix_sha256": "78661751ccf1e2e301c4313d1feb1394cfa978784daf518e4fe2e0cccdc1c290",
+    "main_artifact_sha256": "3f61fa27b4279272cfa3c7a3925763c8c2cd9dcafb75cba23c8b2e8babf431b0",
+    "strix_artifact_sha256": "a643e4aef1a7d5d839186869446ea164d387a1949a7651c427c28bc863119362",
+    "artifact_bytes": 66649935616,
+    "identical_tensor_plan": true
+  },
+  "checks": [
+    {
+      "name": "whole-artifact-and-tensor-plan",
+      "result": "Both artifacts have the same size and tensor-type plan; all 48 ffn_down_exps Q2_0 tensors match, while all 96 IQ2_XS gate/up tensors differ across every layer.",
+      "conclusion": "The difference is IQ2_XS quantization, not GGUF layout, Q2_0, copying, or scheduling."
+    },
+    {
+      "name": "controlled-layer-0-gate-expert-0",
+      "result": "Raw IQ4_XS source bytes and the exact 2560-value iMatrix slice are identical on both hosts. IQ4_XS dequantized floats and block variances are bit-identical. Repeated original quantization is deterministic per host: main be823537fd0a7281ed37052a28a944cba6238cffbce54edb508fab728d07e95f, Strix fc2e17a84233464f7ce23c077c77f7fa9e60a3fbb6220292b367421e86eb3902."
+    },
+    {
+      "name": "cross-host-output-extent",
+      "result": "The original one-expert outputs differ in 573 output bytes, 323 of 6400 IQ2_XS blocks, and 257 of 640 rows."
+    },
+    {
+      "name": "derived-weight-divergence",
+      "result": "Before codebook selection, w bits differ in 296376/1638400 values (18.09%) and qw*w in 257713/1638400 (15.73%), while sigma2 blocks match. Strix GCC -O0 and -ffp-contract=off preserve fc2e17...; -ffast-math produces another result. The float add/multiply/square-root expression, not block variance or parallel scheduling, is the origin."
+    },
+    {
+      "name": "patched-cross-host-hash",
+      "commands": [
+        "DYLD_LIBRARY_PATH=/tmp/llama-dsqrt/build/bin /tmp/iq2_probe_optin /tmp/q-source.raw /tmp/q-imatrix.f32 /tmp/q-dsqrt-main.bin 640",
+        "sha256sum /tmp/q-dsqrt-main.bin",
+        "sha256sum /home/kearm/Strata/build/quant-research/q-dsqrt2-strix.bin"
+      ],
+      "result": "Apple Clang and Strix GCC both produced e5b46bc8dbee76ad6c6975755436c77ee55be859b9d08f2d4fa9a4c0c19ffe2a. The quantizer and probe were compiled with -ffp-contract=off."
+    },
+    {
+      "name": "opt-in-setup-contract",
+      "command": "python3 -m unittest discover -s tools -p test_setup_deterministic_iq.py -v",
+      "exit": 0,
+      "result": "3 tests passed: no patch without STRATA_DETERMINISTIC_IQ=1, idempotent patch with the gate, and loud refusal when the upstream expression moves."
+    }
+  ],
+  "non_claims": [
+    "The full 66.65 GB model was not requantized again with the opt-in patch.",
+    "The patch is not a default installer or engine behavior and does not change the pinned llama.cpp source without STRATA_DETERMINISTIC_IQ=1.",
+    "The patch does not establish perplexity, output quality, or throughput superiority for the 3.01-BPW mix.",
+    "Other IQ formats with similar derived-weight expressions were not proven deterministic.",
+    "The setup tests prove patch application and refusal behavior, not compilation of llama-quantize in every installer matrix."
+  ]
+}
