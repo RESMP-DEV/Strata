@@ -1,0 +1,13 @@
+diff --git a/ggml/src/ggml-quants.c b/ggml/src/ggml-quants.c
+--- a/ggml/src/ggml-quants.c
++++ b/ggml/src/ggml-quants.c
+@@ -3516,7 +3516,8 @@ static void quantize_row_iq2_xs_impl(const float * GGML_RESTRICT x, void * GGML_
+         for (int ib = 0; ib < QK_K/16; ++ib) {
+             const float * xb = xbl + 16*ib;
+             const float * qw = quant_weights + QK_K*ibl + 16*ib;
+-            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * sqrtf(sigma2 + xb[i]*xb[i]);
++            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * (float)sqrt(
++                (double)sigma2 + (double)xb[i] * (double)xb[i]);
+             for (int i = 0; i < 16; ++i) waux[i] = sqrtf(weight[i]);
+             for (int k = 0; k < 2; ++k) {
+                 int nflip = 0;

@@ -12,6 +12,7 @@ SELECTED_SETUP_TESTS = (
     "test_setup_amd.py",
     "test_setup_config.py",
     "test_setup_configs.py",
+    "test_setup_deterministic_iq.py",
     "test_setup_hotfix_tag.py",
     "test_setup_rope.py",
     "test_setup_sycl.py",

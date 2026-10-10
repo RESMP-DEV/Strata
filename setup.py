@@ -166,6 +166,15 @@ HF = hf("ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF")
 LLAMA_CPP_COMMIT = "3cf03257f219afbe7334045ff7c6a06ac68c627d"
 LLAMA_CPP_ZIP = f"https://github.com/ggml-org/llama.cpp/archive/{LLAMA_CPP_COMMIT}.zip"
 
+DETERMINISTIC_IQ = "STRATA_DETERMINISTIC_IQ"
+LLAMA_IQ2_XS_WEIGHT_ORIGINAL = (
+    "            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * sqrtf(sigma2 + xb[i]*xb[i]);"
+)
+LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC = (
+    "            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * (float)sqrt("
+    "(double)sigma2 + (double)xb[i] * (double)xb[i]);"
+)
+
 # The ready-made engine: <PREBUILT_URL><asset>, a zip with strata(.exe), strata-vision(.exe) and BUILD.json, built
 # by tools/make_release.py.  Set this to the GitHub release download folder when publishing, e.g.
 # "https://github.com/<you>/Strata/releases/latest/download/" (or pass --prebuilt / set STRATA_PREBUILT_URL).
@@ -1564,6 +1573,7 @@ def get_llama_cpp():
     """llama.cpp at the pinned commit (ggml for the build, gguf-py for the tools, mtmd for images), as a zip: no git."""
     llama = ROOT / "third_party" / "llama.cpp"
     if (llama / "ggml" / "CMakeLists.txt").exists() and (llama / "gguf-py").is_dir():
+        apply_optional_llama_patches(llama)
         return llama
     z = ROOT / "third_party" / f"llama.cpp-{LLAMA_CPP_COMMIT[:7]}.zip"
     download(LLAMA_CPP_ZIP, z, "llama.cpp source")
@@ -1590,7 +1600,47 @@ def get_llama_cpp():
     shutil.rmtree(tmp, ignore_errors=True)
     z.unlink(missing_ok=True)
     z.with_name(z.name + ".done").unlink(missing_ok=True)
+    apply_optional_llama_patches(llama)
     return llama
+
+
+def apply_optional_llama_patches(llama):
+    """Apply opt-in research patches without changing the normal pinned source.
+
+    STRATA_DETERMINISTIC_IQ=1 patches IQ2_XS quantization's derived weights to
+    use double precision for the add, square, and square root. This is not a
+    default-path change and must be paired with -ffp-contract=off for the
+    quantizer. The function is idempotent and fails loudly if the pinned source
+    no longer contains the expected expression.
+    """
+    if os.environ.get(DETERMINISTIC_IQ) != "1":
+        return False
+    path = llama / "ggml" / "src" / "ggml-quants.c"
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise RuntimeError(f"could not read {path} for deterministic IQ patch: {error}") from error
+    if LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC in source:
+        return False
+    function_start = source.find("static void quantize_row_iq2_xs_impl")
+    function_end = source.find("\nsize_t quantize_iq2_xs", function_start + 1) if function_start >= 0 else -1
+    if function_start < 0 or function_end < 0:
+        raise RuntimeError(f"could not locate quantize_row_iq2_xs_impl in {path}")
+    function_source = source[function_start:function_end]
+    count = function_source.count(LLAMA_IQ2_XS_WEIGHT_ORIGINAL)
+    if count != 1:
+        raise RuntimeError(
+            f"deterministic IQ patch expects one IQ2_XS weight expression in {path}, found {count}"
+        )
+    path.write_text(
+        source[:function_start]
+        + function_source.replace(LLAMA_IQ2_XS_WEIGHT_ORIGINAL, LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC)
+        + source[function_end:],
+        encoding="utf-8",
+        newline="\n",
+    )
+    ok("llama.cpp patched for deterministic IQ2_XS (research mode)")
+    return True
 
 
 def req_name(line: str) -> str:
