@@ -59,6 +59,23 @@ class DeterministicIQPatchTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "found 0"):
                     setup.apply_optional_llama_patches(llama)
 
+    def test_patch_reverts_when_the_gate_is_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            llama = self.write_source(Path(temporary), setup.LLAMA_IQ2_XS_WEIGHT_ORIGINAL)
+            with (
+                mock.patch.dict("os.environ", {"STRATA_DETERMINISTIC_IQ": "1"}),
+                mock.patch.object(setup, "ok"),
+            ):
+                self.assertTrue(setup.apply_optional_llama_patches(llama))
+            with (
+                mock.patch.dict("os.environ", {"STRATA_DETERMINISTIC_IQ": "0"}),
+                mock.patch.object(setup, "ok"),
+            ):
+                self.assertFalse(setup.apply_optional_llama_patches(llama))
+            source = (llama / "ggml" / "src" / "ggml-quants.c").read_text(encoding="utf-8")
+            self.assertIn(setup.LLAMA_IQ2_XS_WEIGHT_ORIGINAL, source)
+            self.assertNotIn(setup.LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC, source)
+
 
 if __name__ == "__main__":
     unittest.main()

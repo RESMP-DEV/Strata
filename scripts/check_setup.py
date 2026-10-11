@@ -16,6 +16,8 @@ SELECTED_SETUP_TESTS = (
     "test_setup_hotfix_tag.py",
     "test_setup_rope.py",
     "test_setup_sycl.py",
+    "test_setup_token_imatrix.py",
+    "test_standard_imatrix.py",
 )
 
 

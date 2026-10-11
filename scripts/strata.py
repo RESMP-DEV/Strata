@@ -19,7 +19,7 @@ ROOT = SCRIPTS.parent
 REPORT = ROOT / "build" / "reports" / "quality" / "receipt.json"
 LOG_ROOT = ROOT / "build" / "reports" / "quality" / "logs"
 SCOPE = (
-    "Validates repository governance, seven selected setup regressions, the host-safe "
+    "Validates repository governance, nine selected setup regressions, the host-safe "
     "accelerator-plugin ABI test, script tests, maintained-script Ruff lint/format, "
     "shell warning lint, and Git whitespace on this host. It does not compile CUDA, "
     "HIP, or SYCL, run the full setup matrix, start the "

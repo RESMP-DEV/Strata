@@ -167,6 +167,7 @@ LLAMA_CPP_COMMIT = "3cf03257f219afbe7334045ff7c6a06ac68c627d"
 LLAMA_CPP_ZIP = f"https://github.com/ggml-org/llama.cpp/archive/{LLAMA_CPP_COMMIT}.zip"
 
 DETERMINISTIC_IQ = "STRATA_DETERMINISTIC_IQ"
+TOKEN_IMATRIX = "STRATA_TOKEN_IMATRIX"
 LLAMA_IQ2_XS_WEIGHT_ORIGINAL = (
     "            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * sqrtf(sigma2 + xb[i]*xb[i]);"
 )
@@ -174,6 +175,57 @@ LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC = (
     "            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * (float)sqrt("
     "(double)sigma2 + (double)xb[i] * (double)xb[i]);"
 )
+LLAMA_IMATRIX_TOKEN_GLOBAL = "static std::string g_token_file;"
+LLAMA_IMATRIX_TOKEN_PATCH_MARKER = "static bool extract_token_file_argument"
+LLAMA_IMATRIX_USAGE_ORIGINAL = (
+    '            "       -m model.gguf -f some-text.txt '
+    '[-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \\\\\\n"'
+)
+LLAMA_IMATRIX_USAGE_TOKENS = (
+    '            "       -m model.gguf (-f some-text.txt | --token-file tokens.i32) "\n'
+    '            "[-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \\\\\\n"'
+)
+LLAMA_IMATRIX_COMPUTE_START = "static bool compute_imatrix(llama_context * ctx, const common_params & params, const int32_t n_ctx) {"
+LLAMA_IMATRIX_TOKENIZATION_ORIGINAL = '''    auto tim1 = std::chrono::high_resolution_clock::now();
+    LOG_INF("%s: tokenizing the input ..\\n", __func__);
+
+    std::vector<llama_token> tokens = common_tokenize(ctx, params.prompt, true, params.parse_special);
+
+    auto tim2 = std::chrono::high_resolution_clock::now();
+    LOG_INF("%s: tokenization took %g ms\\n",__func__,1e-3*std::chrono::duration_cast<std::chrono::microseconds>(tim2-tim1).count());
+'''
+LLAMA_IMATRIX_TOKENIZATION_TOKENS = '''    auto tim1 = std::chrono::high_resolution_clock::now();
+    LOG_INF("%s: preparing the token input ..\\n", __func__);
+
+    std::vector<llama_token> tokens;
+    if (!g_token_file.empty()) {
+        if (!read_token_file(g_token_file, vocab, tokens)) return false;
+    } else {
+        tokens = common_tokenize(ctx, params.prompt, true, params.parse_special);
+    }
+
+    auto tim2 = std::chrono::high_resolution_clock::now();
+    LOG_INF("%s: token input took %g ms\\n",__func__,1e-3*std::chrono::duration_cast<std::chrono::microseconds>(tim2-tim1).count());
+'''
+LLAMA_IMATRIX_PARSE_ORIGINAL = '''    common_init();
+
+    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_IMATRIX, print_usage)) {
+        return 1;
+    }
+'''
+LLAMA_IMATRIX_PARSE_TOKENS = '''    common_init();
+
+    if (!extract_token_file_argument(argc, argv)) {
+        return 1;
+    }
+
+    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_IMATRIX, print_usage)) {
+        return 1;
+    }
+    if (!g_token_file.empty()) {
+        params.prompt_file = g_token_file;
+    }
+'''
 
 # The ready-made engine: <PREBUILT_URL><asset>, a zip with strata(.exe), strata-vision(.exe) and BUILD.json, built
 # by tools/make_release.py.  Set this to the GitHub release download folder when publishing, e.g.
@@ -1612,9 +1664,24 @@ def apply_optional_llama_patches(llama):
     default-path change and must be paired with -ffp-contract=off for the
     quantizer. The function is idempotent and fails loudly if the pinned source
     no longer contains the expected expression.
+
+    STRATA_TOKEN_IMATRIX=1 adds a --token-file input to llama-imatrix so the
+    standard tokenized calibration view can be used without retokenizing or
+    collapsing its selected windows into contiguous raw-text chunks.
     """
-    if os.environ.get(DETERMINISTIC_IQ) != "1":
-        return False
+    applied = False
+    if os.environ.get(DETERMINISTIC_IQ) == "1":
+        applied = apply_deterministic_iq_patch(llama) or applied
+    else:
+        reverse_deterministic_iq_patch(llama)
+    if os.environ.get(TOKEN_IMATRIX) == "1":
+        applied = apply_imatrix_token_patch(llama) or applied
+    else:
+        reverse_imatrix_token_patch(llama)
+    return applied
+
+
+def apply_deterministic_iq_patch(llama):
     path = llama / "ggml" / "src" / "ggml-quants.c"
     try:
         source = path.read_text(encoding="utf-8")
@@ -1641,6 +1708,92 @@ def apply_optional_llama_patches(llama):
     )
     ok("llama.cpp patched for deterministic IQ2_XS (research mode)")
     return True
+
+
+def reverse_deterministic_iq_patch(llama):
+    path = llama / "ggml" / "src" / "ggml-quants.c"
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC not in source:
+        return False
+    source = source.replace(LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC, LLAMA_IQ2_XS_WEIGHT_ORIGINAL, 1)
+    path.write_text(source, encoding="utf-8", newline="\n")
+    ok("llama.cpp deterministic IQ2_XS patch reverted")
+    return False
+
+
+def apply_imatrix_token_patch(llama):
+    path = llama / "tools" / "imatrix" / "imatrix.cpp"
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise RuntimeError(f"could not read {path} for token iMatrix patch: {error}") from error
+    if LLAMA_IMATRIX_TOKEN_PATCH_MARKER in source:
+        return False
+
+    include_anchor = "#include <regex>\n#include <numeric>\n"
+    compute_anchor = LLAMA_IMATRIX_COMPUTE_START
+    prompt_check = "    if (params.prompt.empty()) {"
+    replacements = (
+        (include_anchor, include_anchor + "\n" + LLAMA_IMATRIX_TOKEN_GLOBAL + "\n", 1),
+        (LLAMA_IMATRIX_USAGE_ORIGINAL, LLAMA_IMATRIX_USAGE_TOKENS, 1),
+        (
+            LLAMA_IMATRIX_TOKENIZATION_ORIGINAL,
+            LLAMA_IMATRIX_TOKENIZATION_TOKENS,
+            1,
+        ),
+        (LLAMA_IMATRIX_PARSE_ORIGINAL, LLAMA_IMATRIX_PARSE_TOKENS, 1),
+        (prompt_check, "    if (params.prompt.empty() && g_token_file.empty()) {", 1),
+    )
+    for original, replacement, expected in replacements:
+        count = source.count(original)
+        if count != expected:
+            raise RuntimeError(
+                f"token iMatrix patch expects {expected} occurrence of a moved llama.cpp block in {path}, found {count}: {original[:60]!r}"
+            )
+        source = source.replace(original, replacement, expected)
+
+    token_functions = (Path(__file__).parent / "tools" / "patches" / "llama-imatrix-token-functions.cpp").read_text(encoding="utf-8").rstrip("\n")
+    count = source.count(compute_anchor)
+    if count != 1:
+        raise RuntimeError(f"token iMatrix patch expects one compute_imatrix definition in {path}, found {count}")
+    source = source.replace(compute_anchor, token_functions + "\n\n" + compute_anchor, 1)
+    path.write_text(source, encoding="utf-8", newline="\n")
+    ok("llama.cpp patched for token-file iMatrix input (research mode)")
+    return True
+
+
+def reverse_imatrix_token_patch(llama):
+    path = llama / "tools" / "imatrix" / "imatrix.cpp"
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if LLAMA_IMATRIX_TOKEN_PATCH_MARKER not in source:
+        return False
+    include_anchor = "#include <regex>\n#include <numeric>\n"
+    compute_anchor = LLAMA_IMATRIX_COMPUTE_START
+    functions = (Path(__file__).parent / "tools" / "patches" / "llama-imatrix-token-functions.cpp").read_text(encoding="utf-8").rstrip("\n")
+    replacements = (
+        (functions + "\n\n" + compute_anchor, compute_anchor, 1),
+        (LLAMA_IMATRIX_TOKENIZATION_TOKENS, LLAMA_IMATRIX_TOKENIZATION_ORIGINAL, 1),
+        (LLAMA_IMATRIX_PARSE_TOKENS, LLAMA_IMATRIX_PARSE_ORIGINAL, 1),
+        (LLAMA_IMATRIX_USAGE_TOKENS, LLAMA_IMATRIX_USAGE_ORIGINAL, 1),
+        ("    if (params.prompt.empty() && g_token_file.empty()) {", "    if (params.prompt.empty()) {", 1),
+        (include_anchor + "\n" + LLAMA_IMATRIX_TOKEN_GLOBAL + "\n", include_anchor, 1),
+    )
+    for current, original, expected in replacements:
+        count = source.count(current)
+        if count != expected:
+            raise RuntimeError(
+                f"could not revert token iMatrix patch in {path}: expected {expected} block, found {count}"
+            )
+        source = source.replace(current, original, expected)
+    path.write_text(source, encoding="utf-8", newline="\n")
+    ok("llama.cpp token-file iMatrix patch reverted")
+    return False
 
 
 def req_name(line: str) -> str:

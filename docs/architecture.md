@@ -32,6 +32,7 @@ change did not modify runtime behavior.
 | Procedure and checks | `CONTRIBUTING.md` | Host-safe common gate plus affected-backend matrix | Expand only after a command is runnable and scoped |
 | Engine | `src/`, `include/`, `CMakeLists.txt` | CUDA and HIP are primary; SYCL remains separately qualified | Compile every backend touched; measure behavior on real hardware |
 | Accelerator plugin seam | `include/strata/runtime/`, `src/runtime/`, `plugins/` | Backend-neutral ABI v1, reference CPU plugin, probe, and external OpenVINO/NPU router plugin; no default engine call site | An accelerator becomes a routing candidate only after real-operation parity, explicit opt-in configuration, failure tests, and same-day transfer/latency accounting |
+| Quantization calibration | `tools/standard_imatrix.py`, opt-in llama.cpp token patch | Pins the RESMP-DEV Qwen3.8 `[256,2048]` token view and preserves its selected windows; the public mradermacher matrix remains a separate dated input | A standard-calibrated artifact needs deterministic quantization plus quality and same-day throughput/memory controls |
 | Installer | `setup.py`, shell and Windows launchers | Existing installer tests cover many choices without downloads | Run affected setup tests and a platform-appropriate smoke test |
 | Local API and web app | `serve/` | OpenAI-, Anthropic-, and Responses-compatible surfaces are implemented in the inherited tree | Exercise the changed protocol and lifecycle boundary |
 | Verification state | `build/reports/`, `evidence/` | Generated receipts are transient; durable evidence is tracked | Receipts must bind revision, dirty state, scope, commands, and non-claims |
@@ -76,6 +77,8 @@ the corresponding CUDA/HIP implementations under `src/kernels/` and
 reference differences and a real-model output comparison. A proposal that uses
 the NPU must separately prove a representative expert-shaped operation through
 Level Zero/OpenVINO before any Strata routing claim.
+Calibration-source identities, exact-token handling, and resume behavior are in
+[calibration](CALIBRATION.md).
 
 ## Open choices
 
@@ -87,7 +90,7 @@ Level Zero/OpenVINO before any Strata routing claim.
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
 | Strix Intel NPU integration | llama.cpp's whole qwen4exp IQ graph fails on unsupported IQ matmuls plus an NPU layout mismatch, but the explicit Strata plugin ABI now runs a representative one-token `2560x512` router on `Intel(R) AI Boost` through OpenVINO, translating BF16 ABI tensors to F16 because this driver rejects BF16 inference precision; the model engine does not load the plugin | Integration requires explicit opt-in CLI/config, real-model parity and failure tests, plus same-day CPU/CUDA/NPU latency and transfer accounting |
 | Strix heterogeneous routing | NVIDIA dGPU, Intel NPU, and CPU are independently visible; Strata currently routes only its existing CUDA/CPU paths | A routing proposal needs per-part correctness, scheduling, and same-day throughput/latency controls before it can replace a default |
-| iMatrix low-bit routed experts | The cross-host IQ2_XS difference is isolated to the derived-weight square-root expression before codebook selection; `STRATA_DETERMINISTIC_IQ=1` applies the validated double-precision expression to downloaded llama.cpp source while the default pinned path stays unchanged | A full patched rerun, perplexity/output quality, and same-day throughput/memory controls remain required before replacing a normal quantization choice |
+| iMatrix low-bit routed experts | The cross-host IQ2_XS difference is isolated to the derived-weight square-root expression before codebook selection; `STRATA_DETERMINISTIC_IQ=1` applies the validated double-precision expression to downloaded llama.cpp source while the default pinned path stays unchanged; an exact-token path now consumes the RESMP-DEV standard `[256,2048]` Qwen view | A full standard-calibrated patched rerun, perplexity/output quality, and same-day throughput/memory controls remain required before replacing a normal quantization choice |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -242,3 +245,34 @@ outputs are in
 [accelerator plugin evidence](../evidence/accelerator-plugin-router-probe.json).
 Operational build and probe instructions live in
 [accelerator plugins](ACCELERATOR_PLUGINS.md).
+
+### Standard calibration corpus and exact-token iMatrix, 2026-10-11
+
+The earlier 3.01-BPW experiment consumed a public mradermacher matrix generated
+from `imatrix-training-full-3` (319 chunks of 512 tokens), not the RESMP-DEV
+standard corpus. The standard current Qwen3.8 view is
+`RESMP-DEV/ptq-calibration-corpus@6ef2bbf...`, tokenized by the pinned
+Qwen3.8-27B tokenizer and represented as 256 seeded, disjoint windows of 2,048
+IDs (524,288 tokens). Its token and merge tables match Flash-Next; the GGUF's
+extra tokenizer rows are explicit padding.
+
+Because raw-text `-f` would retokenize a contiguous stream and lose the
+standard view's selected windows, `STRATA_TOKEN_IMATRIX=1` now adds an opt-in
+`llama-imatrix --token-file` input for nonnegative little-endian int32 IDs.
+The helper downloads and hash-verifies the view, exports
+`calibration_256x2048.i32`, validates the target tokenizer, builds the patched
+tool, checkpoints every ten chunks, and resumes from
+`imatrix.chunk_count`. Disabling the gate restores the pinned llama.cpp source.
+
+A real full run over the IQ4_XS Flash-Next GGUF completed all 256 standard
+windows on the Apple-silicon main machine. The resulting importance matrix is
+cached as
+`~/.cache/strata-quant/standard-imatrix/Qwen3.8-Flash-Next.standard-256x2048.imatrix.gguf`,
+SHA-256 `92c6a742027b569907a2ce3cd2bf12b3ae5ea037c86105ef7ba4ae244a43fc89`,
+with 902 count tensors and 144 routed-expert tensors. Thirty-three expert
+count rows remain zero. Strix was intended for this run, but SSH key exchange
+repeatedly reset and its NVIDIA NVML reported a driver/library mismatch, so no
+remote execution or reboot was claimed. Full identities, commands, checkpoint
+hashes, and non-claims are in
+[standard calibration evidence](../evidence/standard-calibration-token-imatrix.json);
+operational details are in [calibration](CALIBRATION.md).

@@ -1,0 +1,144 @@
+--- a/tools/imatrix/imatrix.cpp
++++ b/tools/imatrix/imatrix.cpp
+@@ -21,6 +21,8 @@
+ #include <regex>
+ #include <numeric>
+
++static std::string g_token_file;
++
+ #if defined(_MSC_VER)
+ #pragma warning(disable: 4244 4267) // possible loss of data
+ #endif
+@@ -28,7 +30,8 @@
+ static void print_usage(int, char ** argv) {
+     LOG("\nexample usage:\n");
+     LOG("\n    %s \\\n"
+-            "       -m model.gguf -f some-text.txt [-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \\\n"
++            "       -m model.gguf (-f some-text.txt | --token-file tokens.i32) "
++            "[-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \\\n"
+             "       [--process-output] [--chunk 123] [--save-frequency 0] [--output-frequency 10] \\\n"
+             "       [--in-file imatrix-prev-0.gguf --in-file imatrix-prev-1.gguf ...] [--parse-special] \\\n"
+             "       [--show-statistics] [...]\n" , argv[0]);
+@@ -785,7 +788,74 @@
+     compute();
+     for (auto & w : workers) {
+         w.join();
++    }
++}
++
++static bool read_token_file(const std::string & file_name, const llama_vocab * vocab,
++                            std::vector<llama_token> & tokens) {
++    std::ifstream input(file_name, std::ios::binary);
++    if (!input) {
++        LOG_ERR("%s: failed to open token file %s\n", __func__, file_name.c_str());
++        return false;
++    }
++    input.seekg(0, std::ios::end);
++    const std::streamoff size = input.tellg();
++    if (size < 0 || size % sizeof(int32_t) != 0) {
++        LOG_ERR("%s: token file %s must contain whole little-endian int32 values\n", __func__, file_name.c_str());
++        return false;
++    }
++    input.seekg(0, std::ios::beg);
++    std::vector<unsigned char> bytes(static_cast<size_t>(size));
++    input.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
++    if (!input) {
++        LOG_ERR("%s: failed to read token file %s\n", __func__, file_name.c_str());
++        return false;
++    }
++
++    const int32_t n_vocab = llama_vocab_n_tokens(vocab);
++    tokens.resize(bytes.size() / sizeof(int32_t));
++    for (size_t i = 0; i < tokens.size(); ++i) {
++        const uint32_t id = static_cast<uint32_t>(bytes[4*i]) |
++                            (static_cast<uint32_t>(bytes[4*i + 1]) << 8) |
++                            (static_cast<uint32_t>(bytes[4*i + 2]) << 16) |
++                            (static_cast<uint32_t>(bytes[4*i + 3]) << 24);
++        if (id >= static_cast<uint32_t>(n_vocab)) {
++            LOG_ERR("%s: token id %u at offset %zu is outside the model vocabulary (0..%d)\n",
++                    __func__, id, 4*i, n_vocab - 1);
++            return false;
++        }
++        tokens[i] = static_cast<llama_token>(id);
++    }
++    LOG_INF("%s: loaded %zu token ids from %s\n", __func__, tokens.size(), file_name.c_str());
++    return true;
++}
++
++static bool extract_token_file_argument(int & argc, char ** argv) {
++    int out = 1;
++    for (int i = 1; i < argc; ++i) {
++        const std::string argument = argv[i];
++        std::string value;
++        if (argument == "--token-file") {
++            if (++i >= argc) {
++                LOG_ERR("%s: --token-file requires a file name\n", __func__);
++                return false;
++            }
++            value = argv[i];
++        } else if (argument.rfind("--token-file=", 0) == 0) {
++            value = argument.substr(argument.find('=') + 1);
++        } else {
++            argv[out++] = argv[i];
++            continue;
++        }
++        if (value.empty() || !g_token_file.empty()) {
++            LOG_ERR("%s: --token-file requires exactly one nonempty file name\n", __func__);
++            return false;
++        }
++        g_token_file = value;
+     }
++    argv[out] = nullptr;
++    argc = out;
++    return true;
+ }
+
+ static bool compute_imatrix(llama_context * ctx, const common_params & params, const int32_t n_ctx) {
+@@ -799,12 +869,17 @@
+     }
+
+     auto tim1 = std::chrono::high_resolution_clock::now();
+-    LOG_INF("%s: tokenizing the input ..\n", __func__);
++    LOG_INF("%s: preparing the token input ..\n", __func__);
+
+-    std::vector<llama_token> tokens = common_tokenize(ctx, params.prompt, true, params.parse_special);
++    std::vector<llama_token> tokens;
++    if (!g_token_file.empty()) {
++        if (!read_token_file(g_token_file, vocab, tokens)) return false;
++    } else {
++        tokens = common_tokenize(ctx, params.prompt, true, params.parse_special);
++    }
+
+     auto tim2 = std::chrono::high_resolution_clock::now();
+-    LOG_INF("%s: tokenization took %g ms\n",__func__,1e-3*std::chrono::duration_cast<std::chrono::microseconds>(tim2-tim1).count());
++    LOG_INF("%s: token input took %g ms\n",__func__,1e-3*std::chrono::duration_cast<std::chrono::microseconds>(tim2-tim1).count());
+
+     if (params.i_chunk > 0) {
+         if (size_t((params.i_chunk + 2)*n_ctx) >= tokens.size()) {
+@@ -1085,10 +1160,17 @@
+     params.escape = false;
+
+     common_init();
++
++    if (!extract_token_file_argument(argc, argv)) {
++        return 1;
++    }
+
+     if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_IMATRIX, print_usage)) {
+         return 1;
+     }
++    if (!g_token_file.empty()) {
++        params.prompt_file = g_token_file;
++    }
+
+     // set_params before show_statistics so load_imatrix has valid n_ctx/n_parallel
+     g_collector.set_params(params);
+@@ -1127,7 +1209,7 @@
+         }
+     }
+
+-    if (params.prompt.empty()) {
++    if (params.prompt.empty() && g_token_file.empty()) {
+         LOG_INF("No prompt provided; combining precomputed matrices only.\n");
+
+         if (params.in_files.empty()) {

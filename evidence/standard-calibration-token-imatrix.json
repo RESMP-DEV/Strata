@@ -1,0 +1,162 @@
+{
+  "recorded_at": "2026-10-11T08:13:30Z",
+  "agent": "Codex",
+  "source_revision": "039bbe25cdebb1b74e57d9db092207701a21e670",
+  "source_dirty": true,
+  "scope": "Identifies the calibration source used by the prior IQ2_XS experiment, adds an opt-in exact-token llama.cpp iMatrix path for the RESMP-DEV standard Qwen3.8 view, and completes a real Qwen3.8-Flash-Next importance matrix. No setup default or quantized model release changed.",
+  "prior_calibration_identity": {
+    "repository": "mradermacher/Qwen3.8-Flash-Next-i1-GGUF",
+    "revision": "9547b1c8fbdf6e37d208f91ce626270fdae0066c",
+    "file": "Qwen3.8-Flash-Next.imatrix.gguf",
+    "sha256": "78661751ccf1e2e301c4313d1feb1394cfa978784daf518e4fe2e0cccdc1c290",
+    "dataset": "imatrix-training-full-3",
+    "chunks": 319,
+    "chunk_size": 512,
+    "calibration_tokens": 163328,
+    "standard_corpus_used": false
+  },
+  "standard_calibration": {
+    "repository": "RESMP-DEV/ptq-calibration-corpus",
+    "revision": "6ef2bbf949b94192ee8bb78d45a2fc840a10cff5",
+    "public_ungated": true,
+    "view": "data/tokenizers/qwen3.8-27b/calibration_256x2048.npy",
+    "view_sha256": "d7dd281b1f1756a6492361e1dfb0c65fed259f8a3d65eabbcb51809b50bd35d7",
+    "view_receipt_sha256": "a4f1404d2bbed3aa1403c444c34db39cb7e99e12d10664119043a7b652377806",
+    "tokenizer": "Qwen/Qwen3.8-27B@1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "tokenizer_json_sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+    "selection": "seeded disjoint permutation, seed 17",
+    "shape": [
+      256,
+      2048
+    ],
+    "token_count": 524288,
+    "export": {
+      "format": "little-endian nonnegative int32",
+      "bytes": 2097152,
+      "sha256": "66c6f7e4a68f3e57772064087a22e79e712e5d7c37c2983ec28e00084cab4745",
+      "max_token_id": 248069
+    },
+    "calibration_token_ratio_vs_public_matrix": 3.2093650070617018
+  },
+  "target_compatibility": {
+    "model": "/Users/kearm/.cache/strata-quant/static-iq4xs/Qwen3.8-Flash-Next.IQ4_XS.gguf",
+    "model_sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb",
+    "gguf_tokens": 248320,
+    "pinned_nonpadding_tokens": 248077,
+    "shared_tokens_equal": true,
+    "extra_gguf_tokens_all_padding": true,
+    "merges": 247587,
+    "merges_equal": true,
+    "pre_tokenizer": "qwen35",
+    "eos_token_id": 248046
+  },
+  "reference_architecture": {
+    "ktransformers_commit": "6160538c81fc1d2cbc1952302a6d4b77a8adcd2e",
+    "llama_cpp_commit": "3cf03257f219afbe7334045ff7c6a06ac68c627d",
+    "findings": [
+      "llama.cpp natively accepts raw calibration text with -f, fixes a chunk size, and can merge/resume iMatrix GGUF checkpoints.",
+      "K-Transformers' GPTQ path names a dataset/split, applies the model chat template, tokenizes and truncates to 2048, shuffles with seed 42, and limits calibration to 512 samples.",
+      "Strata follows explicit sample identity rather than silently treating a different raw-text split as the standard view."
+    ]
+  },
+  "checks": [
+    {
+      "name": "host-safe-contract-tests",
+      "commands": [
+        "python3 -m unittest tools.test_standard_imatrix -v",
+        "python3 -m unittest tools.test_setup_token_imatrix -v",
+        "python3 -m unittest tools.test_setup_deterministic_iq -v",
+        "python3 scripts/check_setup.py"
+      ],
+      "exit": 0,
+      "result": "Dataset pinning, int64-to-int32 export, resume command construction, patch idempotence, moved-upstream refusal, and patch reversal when the gate is disabled all passed."
+    },
+    {
+      "name": "reference-patch-applies-and-reverts",
+      "commands": [
+        "patch -d <clean-llama.cpp> -p1 --forward < tools/patches/llama-imatrix-token-file.patch",
+        "git apply --directory=build/patch-check --check tools/patches/llama-imatrix-token-file.patch",
+        "STRATA_TOKEN_IMATRIX=0 setup.apply_optional_llama_patches(third_party/llama.cpp)"
+      ],
+      "exit": 0,
+      "result": "The patched file matched the setup-generated source byte-for-byte; disabling the gate restored the pinned llama.cpp source byte-for-byte."
+    },
+    {
+      "name": "patched-tool-build",
+      "command": "python3 tools/standard_imatrix.py --build-tools ... --print-command",
+      "exit": 0,
+      "result": "The opt-in source patch built llama-imatrix successfully on macOS with CPU/GGML backends and exposed --token-file in help."
+    },
+    {
+      "name": "tiny-model-token-loader-smoke",
+      "model_sha256": "270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d",
+      "token_file_sha256": "d1acbf9d87910d4d8cbe41f96b67a0514c454b76ffb7357e69102d41d5b6041c",
+      "result": {
+        "chunks": 2,
+        "chunk_size": 64,
+        "output_sha256": "01af2b7d54315d91d0e7196cc7972e1b08df58f3f03d04cbf7f0efb0d34c667d",
+        "output_bytes": 16736,
+        "exit": 0
+      }
+    },
+    {
+      "name": "real-model-one-chunk-acceptance",
+      "result": {
+        "chunks": 1,
+        "chunk_size": 2048,
+        "output_sha256": "2d970250281668bed66962326aae96dc098eeb1dfb2256ebca0288eff54f3bb4",
+        "output_bytes": 579789056,
+        "measured_pass_seconds": 7.66,
+        "process_timestamp_seconds": 74.243,
+        "exit": 0
+      }
+    },
+    {
+      "name": "full-standard-imatrix",
+      "started_from_chunk": 1,
+      "completed_chunks": 256,
+      "chunk_size": 2048,
+      "resume_process_timestamp_seconds": 2035.946,
+      "combined_process_timestamp_seconds": 2110.189,
+      "threads": 16,
+      "host": "Apple-silicon main machine, CPU llama-imatrix path",
+      "checkpoint_sha256": {
+        "50": "575249a3a7edbbfe3caeb7f86329ada695e6cbc9aad81a3d3e67fc6a4d1ac787",
+        "100": "b862da949cf5a483de012dc079afcdc62d855879d0ecbcf4f14821d7212952e8",
+        "150": "2ad2314ae478e5eaf7b448d276de904bec72fed08d7c318a2cbd1497a761d750",
+        "200": "ea8f62630eea93cad0270f8243d08e9f2f238d0e988388cf3d0423d5c591eb4c",
+        "250": "6b22f5383f2afa335f6bff2c0d363fbf7d0a8c280bcc20c3e1fc47dde28603ac"
+      }
+    },
+    {
+      "name": "final-artifact-validation",
+      "path": "/Users/kearm/.cache/strata-quant/standard-imatrix/Qwen3.8-Flash-Next.standard-256x2048.imatrix.gguf",
+      "sha256": "92c6a742027b569907a2ce3cd2bf12b3ae5ea037c86105ef7ba4ae244a43fc89",
+      "bytes": 579789056,
+      "chunk_count": 256,
+      "chunk_size": 2048,
+      "tensor_count": 1804,
+      "count_tensors": 902,
+      "expert_tensors": 144,
+      "expert_rows": 73728,
+      "expert_zero_count_entries": 33,
+      "expert_tensors_with_zero_rows": 15,
+      "expert_min_positive_count": 1,
+      "expert_max_count": 217240,
+      "metadata_note": "The dataset path appears twice because the successful full run resumed by loading the one-chunk matrix; values and counts are accumulated correctly."
+    }
+  ],
+  "remote_state": {
+    "intended_full_run_host": "strix",
+    "ssh_observed": "ICMP and TCP port 22 reachable, but SSH key exchange repeatedly ended with 'Connection reset by peer'; no Strix launch occurred.",
+    "gpu_observed_before_disconnect": "nvidia-smi failed with driver/library version mismatch (NVML 595.99); no reboot was forced."
+  },
+  "non_claims": [
+    "The standard matrix has not yet been used to requantize a full model or create a Strata pack.",
+    "No perplexity, output-quality, throughput, memory-use comparison, or setup-choice promotion was run.",
+    "The source model is the already-quantized 98.4 GB IQ4_XS artifact; this is not a BF16-source calibration quality claim.",
+    "Thirty-three routed-expert count rows remain zero and llama.cpp will substitute defaults for those rows; this is recorded, not treated as full expert coverage.",
+    "The full matrix was computed on the Apple-silicon main machine because Strix SSH was unavailable; no cross-host matrix reproducibility claim is made.",
+    "The mixed-source corpus is for local PTQ research and has not been cleared for redistribution or commercial use."
+  ]
+}
