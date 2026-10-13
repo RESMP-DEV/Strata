@@ -1,0 +1,130 @@
+{
+  "recorded_at": "2026-10-13T11:58:54Z",
+  "agent": "Codex",
+  "source_revision": "3e5fdaf7f4f835d4fb701df9b6ba85b7bbd9c65a",
+  "source_dirty": true,
+  "scope": "A bounded raw /dev/nvme0n1 direct-read test bypassing ext4 and the source GGUF, with NVMe/board/battery telemetry captured by the persistent watcher. It reproduces the access failure while approaching the NVMe warning threshold.",
+  "test": {
+    "started": "2026-10-13T11:50:14Z",
+    "input": "/dev/nvme0n1",
+    "start_offset_mib": 0,
+    "length_mib": 65536,
+    "chunk_mib": 1024,
+    "mode": "read-only direct I/O, per-GiB checkpoint and SHA-256",
+    "output_dir": "/home/kearm/models/qwen-flash-next/stress-raw0-64g-20261013",
+    "service": "strata-target-read.service"
+  },
+  "baseline": {
+    "nvme_temperature_celsius": 26.85,
+    "acpi_temperature_celsius": 27.8,
+    "core_temperatures_celsius": "32-37",
+    "battery": "Full, 100%, 17.129 V, power_now 0",
+    "mains": "ADP0 online",
+    "d_state_processes": 0,
+    "io_psi_full_avg10": 0.0
+  },
+  "progression": [
+    {
+      "time": "2026-10-13T11:50:48Z",
+      "completed_gib": 9.0,
+      "chunk_seconds": 3,
+      "nvme_temperature_celsius": 29.85,
+      "io_psi_full_avg10": 0.0,
+      "d_state_processes": 0
+    },
+    {
+      "time": "2026-10-13T11:52:17Z",
+      "completed_gib": 33.0,
+      "chunk_seconds": 3,
+      "nvme_temperature_celsius": 61.85,
+      "io_psi_full_avg10": 0.0,
+      "d_state_processes": 0
+    },
+    {
+      "time": "2026-10-13T11:53:09Z",
+      "completed_gib": 47.0,
+      "chunk_seconds": 3,
+      "nvme_temperature_celsius": 59.85,
+      "io_psi_full_avg10": 0.0,
+      "d_state_processes": 0
+    },
+    {
+      "time": "2026-10-13T11:54:15Z",
+      "completed_gib": 58.0,
+      "chunk_seconds": 12,
+      "nvme_temperature_celsius": 84.85,
+      "io_psi_full_avg10": 54.35,
+      "nvme_inflight": 7,
+      "d_state_processes": 0
+    },
+    {
+      "time": "2026-10-13T11:54:41Z",
+      "completed_gib": 60.0,
+      "chunk_seconds": 12,
+      "nvme_temperature_celsius": 85.85,
+      "io_psi_full_avg10": 47.16,
+      "d_state_processes": 1
+    }
+  ],
+  "failure": {
+    "observed_after": "2026-10-13T11:55:11Z",
+    "last_retrieved_completed_gib": 60,
+    "remaining_gib_at_last_checkpoint": 4,
+    "ssh": "pre-auth reset/close, same failure signature as prior tests",
+    "thermal_signature": "temperature climbed from 26.85 C to 85.85 C while chunk time increased from 3 s/GiB to 12 s/GiB",
+    "warning_threshold_celsius": 87,
+    "critical_threshold_celsius": 89
+  },
+  "diagnosis": {
+    "leading": "Sustained direct reads cause NVMe thermal runaway and severe throttling; the platform then loses usable access/reset before the device's 87 C warning threshold is durably reported.",
+    "support": [
+      "The raw block-device test bypasses ext4, GGUF parsing, hashing, page cache, and the source file extent map.",
+      "The failure reproduced on /dev/nvme0n1 rather than only the model file.",
+      "Temperature rose 59 C above baseline and reached 2.15 C below the drive warning threshold.",
+      "Throughput fell from about 333 MiB/s to about 83 MiB/s.",
+      "Full I/O PSI rose from 0% to 54.35% and one D-state process appeared near failure.",
+      "SMART remains clean with zero media errors and zero controller error-log entries, inconsistent with NAND media failure."
+    ],
+    "likely_contributors": [
+      "Insufficient SSD heatsink mass, contact pressure, or airflow for a high-power PCIe Gen5 SSD in this laptop",
+      "SSD firmware thermal throttling or controller protection",
+      "A platform power/EC response to sustained NVMe power draw",
+      "A defective thermal interface or marginal SSD controller even though SMART counters are clean"
+    ],
+    "less_likely": [
+      "ext4 or GGUF corruption",
+      "Source-file-specific bad blocks",
+      "SSH connection handling",
+      "NAND media wear"
+    ],
+    "confidence": "High for thermal/controller pathway as the immediate trigger; medium for the exact physical root cause."
+  },
+  "non_claims": [
+    "The exact chunk after 60 GiB was not retrievable before SSH failed.",
+    "No kernel panic, AER entry, NVMe completion error, or I/O-error line was persisted from the failing instant.",
+    "No write test or destructive block operation was run.",
+    "The final post-failure SMART snapshot and target progress remain unread until another console recovery.",
+    "This does not prove whether insufficient heatsinking, firmware protection, controller malfunction, or platform power response initiates the reset."
+  ],
+  "checks": [
+    {
+      "name": "target-script",
+      "commands": [
+        "bash -n tools/strix_target_read_stress.sh",
+        "shellcheck -S warning tools/strix_target_read_stress.sh"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "watcher-telemetry-tests",
+      "command": "python3 -m unittest tools.test_strix_watch -v",
+      "exit": 0,
+      "result": "6 tests passed, including nonblocking hwmon and power-supply parsing."
+    },
+    {
+      "name": "raw-range-smoke",
+      "command": "strix_target_read_stress.sh /tmp/strix-target-input /tmp/strix-target-smoke 0 1 1 5",
+      "exit": 0
+    }
+  ]
+}

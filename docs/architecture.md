@@ -321,3 +321,20 @@ read workload, but the final checkpoint and kernel evidence remain on Strix
 until console or SSH recovery. No write test was run and the source remains
 quarantined. Details are in
 [direct-read stress evidence](../evidence/strix-direct-read-stress.json).
+
+### Raw NVMe test identified the thermal pathway, 2026-10-13
+
+After recovery, the watcher was extended to record nonblocking NVMe/board
+temperatures and battery/AC state. A 64 GiB raw `/dev/nvme0n1` direct-read test
+then bypassed ext4 and the source GGUF entirely. It completed at least 60 GiB,
+but the physical signature was clear: NVMe temperature rose from 26.85 °C to
+85.85 °C, per-GiB time increased from 3 to 12 seconds, full I/O PSI rose to
+54.35%, and SSH then reproduced its pre-auth reset. The drive's warning and
+critical thresholds are 87 °C and 89 °C.
+
+SMART has remained clean with zero media errors and zero controller error-log
+entries. The leading diagnosis is therefore sustained-read thermal
+throttling/controller or platform protection, not GGUF/ext4 damage or SSH load.
+Insufficient Gen5-SSD cooling/contact or a platform power response remains the
+likely physical cause. Details are in
+[raw NVMe thermal evidence](../evidence/strix-raw-nvme-thermal-reset.json).

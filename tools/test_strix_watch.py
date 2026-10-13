@@ -125,6 +125,31 @@ class StrixWatchTest(unittest.TestCase):
         self.assertIn("KillMode=process", unit)
         self.assertNotIn("nvidia-smi", unit)
 
+    def test_hwmon_and_power_supplies_are_nonblocking_procfs_reads(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            hwmon_root = root / "hwmon"
+            hwmon = hwmon_root / "hwmon0"
+            power_root = root / "power_supply"
+            battery = power_root / "BAT0"
+            hwmon.mkdir(parents=True)
+            battery.mkdir(parents=True)
+            (hwmon / "name").write_text("nvme\n", encoding="utf-8")
+            (hwmon / "temp1_input").write_text("46000\n", encoding="utf-8")
+            (hwmon / "power1_input").write_text("12000000\n", encoding="utf-8")
+            (battery / "type").write_text("battery\n", encoding="utf-8")
+            (battery / "status").write_text("Charging\n", encoding="utf-8")
+            (battery / "capacity").write_text("80\n", encoding="utf-8")
+            (battery / "power_now").write_text("12000000\n", encoding="utf-8")
+            observed_hwmon = SW.query_hwmon(hwmon_root)
+            supplies = SW.query_power_supplies(power_root)
+        hwmon = observed_hwmon
+        self.assertEqual(hwmon[0]["name"], "nvme")
+        self.assertEqual(hwmon[0]["temperatures_millidegrees_c"], {"temp1": 46000})
+        self.assertEqual(hwmon[0]["power_microwatts"], {"power1": 12000000})
+        self.assertEqual(supplies[0]["type"], "battery")
+        self.assertEqual(supplies[0]["capacity"], "80")
+
 
 if __name__ == "__main__":
     unittest.main()

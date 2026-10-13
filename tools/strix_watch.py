@@ -77,6 +77,46 @@ def parse_labels(text: str) -> dict[str, str]:
     return output
 
 
+def query_hwmon(base: Path = Path("/sys/class/hwmon")) -> list[dict[str, Any]]:
+    devices: list[dict[str, Any]] = []
+    for path in base.glob("hwmon*"):
+        device: dict[str, Any] = {
+            "name": read_text(path / "name").strip(),
+            "temperatures_millidegrees_c": {},
+            "power_microwatts": {},
+            "current_microamps": {},
+            "voltage_microvolts": {},
+        }
+        for item in path.glob("temp*_input"):
+            key = item.name.removesuffix("_input")
+            try:
+                device["temperatures_millidegrees_c"][key] = int(read_text(item).strip())
+            except ValueError:
+                pass
+        for prefix, output_key in (("power", "power_microwatts"), ("curr", "current_microamps"), ("in", "voltage_microvolts")):
+            for item in path.glob(f"{prefix}*_input"):
+                key = item.name.removesuffix("_input")
+                try:
+                    device[output_key][key] = int(read_text(item).strip())
+                except ValueError:
+                    pass
+        devices.append(device)
+    return devices
+
+
+def query_power_supplies(base: Path = Path("/sys/class/power_supply")) -> list[dict[str, Any]]:
+    supplies: list[dict[str, Any]] = []
+    labels = ("type", "manufacturer", "model_name", "status", "capacity", "voltage_now", "current_now", "power_now", "online")
+    for path in base.glob("*"):
+        supply = {"name": path.name}
+        for label in labels:
+            value = read_text(path / label).strip()
+            if value:
+                supply[label] = value
+        supplies.append(supply)
+    return supplies
+
+
 def parse_pressure() -> dict[str, dict[str, float]]:
     output: dict[str, dict[str, float]] = {}
     for path in Path("/proc/pressure").glob("*"):
@@ -370,6 +410,8 @@ def sample(config: Config, sink: EventSink, state: dict[str, Any]) -> None:
         "processes": proc,
         "services": services,
         "gpu": gpu,
+        "hwmon": query_hwmon(),
+        "power_supplies": query_power_supplies(),
         "journal_events": len(journal_events),
     }
 
