@@ -1,0 +1,95 @@
+{
+  "recorded_at": "2026-10-13T09:02:30Z",
+  "agent": "Codex",
+  "source_revision": "31d30e0cc24d8752eeb8679260dfcdee991972ab",
+  "source_dirty": true,
+  "scope": "Runs a detached, checkpointed, read-only direct-I/O stress test over the same 98,421,788,160-byte source GGUF that previously returned Input/output error. The result recorded here is a reproduced access wedge; final on-host progress cannot be retrieved until SSH recovers.",
+  "preflight": {
+    "host_boot": "2026-10-13T01:26:03PDT (08:26:03Z)",
+    "watcher_active": true,
+    "watcher_enabled": true,
+    "d_state_processes": 0,
+    "io_pressure_full_avg10": 0.0,
+    "nvme_inflight": 0,
+    "smart_status": "PASSED; critical warning 0, 100% spare, 0 media errors, 0 error-log entries",
+    "fio_installed": false
+  },
+  "bounded_probe": {
+    "description": "1 GiB aligned direct read at logical offset 42 GiB, near the prior failure boundary",
+    "command": "dd if=<source> iflag=direct bs=1M count=1024 skip=43008 status=none | sha256sum",
+    "exit": 0,
+    "seconds": 1,
+    "sha256": "58601f6563791449e1663592d63cda204e6de6b93b8d748d2d750c74a030772f"
+  },
+  "stress_job": {
+    "launcher": "sudo systemd-run --unit=strata-direct-stress --uid=kearm --gid=kearm",
+    "service": "strata-direct-stress.service",
+    "started": "2026-10-13T08:46:53Z",
+    "script": "/home/kearm/strix_direct_read_stress.sh",
+    "source_file": "/home/kearm/models/qwen-flash-next/static-iq4xs-full/Qwen3.8-Flash-Next.IQ4_XS.gguf",
+    "output_dir": "/home/kearm/models/qwen-flash-next/stress-direct-20261013",
+    "mode": "two sequential passes, 1 GiB direct-read checkpoints, per-chunk SHA-256, 180-second per-chunk timeout",
+    "chunk_size_mib": 1024,
+    "last_retrieved_status": {
+      "time": "2026-10-13T08:48:41Z",
+      "state": "running",
+      "pass": 1,
+      "offset_mib": 28672,
+      "read_bytes": 30064771072,
+      "last_rc": 0,
+      "watcher_d_state_processes": 0,
+      "watcher_io_pressure_full_avg10": 0.0,
+      "watcher_nvme_inflight": 0
+    },
+    "observed_chunk_speed": "approximately 1 GiB per 3 seconds through the last retrieved checkpoint",
+    "stderr_at_last_retrieval": "empty"
+  },
+  "reproduced_failure": {
+    "first_observed_ssh_reset": "2026-10-13T08:50:30Z",
+    "observed_through": "2026-10-13T09:01:30Z",
+    "icmp": "continued answering",
+    "tcp_port_22": "continued accepting connections",
+    "ssh": "repeated pre-auth reset or close: kex_exchange_identification: read: Connection reset by peer / Connection closed by peer",
+    "interpretation": "The detached direct-read workload triggered the same class of host/storage access wedge. ICMP and TCP answering make a complete LAN outage unlikely. The exact final stress chunk and kernel evidence remain unread until SSH or console recovery.",
+    "non_claim": "This transcript does not prove the NVMe returned another Input/output error after byte 30,064,771,072; it proves the stress reproduced a loss of usable SSH while running."
+  },
+  "checks": [
+    {
+      "name": "script-syntax-and-shellcheck",
+      "commands": [
+        "bash -n tools/strix_direct_read_stress.sh",
+        "shellcheck -S warning tools/strix_direct_read_stress.sh"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "remote-script-smoke",
+      "command": "/home/kearm/strix_direct_read_stress.sh /tmp/strix-direct-input /tmp/strix-direct-smoke 1 5",
+      "exit": 0,
+      "result": "A 16-byte file completed both passes and wrote a passed status with three progress lines including the header."
+    },
+    {
+      "name": "detached-service-start",
+      "commands": [
+        "systemctl is-active strata-direct-stress",
+        "cat /home/kearm/models/qwen-flash-next/stress-direct-20261013/status.tsv"
+      ],
+      "exit": 0,
+      "result": "The transient service was active and the first 29 checkpointed 1 GiB chunks returned zero."
+    }
+  ],
+  "recovery_targets": [
+    "/home/kearm/models/qwen-flash-next/stress-direct-20261013/status.tsv",
+    "/home/kearm/models/qwen-flash-next/stress-direct-20261013/progress.tsv",
+    "/home/kearm/models/qwen-flash-next/stress-direct-20261013/stderr.log",
+    "/var/lib/strata-watch/state.json",
+    "/var/lib/strata-watch/events-*.jsonl",
+    "journalctl -b -1 -k"
+  ],
+  "non_claims": [
+    "No write stress or destructive block operation was run.",
+    "No new SMART self-test was started.",
+    "The final stress offset, final service state, kernel lines, and possible unclean shutdown cannot be read while SSH is wedged.",
+    "The source GGUF must remain quarantined until the final checkpoint and kernel/journal evidence are recovered."
+  ]
+}

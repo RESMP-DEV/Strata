@@ -303,3 +303,21 @@ The failing source file was not retried and no Strix calibration run was
 started. Full sequence and SMART values are in
 [Strix I/O watcher evidence](../evidence/strix-io-watch.json); inspection
 commands are in [Strix watcher](STRIX_WATCH.md).
+
+### Direct-read stress reproduced the Strix wedge, 2026-10-13
+
+After the clean SMART snapshot, a bounded 1 GiB direct read around the previous
+42 GiB boundary passed. A detached transient systemd service then began two
+sequential passes over the 98.4 GB source GGUF, using 1 GiB aligned direct-read
+checkpoints, per-chunk hashes, and a 180-second chunk timeout. The first 29 GiB
+completed at roughly one GiB per three seconds with zero recorded errors, zero
+D-state processes, zero measured I/O pressure, and zero inflight NVMe commands
+at the last retrieved sample.
+
+Soon after that sample, SSH began resetting every pre-auth connection while
+ICMP and TCP port 22 continued answering. The condition persisted for more
+than eleven minutes. This reproduces a host/storage access wedge under the
+read workload, but the final checkpoint and kernel evidence remain on Strix
+until console or SSH recovery. No write test was run and the source remains
+quarantined. Details are in
+[direct-read stress evidence](../evidence/strix-direct-read-stress.json).
