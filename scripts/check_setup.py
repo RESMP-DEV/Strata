@@ -18,6 +18,7 @@ SELECTED_SETUP_TESTS = (
     "test_setup_sycl.py",
     "test_setup_token_imatrix.py",
     "test_standard_imatrix.py",
+    "test_strix_watch.py",
 )
 
 

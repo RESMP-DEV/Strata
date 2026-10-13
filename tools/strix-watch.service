@@ -1,0 +1,26 @@
+[Unit]
+Description=Strata persistent I/O, SSH, GPU, and hang watcher
+Documentation=file:///home/kearm/Strata/docs/architecture.md
+After=systemd-journald.service
+Wants=systemd-journald.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/libexec/strata/strix_watch.py --interval 20 --heartbeat 60
+Restart=always
+RestartSec=5
+KillMode=process
+Nice=10
+CPUQuota=5%
+MemoryMax=192M
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/strata-watch
+RestrictAddressFamilies=AF_UNIX
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

@@ -37,6 +37,7 @@ change did not modify runtime behavior.
 | Local API and web app | `serve/` | OpenAI-, Anthropic-, and Responses-compatible surfaces are implemented in the inherited tree | Exercise the changed protocol and lifecycle boundary |
 | Verification state | `build/reports/`, `evidence/` | Generated receipts are transient; durable evidence is tracked | Receipts must bind revision, dirty state, scope, commands, and non-claims |
 | Remote hardware | SSH aliases `B550`/`compute` and `strix` | B550 owns bounded heavy-CUDA execution; Strix owns bounded heterogeneous NVIDIA/NPU/CPU validation | The main machine remains authoritative; select remotes by alias and verify identity live |
+| Strix host watcher | deployed `strata-watch.service`, source `tools/strix_watch.py` | Persistent PSI/disk/SSH/journald sampling is enabled on Strix even when interactive SSH is unavailable | A hardware failure claim requires watcher evidence plus live SMART/controller/journal state |
 
 ## Current quantization surface
 
@@ -276,3 +277,29 @@ remote execution or reboot was claimed. Full identities, commands, checkpoint
 hashes, and non-claims are in
 [standard calibration evidence](../evidence/standard-calibration-token-imatrix.json);
 operational details are in [calibration](CALIBRATION.md).
+
+### Strix I/O failure and persistent host watcher, 2026-10-13
+
+Strix returned after a manual reboot, but a fresh hash of its 92 GB IQ4_XS
+source advanced an approximately 43 GiB read, failed with `Input/output error`,
+and the prior boot ended abruptly. The host came back about two and a half
+minutes later; journald reported both system and user journals corrupted or
+uncleanly shut down. The persisted prior-boot kernel log contains no NVMe or
+EXT4 error before the cutoff.
+
+A root `strata-watch.service` is now installed and enabled on Strix. It samples
+PSI, NVMe counters, process/SSH state, service transitions, NVIDIA procfs, and
+filtered journald messages every 20 seconds, writes a one-minute heartbeat, and
+bounds event storage to 30 days or 512 MiB. It survived the observed reboot.
+Its first design called `nvidia-smi`, which entered an uninterruptible state and
+blocked past an eight-second timeout; the final watcher never invokes that
+command.
+
+SMART is available and currently passes: the CT4000T700SSD3 reports critical
+warning 0, 100% spare, 3% endurance used, 46 C, zero media errors, and zero
+error-log entries. Historical short and extended self-tests passed. This means
+the drive health counters are clean, not that the Linux I/O path is healthy.
+The failing source file was not retried and no Strix calibration run was
+started. Full sequence and SMART values are in
+[Strix I/O watcher evidence](../evidence/strix-io-watch.json); inspection
+commands are in [Strix watcher](STRIX_WATCH.md).

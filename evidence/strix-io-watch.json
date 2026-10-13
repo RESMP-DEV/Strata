@@ -1,0 +1,109 @@
+{
+  "recorded_at": "2026-10-13T08:29:56Z",
+  "agent": "Codex",
+  "source_revision": "152ffda62858aa33870e7e643fb7a616e48fc27d",
+  "source_dirty": true,
+  "scope": "Installs persistent Strix host monitoring, captures the first observed model-read I/O failure and spontaneous reboot, and records NVMe SMART/controller health. This does not repair the host or prove the source artifact readable.",
+  "deployment": {
+    "host": "strix / ZeroTier 10.243.112.172",
+    "service": "/etc/systemd/system/strata-watch.service",
+    "program": "/usr/local/libexec/strata/strix_watch.py",
+    "state": "/var/lib/strata-watch/state.json",
+    "events": "/var/lib/strata-watch/events-YYYYMMDDTHH.jsonl",
+    "enabled": true,
+    "active": true,
+    "interval_seconds": 20,
+    "heartbeat_seconds": 60,
+    "retention": "720 hourly event files, 512 MiB aggregate cap",
+    "program_sha256": "8918263aea746daabef1f6f487739a18cf9a9bed7ebb8b75dcc317d851916e6f",
+    "service_sha256": "4a13fdaca9f37117f25994b5d87c184d5371e9ac7156e321c8de9a14f98b4003",
+    "survived_observed_reboot": true
+  },
+  "failure_sequence": {
+    "boot_before_failure": "2026-10-13T00:54:32PDT (07:54:32Z)",
+    "watcher_heartbeat_082202Z": {
+      "read_sectors_cumulative": 3877246,
+      "inflight": 0
+    },
+    "watcher_heartbeat_082303Z": {
+      "read_sectors_cumulative": 87269310,
+      "read_sectors_delta_61s": 83392064,
+      "approx_bytes_read_61s": 42696608768,
+      "read_rate_sectors_per_second": 1363687,
+      "inflight": 0,
+      "d_state_processes": 0
+    },
+    "source_hash_result": "sha256sum /home/kearm/models/qwen-flash-next/static-iq4xs-full/Qwen3.8-Flash-Next.IQ4_XS.gguf failed with: Input/output error",
+    "prior_boot_end": "2026-10-13T01:23:26PDT (08:23:26Z), journal ends abruptly",
+    "current_boot": "2026-10-13T01:26:04PDT (08:26:04Z)",
+    "journal_recovery": "systemd-journald reported system and user journal files corrupted or uncleanly shut down",
+    "interpretation": "An approximately 43 GiB sequential read preceded the failed hash and abrupt reboot. The prior-boot kernel journal contains no persisted NVMe or EXT4 error before ending, so the reset or storage-path hang outran journal persistence."
+  },
+  "watcher_design_correction": {
+    "initial_probe": "The first watcher implementation invoked nvidia-smi; that command entered an uninterruptible state and outlived Python's 8-second subprocess timeout.",
+    "correction": "The persistent watcher never invokes nvidia-smi. It reads /proc/driver/nvidia and filters journald NVRM/Xid/driver-mismatch messages. The service uses KillMode=process so a blocked helper cannot own the watcher lifecycle."
+  },
+  "nvme_smart": {
+    "model": "CT4000T700SSD3",
+    "serial": "2339E87963DD",
+    "firmware": "PACR5102",
+    "smartctl_exit": 0,
+    "smart_status_passed": true,
+    "critical_warning": 0,
+    "temperature_celsius": 46,
+    "available_spare_percent": 100,
+    "available_spare_threshold_percent": 5,
+    "percentage_used": 3,
+    "media_errors": 0,
+    "number_of_error_log_entries": 0,
+    "data_units_read": 212892963,
+    "data_units_written": 235217278,
+    "power_on_hours": 17634,
+    "power_cycles": 950,
+    "unsafe_shutdowns": 479,
+    "historical_short_self_test": "completed without error at power-on hour 17471",
+    "historical_extended_self_test": "completed without error at power-on hour 491",
+    "new_self_test_started": false
+  },
+  "checks": [
+    {
+      "name": "watcher-unit-tests",
+      "command": "python3 -m unittest tools.test_strix_watch -v",
+      "exit": 0,
+      "result": "5 tests passed: disk/network rates, journal filtering, bounded event rotation, process-state parsing, and persistent non-nvidia-smi service contract."
+    },
+    {
+      "name": "selected-setup-gate",
+      "command": "python3 scripts/check_setup.py",
+      "exit": 0,
+      "result": "All ten selected setup/tool test modules passed."
+    },
+    {
+      "name": "remote-service",
+      "commands": [
+        "systemctl is-active strata-watch",
+        "systemctl is-enabled strata-watch",
+        "jq . /var/lib/strata-watch/state.json"
+      ],
+      "result": "Active and enabled after the observed reboot; latest state had zero D-state processes and active SSH/journald/networkd/ZeroTier services."
+    },
+    {
+      "name": "smart-and-controller-logs",
+      "commands": [
+        "sudo smartctl --json --all /dev/nvme0n1",
+        "sudo nvme smart-log /dev/nvme0n1",
+        "sudo nvme error-log /dev/nvme0n1"
+      ],
+      "exit": 0,
+      "result": "SMART passed with zero media errors and zero controller error-log entries."
+    }
+  ],
+  "non_claims": [
+    "SMART health does not refute the observed Linux I/O error or sudden reboot; it indicates no current NAND-media or controller error counter.",
+    "The failure mechanism is unidentified. PCIe/link, power, firmware, kernel, filesystem, thermal, or controller instability remain possible.",
+    "No new SMART self-test was started because an extended test would add substantial read pressure to a host that reset during a 43 GiB read.",
+    "The 92 GB source GGUF was not retried after the I/O error and must not be treated as readable.",
+    "No standard iMatrix rerun was launched on Strix after the failure.",
+    "The watcher's journal cursor cannot recover kernel lines that were never persisted before an abrupt reset."
+  ]
+}
