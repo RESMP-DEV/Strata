@@ -1,0 +1,133 @@
+{
+  "recorded_at": "2026-10-13T12:29:00Z",
+  "agent": "Codex",
+  "source_revision": "c9acd117bc95e241339dc42af797f95576ebf98a",
+  "source_dirty": false,
+  "scope": "Repeats the bounded raw /dev/nvme0n1 direct-read pathway after installing a desktop-size NVMe heatsink, using the same 64 GiB range, 1 GiB checkpoints, per-chunk SHA-256, detached service, and persistent watcher as the failing run.",
+  "mitigation": {
+    "change": "A desktop-size heatsink was installed on the CT4000T700SSD3 before this test.",
+    "host_boot_id": "a7caa5f4-1a5f-408c-92cd-214192da6d2b",
+    "platform_profile": "balanced"
+  },
+  "test": {
+    "started": "2026-10-13T12:22:42Z",
+    "passed": "2026-10-13T12:24:31Z",
+    "elapsed_seconds": 109,
+    "input": "/dev/nvme0n1",
+    "start_offset_mib": 0,
+    "length_mib": 65536,
+    "chunk_mib": 1024,
+    "mode": "read-only direct I/O, per-GiB checkpoint and SHA-256",
+    "service": "strata-heatsink-raw-read.service",
+    "output_dir": "/home/kearm/models/qwen-flash-next/stress-raw0-64g-heatsink-20261013T122242Z",
+    "result": {
+      "state": "passed",
+      "checkpoints": 64,
+      "bytes": 68719476736,
+      "nonzero_exit_checkpoints": 0,
+      "missing_hashes": 0,
+      "elapsed_second_counts": {
+        "1": 64
+      },
+      "effective_rate": "594 MiB/s over the complete 64 GiB run"
+    }
+  },
+  "telemetry": {
+    "baseline_nvme_celsius": 24.85,
+    "watcher_samples": [
+      {
+        "time": "2026-10-13T12:23:32Z",
+        "nvme_celsius": 33.85,
+        "io_psi_full_avg10": 0.49,
+        "d_state_processes": 0,
+        "nvme_inflight": 0
+      },
+      {
+        "time": "2026-10-13T12:24:34Z",
+        "nvme_celsius": 40.85,
+        "io_psi_full_avg10": 0.69,
+        "d_state_processes": 0,
+        "nvme_inflight": 0
+      }
+    ],
+    "sampled_peak_nvme_celsius": 40.85,
+    "post_run_hwmon_celsius": 39.85,
+    "post_smart": {
+      "critical_warning": 0,
+      "temperature_celsius": 35,
+      "available_spare_percent": 100,
+      "media_errors": 0,
+      "error_log_entries": 0,
+      "warning_temperature_time": 0,
+      "critical_composite_temperature_time": 0
+    },
+    "post_window_kernel_warnings": 0
+  },
+  "comparison": {
+    "before": {
+      "completed_reliably_gib": 60,
+      "result": "host access wedge after the run stopped answering",
+      "last_nvme_celsius": 85.85,
+      "chunk_seconds_progression": "3 to 12",
+      "io_psi_full_avg10_peak": 54.35,
+      "d_state_processes": 1
+    },
+    "after": {
+      "completed_reliably_gib": 64,
+      "result": "passed with no reset",
+      "sampled_peak_nvme_celsius": 40.85,
+      "chunk_seconds": 1,
+      "io_psi_full_avg10_peak": 0.69,
+      "d_state_processes": 0
+    },
+    "interpretation": "The installed heatsink removed the immediate thermal/controller pathway under the previously failing raw-read protocol. The 45.00 C peak reduction and simultaneous throughput improvement make insufficient NVMe cooling the dominant physical cause of the earlier wedge."
+  },
+  "checks": [
+    {
+      "name": "remote-checkout",
+      "command": "git -C /home/kearm/Strata rev-parse HEAD",
+      "exit": 0,
+      "result": "c9acd117bc95e241339dc42af797f95576ebf98a"
+    },
+    {
+      "name": "watcher-active",
+      "command": "systemctl is-active strata-watch.service",
+      "exit": 0,
+      "result": "active"
+    },
+    {
+      "name": "raw-read",
+      "command": "systemd-run --unit=strata-heatsink-raw-read --collect tools/strix_target_read_stress.sh /dev/nvme0n1 <output> 0 65536 1024 180",
+      "exit": 0,
+      "result": "64 of 64 checkpoints passed; status.tsv ended in passed"
+    },
+    {
+      "name": "progress-summary",
+      "command": "python3 progress summary over progress.tsv",
+      "exit": 0,
+      "result": "64 rows, 0 nonzero exits, 0 missing hashes, all elapsed times 1 second"
+    },
+    {
+      "name": "watcher-window-summary",
+      "command": "python3 watcher-event summary for 12:22:42Z through 12:25:30Z",
+      "exit": 0,
+      "result": "peak 40.85 C, peak I/O PSI full avg10 0.69, maximum D-state 0, maximum inflight 0"
+    },
+    {
+      "name": "post-smart-and-journal",
+      "commands": [
+        "sudo nvme smart-log /dev/nvme0n1",
+        "journalctl -b --since=2026-10-13 12:22:40 UTC --until=2026-10-13 12:25:40 UTC -p warning"
+      ],
+      "exit": 0,
+      "result": "SMART stayed clean and the warning-priority journal window was empty"
+    }
+  ],
+  "non_claims": [
+    "The physical heatsink mass, contact pressure, airflow, and SSD power draw were not measured.",
+    "Watcher temperature coverage is sampled, not a continuous thermal record; unobserved sub-sample peaks remain possible.",
+    "This test covers only the first 64 GiB logical range, not the complete 4 TB drive or every thermal environment.",
+    "Passing this raw block read does not by itself requalify the source GGUF; that requires the separate exact-file two-pass result.",
+    "The exact firmware, controller, or EC protection action that ended the prior boot remains unobserved."
+  ]
+}

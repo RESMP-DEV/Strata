@@ -1,0 +1,160 @@
+{
+  "recorded_at": "2026-10-13T12:53:00Z",
+  "agent": "Codex",
+  "source_revision": "c9acd117bc95e241339dc42af797f95576ebf98a",
+  "source_dirty": true,
+  "scope": "Diagnoses the 2026-10-13 Mac-to-Strix bulk-transfer timeouts after the NVMe heatsink mitigation, separating the storage path from ZeroTier/TCP transport with host telemetry, packet captures, and disk-free rate tests.",
+  "incident": {
+    "attempts_over_mac_strix_zerotier": [
+      {
+        "transport": "rsync over SSH",
+        "result": "timed out after about 22 seconds; remote partial grew from 32768 to 65536 bytes"
+      },
+      {
+        "transport": "scp over SSH",
+        "result": "timed out after about 25 seconds; remote destination remained zero bytes"
+      }
+    ],
+    "host_state_during_incident": {
+      "boot_id": "a7caa5f4-1a5f-408c-92cd-214192da6d2b",
+      "strix_remained_reachable": true,
+      "watcher": "active",
+      "nvme_temperature_celsius_range": "23.85 to 33.85 in sampled heartbeats",
+      "d_state_processes": 0,
+      "nvme_errors": "none observed"
+    }
+  },
+  "successful_control_path": {
+    "description": "The same 579789056-byte standard iMatrix was streamed from the main machine through the B550 SSH jump and then B550-to-Strix LAN relay.",
+    "started": "2026-10-13T12:42:37Z",
+    "completed": "2026-10-13T12:44:03Z",
+    "elapsed_seconds": 86,
+    "bytes": 579789056,
+    "sha256": "92c6a742027b569907a2ce3cd2bf12b3ae5ea037c86105ef7ba4ae244a43fc89"
+  },
+  "disk_free_reproduction": {
+    "unlimited": {
+      "input": "/dev/zero",
+      "output": "/dev/null",
+      "requested_bytes": 536870912,
+      "started": "2026-10-13T12:46:29Z",
+      "result": "SSH timed out after the connection entered TCP retransmission; disk was not involved"
+    },
+    "rate_limited": [
+      {
+        "rate_kibps": 64,
+        "duration_seconds": 40,
+        "result": "completed"
+      },
+      {
+        "rate_kibps": 128,
+        "duration_seconds": 30,
+        "result": "timed out"
+      },
+      {
+        "rate_kibps": 256,
+        "duration_seconds": 30,
+        "result": "timed out"
+      }
+    ],
+    "interpretation": "The failure has a narrow sustained-rate boundary between 64 and 128 KiB/s and is independent of NVMe reads or writes."
+  },
+  "packet_capture": {
+    "inner_interface": "Strix ztyjkdkgoy, TCP port 22",
+    "outer_interface": "Strix enp130s0, UDP",
+    "inner_pcap": {
+      "temporary_path": "/tmp/zt-inner-repro.pcap",
+      "sha256": "0641cb212a430b37446bde437ded121e1415103b6a8d21410a8cbd2a3bb74729",
+      "bytes": 102594,
+      "captured_packets": 536
+    },
+    "outer_pcap": {
+      "temporary_path": "/tmp/zt-outer-repro.pcap",
+      "sha256": "6c9935ecc4eef56c99247ab1434de6427a621edd0fff453e231f2742866158fb",
+      "bytes": 191388,
+      "captured_packets": 1014
+    },
+    "inner_tcp_summary": {
+      "ssh_authentication": "PASS at 2026-10-13T12:46:31Z",
+      "mac_to_strix_payload_packets": 304,
+      "mac_to_strix_captured_payload_bytes_including_retransmissions": 349480,
+      "maximum_in_order_stream_end": 334059,
+      "strix_acknowledged_through": 334059,
+      "inner_tcp_payload_size": "1188 bytes for sustained data segments",
+      "stall": "The Mac repeatedly retransmitted sequence 292479:293667 while Strix repeated ACK 334059 with SACK; the Mac reset about 26 seconds later."
+    },
+    "outer_udp_summary": {
+      "selected_forward_flow": "172.58.112.106:45148 -> 192.168.1.182:25181",
+      "forward_packets": 176,
+      "selected_reverse_flow": "192.168.1.182:60905 -> 172.58.112.106:51942",
+      "reverse_packets": 61,
+      "direct_reverse_flow": "192.168.1.182:25181 -> 172.58.112.106:45148",
+      "direct_reverse_packets": 5,
+      "recovery_behavior": "At 2026-10-13T12:47:16Z Strix sent 137-byte UDP probes across nine local-port/remote-endpoint combinations before the Mac reset the TCP connection."
+    }
+  },
+  "zerotier_state": {
+    "main_node": "eb39fd31b2, ZeroTier 1.16.0",
+    "strix_node": "ed76310e15, ZeroTier 1.16.2",
+    "before_incident_selected_mac_endpoint_on_strix": "172.58.112.106:41766",
+    "during_capture_selected_mac_endpoint_on_strix": "172.58.112.106:45148",
+    "after_capture_selected_mac_endpoint_on_strix": "172.58.112.106:51942",
+    "main_peer_path_to_strix_after_capture": "45.48.128.135:25181",
+    "both_peers_reported": "DIRECT, but the selected IPv4 NAT endpoints changed repeatedly and the forward/reverse paths used different endpoint pairs."
+  },
+  "diagnosis": {
+    "leading": "Rate-sensitive NAT/path renegotiation or packet-rate policing on the Mac-to-Strix ZeroTier IPv4 path. The endpoint changes, asymmetric UDP flows, TCP retransmission/SACK storm, and low-rate success make a host storage or SSH daemon defect unlikely.",
+    "confidence": "High for transport-path cause; medium for whether the exact actor is CGNAT, either edge router, or ZeroTier 1.16.0/1.16.2 path selection.",
+    "why_now": "This incident occurred during a sustained upload from the main machine to Strix. Earlier post-heatsink workloads were predominantly Strix reads polled over short command sessions, and the successful large transfer used a different Mac-to-B550 ZeroTier path followed by B550-to-Strix LAN relay."
+  },
+  "checks": [
+    {
+      "name": "host-health",
+      "commands": [
+        "cat /proc/sys/kernel/random/boot_id",
+        "systemctl is-active strata-watch.service",
+        "cat /sys/class/nvme/nvme0/hwmon*/temp1_input",
+        "ps -eo stat= | grep -c '^D'"
+      ],
+      "exit": 0,
+      "result": "same boot, watcher active, cool NVMe, zero D-state processes"
+    },
+    {
+      "name": "zerotier-peer-state",
+      "commands": [
+        "zerotier-cli peers",
+        "sudo zerotier-cli peers"
+      ],
+      "exit": 0,
+      "result": "both directions reported DIRECT through changing IPv4 endpoints"
+    },
+    {
+      "name": "packet-capture",
+      "commands": [
+        "sudo systemd-run --unit=zt-inner-capture --collect tcpdump -i ztyjkdkgoy -s 256 -U -w /tmp/zt-inner-repro.pcap tcp port 22",
+        "sudo systemd-run --unit=zt-outer-capture --collect tcpdump -i enp130s0 -s 256 -U -w /tmp/zt-outer-repro.pcap udp"
+      ],
+      "exit": 0,
+      "result": "captured authenticated TCP stall and asymmetric ZeroTier UDP paths"
+    },
+    {
+      "name": "rate-boundary",
+      "command": "rate-limited /dev/zero streams through SSH to /dev/null",
+      "exit": "mixed by design",
+      "result": "64 KiB/s completed; 128 and 256 KiB/s timed out"
+    },
+    {
+      "name": "control-transfer",
+      "command": "cat standard-imatrix | ssh -J B550 Strix 'cat > temporary && sha256sum && mv'",
+      "exit": 0,
+      "result": "full 579789056-byte artifact and pinned SHA-256 verified"
+    }
+  ],
+  "non_claims": [
+    "This does not identify the exact ISP router, CGNAT node, firewall, or ZeroTier state machine that drops or re-keys the path.",
+    "Native IPv6 TCP to Strix timed out, so it could not serve as a control path; this likely reflects edge filtering but was not diagnosed further.",
+    "The temporary pcap files are not durable repository artifacts and may disappear on reboot; their hashes bind the analyzed copies at recording time.",
+    "No ZeroTier restart, interface MTU change, daemon upgrade, router change, or persistent route override was performed.",
+    "This finding does not generalize every Mac-to-Strix transfer; it explains the observed sustained-upload failures and gives the measured safe/control paths."
+  ]
+}

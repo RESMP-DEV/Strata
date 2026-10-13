@@ -1,0 +1,89 @@
+{
+  "recorded_at": "2026-10-13T12:39:00Z",
+  "agent": "Codex",
+  "source_revision": "c9acd117bc95e241339dc42af797f95576ebf98a",
+  "source_dirty": false,
+  "scope": "Requalifies the exact 98,421,788,160-byte IQ4_XS source GGUF on Strix after installing the desktop-size NVMe heatsink, using detached two-pass checkpointed direct reads followed by a full-file SHA-256.",
+  "file": {
+    "path": "/home/kearm/models/qwen-flash-next/static-iq4xs-full/Qwen3.8-Flash-Next.IQ4_XS.gguf",
+    "bytes": 98421788160,
+    "pinned_sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb"
+  },
+  "two_pass_direct_read": {
+    "started": "2026-10-13T12:28:54Z",
+    "passed": "2026-10-13T12:34:32Z",
+    "service": "strata-heatsink-gguf-read.service",
+    "output_dir": "/home/kearm/models/qwen-flash-next/stress-direct-heatsink-20261013T122854Z",
+    "mode": "two sequential passes, 1 GiB aligned direct-read checkpoints, per-chunk SHA-256, 180-second per-chunk timeout",
+    "checkpoints_per_pass": 92,
+    "final_offset_mib": 93184,
+    "final_chunk_bytes": 711282176,
+    "bytes_covered_per_pass": 98421788160,
+    "nonzero_exit_checkpoints": 0,
+    "missing_hashes": 0,
+    "stderr_bytes": 0,
+    "cross_pass_comparison": "PASS: hashes match at all 92 logical offsets in both passes",
+    "watcher": {
+      "sampled_peak_nvme_celsius": 49.85,
+      "peak_io_psi_full_avg10": 13.44,
+      "max_d_state_processes": 1,
+      "max_nvme_inflight": 0
+    }
+  },
+  "full_file_hash": {
+    "started": "2026-10-13T12:35:43Z",
+    "service": "strata-heatsink-gguf-sha.service",
+    "exit": 0,
+    "wall_seconds": 141.13,
+    "peak_rss_kbytes": 7288,
+    "observed_sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb",
+    "result": "PASS: matches the pinned source identity",
+    "watcher": {
+      "sampled_peak_nvme_celsius": 48.85,
+      "peak_io_psi_full_avg10": 0.0,
+      "max_d_state_processes": 0,
+      "max_nvme_inflight": 0
+    }
+  },
+  "post_smart": {
+    "critical_warning": 0,
+    "temperature_celsius": 45,
+    "available_spare_percent": 100,
+    "media_errors": 0,
+    "error_log_entries": 0,
+    "warning_temperature_time": 0,
+    "critical_composite_temperature_time": 0
+  },
+  "checks": [
+    {
+      "name": "source-size",
+      "command": "stat --format=%s <source>",
+      "exit": 0,
+      "result": "98421788160 bytes"
+    },
+    {
+      "name": "two-pass-checkpoint-comparison",
+      "command": "python3 comparison over progress.tsv",
+      "exit": 0,
+      "result": "92 of 92 offset hashes match; exact byte coverage is 98421788160 in each pass"
+    },
+    {
+      "name": "full-sha256",
+      "command": "systemd-run --user --unit=strata-heatsink-gguf-sha --collect <wrapper>",
+      "exit": 0,
+      "result": "pinned SHA-256 matched after 141.13 seconds"
+    },
+    {
+      "name": "post-smart",
+      "command": "sudo nvme smart-log /dev/nvme0n1",
+      "exit": 0,
+      "result": "critical warning 0, 100% spare, zero media errors, zero error-log entries"
+    }
+  ],
+  "non_claims": [
+    "This requalifies the current source bytes and read path; it does not prove the older pre-heatsink failure would never recur if the heatsink were removed.",
+    "Watcher values are sampled every 20 seconds and do not bound every sub-second temperature or transient D-state.",
+    "This is a storage read-path result, not a model-quality or quantization-quality result.",
+    "No write stress, destructive block operation, or SMART self-test was run."
+  ]
+}

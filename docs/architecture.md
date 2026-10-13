@@ -338,3 +338,55 @@ throttling/controller or platform protection, not GGUF/ext4 damage or SSH load.
 Insufficient Gen5-SSD cooling/contact or a platform power response remains the
 likely physical cause. Details are in
 [raw NVMe thermal evidence](../evidence/strix-raw-nvme-thermal-reset.json).
+
+### Desktop-size NVMe heatsink removed the thermal boundary, 2026-10-13
+
+A desktop-size heatsink was then installed on the T700 while leaving the
+platform profile at `balanced`. The same detached 64 GiB raw `/dev/nvme0n1`
+direct-read protocol completed all 64 checkpoints in 109 seconds. Every chunk
+took the recorded one-second interval, all SHA-256 values were present, and no
+checkpoint returned nonzero. Watcher samples peaked at 40.85 °C, full I/O PSI
+peaked at 0.69%, and both D-state and NVMe inflight counts stayed zero. SMART
+remained clean and the warning-priority kernel window was empty.
+
+Compared with the failing run, peak observed NVMe temperature fell by 45.00 °C,
+throughput improved from 3-12 seconds per GiB to one second per GiB, and the
+host no longer reset. This makes inadequate NVMe cooling/contact/airflow the
+dominant physical cause of the immediate wedge. The exact firmware, controller,
+or EC protection action remains unobserved. Details are in
+[heatsink mitigation evidence](../evidence/strix-heatsink-mitigation.json).
+
+### Strix source GGUF requalified, 2026-10-13
+
+After the raw-drive mitigation result, the previously quarantined
+98,421,788,160-byte IQ4_XS source GGUF was read twice with its normal detached
+checkpoint protocol. Both passes covered the same 92 logical offsets, including
+the 711,282,176-byte EOF chunk; all exit codes were zero, stderr stayed empty,
+and every cross-pass hash matched. The watcher sampled a 49.85 °C NVMe peak
+with at most one D-state process and zero inflight commands at its sample
+boundaries. A detached full-file hash then produced the pinned SHA-256
+`ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb` in
+141.13 seconds. SMART remained clean. This requalifies the source bytes and
+read path for quantization work; it makes no model-quality claim. Details are in
+[source requalification evidence](../evidence/strix-source-gguf-requalified.json).
+
+### Strix ZeroTier upload-path diagnosis, 2026-10-13
+
+After the storage boundary was fixed, three Mac-to-Strix bulk attempts over the
+direct ZeroTier path timed out while Strix stayed on the same boot, cool, and
+without D-state processes. A disk-free `/dev/zero` to `/dev/null` reproduction
+failed identically. A 64 KiB/s SSH stream completed for 40 seconds, while 128
+and 256 KiB/s streams timed out. Packet capture showed successful SSH
+authentication, about 334 KiB of in-order stream data accepted by Strix, then a
+retransmission/SACK storm. The encrypted UDP path was asymmetric: the selected
+forward flow used one NAT endpoint pair and ACKs returned through another.
+ZeroTier's selected IPv4 endpoints changed during the incident and Strix
+subsequently probed nine endpoint combinations.
+
+The leading diagnosis is rate-sensitive NAT/path renegotiation or packet-rate
+policing on the Mac-to-Strix IPv4 path, not Strix storage or sshd. The exact
+actor remains unknown. The same 579,789,056-byte standard iMatrix transferred
+successfully and hash-verified in 86 seconds through the B550 jump and
+B550-to-Strix LAN. Sustained main-machine uploads to Strix therefore use that
+relay until the direct path is repaired. Details are in
+[ZeroTier path evidence](../evidence/strix-zerotier-upload-path-instability.json).
