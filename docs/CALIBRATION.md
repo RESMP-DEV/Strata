@@ -87,6 +87,32 @@ python3 tools/standard_imatrix.py \
 
 The GGUF metadata key is `imatrix.chunk_count`.
 
+## Exact-copy deterministic rerun
+
+The subsequent routed-expert rerun uses three research gates together:
+`STRATA_TOKEN_IMATRIX=1` when building the calibration tool,
+`STRATA_DETERMINISTIC_IQ=1` for the IQ2_XS derived-weight expression, and
+`STRATA_EXACT_COPY=1` so a complete recipe can preserve every non-target
+tensor byte-for-byte while replacing only routed experts. Generate the anchored
+recipe from the verified source GGUF:
+
+```sh
+python3 tools/exact_copy_recipe.py \
+  --model /path/to/Qwen3.8-Flash-Next.IQ4_XS.gguf \
+  --output /path/to/standard-iq2xs.recipe
+```
+
+For this source, the recipe has 1,224 rows: 96 gate/up rows become IQ2_XS, 48
+down rows become Q2_0, and the other 1,080 rows retain their source types.
+The anchors and regex escaping are required; llama.cpp treats recipe names as
+regular expressions, and an unanchored `ssm_a` also matches `ssm_alpha`.
+
+Build `llama-quantize` with `-ffp-contract=off`, then require a dry run that
+loads all 902 iMatrix entries, reports exactly 144 conversions, preserves every
+other type, and projects 63,551.82 MiB at 3.01 BPW. Only then run the real
+quantization with `--allow-requantize --imatrix ... --tensor-type-file ...
+<source> <output> COPY 24`.
+
 ## Why this boundary
 
 llama.cpp's native interface is model-tokenized raw text. K-Transformers'
