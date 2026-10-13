@@ -1,0 +1,185 @@
+{
+  "recorded_at": "2026-10-13T14:01:00Z",
+  "agent": "Codex",
+  "source_revision": "bcb17c4293feb22845df0069781bcb93d72b4412",
+  "source_dirty": false,
+  "scope": "Builds, validates, packs, and executes the first deterministic IQ2_XS routed-expert requantization using the RESMP-DEV standard 256x2048 iMatrix on Strix after the NVMe heatsink mitigation.",
+  "run_revision": {
+    "remote_checkout_at_launch": "3d27da21b2b2333347bf181adf029670932ded34",
+    "remote_checkout_during_run": "synchronized to bcb17c4293feb22845df0069781bcb93d72b4412 without touching the running ignored build",
+    "tracked_reproduction_revision": "bcb17c4293feb22845df0069781bcb93d72b4412"
+  },
+  "inputs": {
+    "source_gguf": {
+      "path": "/home/kearm/models/qwen-flash-next/static-iq4xs-full/Qwen3.8-Flash-Next.IQ4_XS.gguf",
+      "bytes": 98421788160,
+      "sha256": "ea9b7537389918d69bcf3ea1fb5693d427ae82278dd67f415fa9383858b51efb"
+    },
+    "imatrix": {
+      "path": "/home/kearm/models/qwen-flash-next/standard-imatrix/Qwen3.8-Flash-Next.standard-256x2048.imatrix.gguf",
+      "bytes": 579789056,
+      "sha256": "92c6a742027b569907a2ce3cd2bf12b3ae5ea037c86105ef7ba4ae244a43fc89",
+      "chunks": 256,
+      "entries": 902
+    },
+    "recipe": {
+      "rows": 1224,
+      "gate_up_iq2xs": 96,
+      "down_q2_0": 48,
+      "preserved_source_types": 1080,
+      "run_recipe_sha256": "27318c419920d143420ec6920cd95117306188a42eea5719f20238adbc5302b9",
+      "committed_generator_recipe_sha256": "6d6f75176b06b4809006766ae78af0f7428e6effb8e51e3c43261c050f8b29c5",
+      "comparison": "The byte representations differ because the committed generator regex-escapes dots; every entry in both files matches exactly one identical tensor name and no other name."
+    }
+  },
+  "quantization": {
+    "started": "2026-10-13T13:16:27Z",
+    "completed": "2026-10-13T13:44:18Z",
+    "exit": 0,
+    "wall_seconds": 1668.85,
+    "user_seconds": 39221.08,
+    "system_seconds": 24.43,
+    "cpu_percent": 2351,
+    "peak_rss_kbytes": 29327556,
+    "threads": 24,
+    "mode": "COPY plus complete anchored per-tensor recipe; deterministic IQ2_XS expression; -ffp-contract=off",
+    "artifact": {
+      "path": "/home/kearm/models/qwen-flash-next/standard-iq2xs-deterministic/Qwen3.8-Flash-Next.standard-256x2048.deterministic-iq2xs.gguf",
+      "bytes": 66649935712,
+      "sha256": "f88ddbabfe3a7c307c4685ae524efddcceada6e5b427d0d5aa574a53a767cc08"
+    },
+    "hash_wall_seconds": 96.06,
+    "contract": {
+      "tensor_count": 1224,
+      "type_or_shape_violations": 0,
+      "gate_up_iq2xs": 96,
+      "down_q2_0": 48,
+      "non_target_types_changed": 0,
+      "conversion_log_lines": 144,
+      "unexpected_conversion_lines": 0,
+      "projected_quant_size": "63551.82 MiB / 3.01 BPW"
+    },
+    "size_note": "The standard-matrix artifact is 96 bytes larger than the earlier public-matrix artifact because its GGUF header/data-start is 352 bytes larger and tensor alignment differs. Tensor size and type contracts are unchanged.",
+    "wrapper_false_negative": "The run wrapper required the old public artifact's 66649935616-byte size and wrote state=failed even though llama-quantize exited 0 with the valid 66649935712-byte standard artifact.",
+    "telemetry": {
+      "quant_and_hash_samples": 32,
+      "sampled_peak_nvme_celsius": 39.85,
+      "peak_io_psi_full_avg10": 0.72,
+      "max_d_state_processes": 1,
+      "max_nvme_inflight": 0,
+      "post_smart": "critical warning 0, 100% spare, zero media errors, zero error-log entries"
+    }
+  },
+  "tracked_reproduction": {
+    "gates": [
+      "STRATA_DETERMINISTIC_IQ=1",
+      "STRATA_EXACT_COPY=1"
+    ],
+    "patched_source_sha256": "2739ebd906b634e16ad2d2eda25f7efdee1d37b0ba75a71eb88d4df2422439d3",
+    "llama_quantize_sha256": "37ae5081213b1e8cefe052e5b3b74314830bbc8001c4521712894692f132ef38",
+    "dry_run": "PASS: 902 iMatrix entries, exactly 144 target conversions, zero unexpected conversions, 63551.82 MiB / 3.01 BPW"
+  },
+  "pack": {
+    "path": "/home/kearm/models/qwen-flash-next/standard-iq2xs-deterministic/pack",
+    "mode": "tools/iq_pack.py --compat-bf16 in an ephemeral uv environment with numpy, pyyaml, and regex",
+    "wall_seconds": 14.278,
+    "peak_rss_kbytes": 914648,
+    "index_tensors": 1079,
+    "served_natively": 303,
+    "dense_arena_gib": 1.38,
+    "conversions": {
+      "total": 459,
+      "exact": 96,
+      "rounded": 363,
+      "max_abs_error": 0.0146
+    },
+    "compat_bf16": {
+      "tensors": 363,
+      "gib": 1.22,
+      "expert_and_ple_bytes_unchanged": true
+    },
+    "tokenizer": {
+      "vocab": 248320,
+      "merges": 247587,
+      "pre": "qwen35"
+    },
+    "main_file_sha256": {
+      "index.txt": "593a83da03dc6c1389c5eeabfbbce0769de63a8b5a0025670056f458417b3f53",
+      "dense.bin": "1fab0d62440d5ffeaf3cdbf0aa2a3f64961b77ebcea62f6915096cba4765d01a",
+      "native_experts.txt": "39f5c5ddd5cadd972ee4b1a87433f6728563e580018bcdda76d0bf07c9f93cd3",
+      "conversions.json": "fe73f0677161f30d43fc4463344e7534663d5fb2b6243bf8352511da8272650b",
+      "compat-bf16.json": "4e99732e2b3a7b3780fe3186b5a31b099db5b4cbc339026b131ffbc85f29cab1"
+    }
+  },
+  "engine_gate": {
+    "engine": "build/strata, engine 0.1.41",
+    "engine_sha256": "e557634f8e56c4e43a7f241a449b29c2219bfebba06900231326b998829df70b",
+    "prompt_tokens": [
+      100,
+      101,
+      102
+    ],
+    "output_token": 157,
+    "expert_gib_loaded": 32.23,
+    "load_gib_per_second": 6.93,
+    "expert_cache_slots": 2233,
+    "decode_tokens_per_second": 26.33,
+    "prefill_tokens_per_second": 6.83,
+    "wall_seconds": 27.499,
+    "peak_rss_kbytes": 36346188,
+    "exit": 0
+  },
+  "same_day_control": {
+    "artifact": "Strix-native public-matrix IQ2_XS artifact a643e4aef1a7d5d839186869446ea164d387a1979a7651c427c28bc863119362",
+    "same_engine": true,
+    "same_boot": true,
+    "same_prompt_and_command": true,
+    "output_token": 157,
+    "decode_tokens_per_second": 24.96,
+    "prefill_tokens_per_second": 5.45,
+    "wall_seconds": 15.72,
+    "result": "The standard artifact generated the same control token and was faster on this one-token gate."
+  },
+  "checks": [
+    {
+      "name": "repository-quality",
+      "command": "just quality",
+      "exit": 0,
+      "result": "all selected host-safe checks passed at the committed exact-copy revision"
+    },
+    {
+      "name": "tracked-rebuild-and-dry-run",
+      "commands": [
+        "STRATA_DETERMINISTIC_IQ=1 STRATA_EXACT_COPY=1 python3 -c 'import setup; setup.get_llama_cpp()'",
+        "cmake --build build/llama-deterministic --target llama-quantize --parallel 24"
+      ],
+      "exit": 0,
+      "result": "tracked patches applied and the dry-run contract repeated exactly"
+    },
+    {
+      "name": "artifact-type-contract",
+      "command": "compare all 1224 source/output tensor names, shapes, and types",
+      "exit": 0,
+      "result": "zero violations"
+    },
+    {
+      "name": "pack",
+      "command": "uv run --with numpy --with pyyaml --with regex python tools/iq_pack.py --compat-bf16",
+      "exit": 0
+    },
+    {
+      "name": "engine-and-control",
+      "command": "identical one-token native Strata commands for standard and public artifacts",
+      "exit": 0,
+      "result": "both generated token 157"
+    }
+  ],
+  "non_claims": [
+    "One greedy token proves loading and execution, not generation quality or general throughput.",
+    "No perplexity, task-quality score, long-generation comparison, or repeated throughput interval has run.",
+    "The full standard artifact has not been rebuilt on the Apple-silicon host, so cross-host whole-file reproducibility remains unproven.",
+    "The standard calibration matrix is not proven superior to the public matrix; only this one-token same-day control is recorded.",
+    "The artifact and pack remain local research outputs and are not setup choices or published artifacts.",
+    "The old public artifact's 24.96 tok/s control is same-day but not interleaved with the standard run; treat it as a control observation, not a confidence interval."
+  ]
+}

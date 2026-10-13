@@ -390,3 +390,27 @@ successfully and hash-verified in 86 seconds through the B550 jump and
 B550-to-Strix LAN. Sustained main-machine uploads to Strix therefore use that
 relay until the direct path is repaired. Details are in
 [ZeroTier path evidence](../evidence/strix-zerotier-upload-path-instability.json).
+
+### Deterministic standard-calibrated IQ2_XS artifact, 2026-10-13
+
+After the source and matrix were hash-verified on Strix, a complete 1,224-entry
+anchored COPY recipe quantized 96 gate/up expert tensors to deterministic IQ2_XS
+and 48 down tensors to Q2_0 while preserving every other tensor type. The full
+run finished in 27:48.85 with 24 threads and 29.33 GiB peak RSS. It produced
+66,649,935,712 bytes with SHA-256
+`f88ddbabfe3a7c307c4685ae524efddcceada6e5b427d0d5aa574a53a767cc08`; all 1,224
+tensor names and shapes matched, exactly the 144 intended type conversions
+occurred, and SMART stayed clean. The standard matrix adds GGUF metadata, making
+this file 96 bytes larger than the old public-matrix artifact despite identical
+tensor contracts.
+
+The tracked `STRATA_EXACT_COPY` and `STRATA_DETERMINIC_IQ` gates rebuilt the
+quantizer and repeated the dry-run contract exactly. `iq_pack.py --compat-bf16`
+then produced the 1.38-GiB dense arena and tokenizer. The real engine loaded
+32.23 GiB of experts at 6.93 GiB/s, selected 2,233 cache slots, and generated
+token 157 at 26.33 tok/s decode and 6.83 tok/s prefill. A same-boot control on
+the prior public-matrix artifact used the same engine and prompt, generated the
+same token, and measured 24.96 tok/s decode and 5.45 tok/s prefill. This is a
+one-token execution gate, not a quality or general-performance claim. Full
+commands, hashes, pack identities, and non-claims are in
+[deterministic standard IQ2_XS evidence](../evidence/standard-iq2xs-deterministic.json).
