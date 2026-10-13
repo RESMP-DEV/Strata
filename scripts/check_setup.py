@@ -13,11 +13,13 @@ SELECTED_SETUP_TESTS = (
     "test_setup_config.py",
     "test_setup_configs.py",
     "test_setup_deterministic_iq.py",
+    "test_setup_exact_copy.py",
     "test_setup_hotfix_tag.py",
     "test_setup_rope.py",
     "test_setup_sycl.py",
     "test_setup_token_imatrix.py",
     "test_standard_imatrix.py",
+    "test_exact_copy_recipe.py",
     "test_strix_watch.py",
 )
 

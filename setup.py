@@ -168,6 +168,7 @@ LLAMA_CPP_ZIP = f"https://github.com/ggml-org/llama.cpp/archive/{LLAMA_CPP_COMMI
 
 DETERMINISTIC_IQ = "STRATA_DETERMINISTIC_IQ"
 TOKEN_IMATRIX = "STRATA_TOKEN_IMATRIX"
+EXACT_COPY = "STRATA_EXACT_COPY"
 LLAMA_IQ2_XS_WEIGHT_ORIGINAL = (
     "            for (int i = 0; i < 16; ++i) weight[i] = qw[i] * sqrtf(sigma2 + xb[i]*xb[i]);"
 )
@@ -177,6 +178,35 @@ LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC = (
 )
 LLAMA_IMATRIX_TOKEN_GLOBAL = "static std::string g_token_file;"
 LLAMA_IMATRIX_TOKEN_PATCH_MARKER = "static bool extract_token_file_argument"
+LLAMA_EXACT_COPY_MARKER = "/* STRATA_EXACT_COPY_PATCH */"
+LLAMA_EXACT_COPY_RESOLVER_ORIGINAL = '''    if (!tensor_allows_quantization(params, qs.model.arch, tensor)) {
+        return tensor->type;
+    }
+'''
+LLAMA_EXACT_COPY_RESOLVER_PATCHED = '''    if (params->only_copy) {
+        /* STRATA_EXACT_COPY_PATCH */
+        const std::string tensor_name(tensor->name);
+        for (const auto & [pattern, qtype] : qs.tensor_type_patterns) {
+            if (std::regex_search(tensor_name, pattern)) {
+                return qtype;
+            }
+        }
+        return tensor->type;
+    } else if (!tensor_allows_quantization(params, qs.model.arch, tensor)) {
+        return tensor->type;
+    }
+'''
+LLAMA_EXACT_COPY_PREFLIGHT_ORIGINAL = '''        metadata[i].allows_quantization = tensor_allows_quantization(params, model->arch, tensor);
+
+        if (metadata[i].allows_quantization) {
+            metadata[i].target_type = llama_tensor_get_type(qs, params, tensor, default_type, metadata[i]);
+        } else {
+            metadata[i].target_type = tensor->type;
+        }
+'''
+LLAMA_EXACT_COPY_PREFLIGHT_PATCHED = '''        metadata[i].target_type = llama_tensor_get_type(qs, params, tensor, default_type, metadata[i]);
+        metadata[i].allows_quantization = metadata[i].target_type != tensor->type;
+'''
 LLAMA_IMATRIX_USAGE_ORIGINAL = (
     '            "       -m model.gguf -f some-text.txt '
     '[-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \\\\\\n"'
@@ -1668,6 +1698,10 @@ def apply_optional_llama_patches(llama):
     STRATA_TOKEN_IMATRIX=1 adds a --token-file input to llama-imatrix so the
     standard tokenized calibration view can be used without retokenizing or
     collapsing its selected windows into contiguous raw-text chunks.
+
+    STRATA_EXACT_COPY=1 lets a complete, anchored --tensor-type-file recipe
+    override named tensors even in COPY mode. Unnamed tensors remain byte-copy
+    candidates, and normal quantization behavior is unchanged.
     """
     applied = False
     if os.environ.get(DETERMINISTIC_IQ) == "1":
@@ -1678,6 +1712,10 @@ def apply_optional_llama_patches(llama):
         applied = apply_imatrix_token_patch(llama) or applied
     else:
         reverse_imatrix_token_patch(llama)
+    if os.environ.get(EXACT_COPY) == "1":
+        applied = apply_exact_copy_patch(llama) or applied
+    else:
+        reverse_exact_copy_patch(llama)
     return applied
 
 
@@ -1721,6 +1759,50 @@ def reverse_deterministic_iq_patch(llama):
     source = source.replace(LLAMA_IQ2_XS_WEIGHT_DETERMINISTIC, LLAMA_IQ2_XS_WEIGHT_ORIGINAL, 1)
     path.write_text(source, encoding="utf-8", newline="\n")
     ok("llama.cpp deterministic IQ2_XS patch reverted")
+    return False
+
+
+def apply_exact_copy_patch(llama):
+    path = llama / "src" / "llama-quant.cpp"
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise RuntimeError(f"could not read {path} for exact COPY patch: {error}") from error
+    if LLAMA_EXACT_COPY_MARKER in source:
+        return False
+    replacements = (
+        (LLAMA_EXACT_COPY_RESOLVER_ORIGINAL, LLAMA_EXACT_COPY_RESOLVER_PATCHED),
+        (LLAMA_EXACT_COPY_PREFLIGHT_ORIGINAL, LLAMA_EXACT_COPY_PREFLIGHT_PATCHED),
+    )
+    for original, patched in replacements:
+        count = source.count(original)
+        if count != 1:
+            raise RuntimeError(f"exact COPY patch expects one llama-quant.cpp block, found {count}: {original[:60]!r}")
+        source = source.replace(original, patched, 1)
+    path.write_text(source, encoding="utf-8", newline="\n")
+    ok("llama.cpp patched for exact per-tensor COPY recipes (research mode)")
+    return True
+
+
+def reverse_exact_copy_patch(llama):
+    path = llama / "src" / "llama-quant.cpp"
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    if LLAMA_EXACT_COPY_MARKER not in source:
+        return False
+    replacements = (
+        (LLAMA_EXACT_COPY_RESOLVER_PATCHED, LLAMA_EXACT_COPY_RESOLVER_ORIGINAL),
+        (LLAMA_EXACT_COPY_PREFLIGHT_PATCHED, LLAMA_EXACT_COPY_PREFLIGHT_ORIGINAL),
+    )
+    for patched, original in replacements:
+        count = source.count(patched)
+        if count != 1:
+            raise RuntimeError(f"could not revert exact COPY patch: expected one block, found {count}: {patched[:60]!r}")
+        source = source.replace(patched, original, 1)
+    path.write_text(source, encoding="utf-8", newline="\n")
+    ok("llama.cpp exact COPY patch reverted")
     return False
 
 
