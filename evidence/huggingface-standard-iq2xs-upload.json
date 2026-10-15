@@ -1,0 +1,135 @@
+{
+  "recorded_at": "2026-10-15T08:27:00Z",
+  "agent": "Codex",
+  "source_revision": "e19b1d73a08ff4205925b0bc5697c70ec1e6bded",
+  "source_dirty": false,
+  "scope": "Prepares the deterministic standard-calibrated IQ2_XS artifact for private Hugging Face upload, splits it under the Hub per-file limit, verifies the split semantically, creates the destination repository and metadata, and records the private-storage blocker preventing shard upload.",
+  "artifact": {
+    "classification": "Static per-tensor GGUF requantization; not runtime dynamic quantization",
+    "unsharded_path": "/home/kearm/models/qwen-flash-next/standard-iq2xs-deterministic/Qwen3.8-Flash-Next.standard-256x2048.deterministic-iq2xs.gguf",
+    "bytes": 66649935712,
+    "sha256": "f88ddbabfe3a7c307c4685ae524efddcceada6e5b427d0d5aa574a53a767cc08",
+    "live_hash_rechecked": true
+  },
+  "hub_repository": {
+    "repo_id": "Kearm/Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix",
+    "url": "https://huggingface.co/Kearm/Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix",
+    "private": true,
+    "created": true,
+    "metadata_commit": "fd601ac4fe7f860980872f090f4f075299a49ce1",
+    "files": [
+      ".gitattributes",
+      "README.md",
+      "manifest.json"
+    ],
+    "metadata_roundtrip": "PASS: downloaded README.md and manifest.json and compared them byte-for-byte",
+    "metadata_sha256": {
+      "README.md": "b2278cf09e534bde070d2c326a633ae201f2c52c04bafb8b5f91c00a884735a4",
+      "manifest.json": "2abd740d449be39c191d97ee05995ae3dd72807d3ac2a19fa83101d23554fcdf"
+    }
+  },
+  "split": {
+    "reason": "Hugging Face rejected the single 62.08-GiB object with HTTP 422: max individual file size is 50.0 GB",
+    "tool": "llama-gguf-split from the deterministic pinned build",
+    "command_mode": "--split --split-max-size 40G",
+    "wall_seconds": 37.89,
+    "peak_rss_kbytes": 28728852,
+    "tensor_count": 1224,
+    "shards": [
+      {
+        "path": "Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix-00001-of-00002.gguf",
+        "bytes": 39969168288,
+        "sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+        "tensors": 344
+      },
+      {
+        "path": "Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix-00002-of-00002.gguf",
+        "bytes": 26680767616,
+        "sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+        "tensors": 880
+      }
+    ],
+    "remote_directory": "/home/kearm/models/qwen-flash-next/standard-iq2xs-deterministic/hf-shards"
+  },
+  "split_verification": {
+    "merge_tool": "llama-gguf-split --merge",
+    "merged_tensor_count": 1224,
+    "whole_file_merge_sha256": "c1f822f2b29dfe89cbc5ac2df1744e8c28a1372e8427008258bf8c68e6e42a86",
+    "whole_file_result": "Different from the unsharded source because GGUF split metadata and header alignment are reconstructed",
+    "semantic_check": "All 1,224 tensor names, shapes, types, expected byte counts, and payload SHA-256 values matched the unsharded source",
+    "payload_mismatches": 0,
+    "temporary_merge_cleanup": "Removed the exact task-owned merge-verification file and directory"
+  },
+  "upload_blocker": {
+    "attempt": "Legacy multipart LFS batch upload for both verified shards",
+    "http_status": 403,
+    "hub_message": "Private storage limit reached for user Kearm, please upgrade your plan to increase your private storage limit.",
+    "account_state": {
+      "auth_user": "Kearm",
+      "is_pro": false,
+      "billing_mode": "prepaid"
+    },
+    "bytes_pending": 66649935904,
+    "gibibytes_pending": 62.08,
+    "shards_uploaded": 0,
+    "credential_boundary": "The Hugging Face token remained on the authenticated main machine; no account token was installed on Strix.",
+    "required_user_action": "Increase Kearm private Hub storage, or explicitly authorize a different private destination. Public upload is not permitted by the project policy."
+  },
+  "checks": [
+    {
+      "name": "artifact-live-hash",
+      "command": "sha256sum <artifact>",
+      "exit": 0,
+      "result": "matches f88ddbabfe3a7c307c4685ae524efddcceada6e5b427d0d5aa574a53a767cc08"
+    },
+    {
+      "name": "hub-single-file-limit",
+      "command": "Hugging Face LFS batch request for the 66649935712-byte object",
+      "exit": 422,
+      "result": "max individual file size 50.0 GB"
+    },
+    {
+      "name": "gguf-split",
+      "command": "llama-gguf-split --split --split-max-size 40G",
+      "exit": 0,
+      "result": "two GGUF shards written with 1,224 total tensors"
+    },
+    {
+      "name": "shard-hashes",
+      "command": "sha256sum both shards",
+      "exit": 0,
+      "result": "both hashes recorded above"
+    },
+    {
+      "name": "merge-and-payload-verification",
+      "commands": [
+        "llama-gguf-split --merge",
+        "python compare of all 1,224 tensor payloads"
+      ],
+      "exit": 0,
+      "result": "zero payload mismatches"
+    },
+    {
+      "name": "private-repository-and-metadata",
+      "commands": [
+        "hf repos create Kearm/Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix --private",
+        "hf upload <metadata directory>",
+        "hf download README.md manifest.json"
+      ],
+      "exit": 0,
+      "result": "repository is private; both metadata files round-tripped exactly"
+    },
+    {
+      "name": "private-storage-capacity",
+      "command": "Hugging Face LFS batch request for both shards",
+      "exit": 403,
+      "result": "private storage limit reached before any shard bytes were uploaded"
+    }
+  ],
+  "non_claims": [
+    "No GGUF shard bytes were uploaded because the Hub refused the private LFS upload before issuing transfer actions.",
+    "The exact private-storage quota numerator, denominator, and current billed usage were not exposed by the whoami response.",
+    "A llama.cpp split/merge is not byte-identical at the whole-file level; only the tensor-level equality above is claimed.",
+    "The model card records the one-token execution gate but makes no quality or general-throughput claim."
+  ]
+}

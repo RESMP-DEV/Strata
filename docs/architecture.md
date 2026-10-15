@@ -414,3 +414,22 @@ same token, and measured 24.96 tok/s decode and 5.45 tok/s prefill. This is a
 one-token execution gate, not a quality or general-performance claim. Full
 commands, hashes, pack identities, and non-claims are in
 [deterministic standard IQ2_XS evidence](../evidence/standard-iq2xs-deterministic.json).
+
+### Hugging Face upload preparation and storage gate, 2026-10-15
+
+The deterministic artifact is a static per-tensor requantization, not runtime
+dynamic quantization. A private Hugging Face destination was created as
+`Kearm/Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix`; its model card and manifest
+were uploaded and round-trip verified at commit
+`fd601ac4fe7f860980872f090f4f075299a49ce1`. The Hub rejected the single
+62.08-GiB object because this account's individual-file limit is 50 GB. The
+artifact was therefore split with llama.cpp into a 39.97-GiB, 344-tensor shard
+and a 26.68-GiB, 880-tensor shard. Both shard hashes are recorded, and all
+1,224 tensor payloads survived merge verification without mismatch.
+
+The shard LFS upload then stopped before transferring bytes: the Hub returned
+403, `Private storage limit reached for user Kearm`. The Hugging Face token
+stayed on the main machine. Increasing Kearm private storage or explicitly
+selecting another private destination is the remaining action; a public upload
+is not permitted. Details are in
+[Hugging Face upload evidence](../evidence/huggingface-standard-iq2xs-upload.json).
