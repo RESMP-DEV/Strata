@@ -1,0 +1,139 @@
+{
+  "recorded_at": "2026-10-16T14:58:00Z",
+  "agent": "Codex",
+  "source_revision": "86bfd8e6a8f114ca054fcdfe48cb90a63aaa3923",
+  "source_dirty": false,
+  "scope": "Publishes the verified deterministic standard-calibrated IQ2_XS/Q2_0 GGUF shard set to the explicit RESMP-DEV Hugging Face model destination, following the organization's GGUF model-card format and recording upload integrity.",
+  "authorization": {
+    "user_instruction": "Models should always be uploaded to https://huggingface.co/RESMP-DEV; make this artifact public with a sufficient disclaimer and a better name.",
+    "durable_agent_note": "/Users/kearm/.codex/memories/extensions/ad_hoc/notes/2026-10-16-hf-model-destination.md",
+    "visibility": "public"
+  },
+  "repository": {
+    "repo_id": "RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-GGUF",
+    "url": "https://huggingface.co/RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-GGUF",
+    "public": true,
+    "final_revision": "694d57e65b887b0620cd32fdebb23f2f0a6f3003",
+    "metadata_commit": "bb7aef8e4deb2b036c2788c7c77db8f2c5d57312",
+    "files": [
+      ".gitattributes",
+      "README.md",
+      "SHA256SUMS",
+      "provenance.json",
+      "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-00001-of-00002.gguf",
+      "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-00002-of-00002.gguf"
+    ],
+    "model_card_format": "Aligned with RESMP-DEV/MiMo-V2.6-Distill-Qwen-9B-GGUF: base-model metadata, status, scope disclaimer, at-a-glance table, file table, usage, calibration/conversion, validation, reproducibility/integrity, and credits."
+  },
+  "model_card": {
+    "disclaimer": {
+      "static_quantization": true,
+      "runtime_dynamic_quantization": false,
+      "compounded_iq4_xs_source": true,
+      "quality_equivalent_to_bf16_claimed": false,
+      "general_performance_claimed": false,
+      "one_token_gate_only": true,
+      "not_default_strata_choice": true
+    },
+    "roundtrip": "PASS: final README.md, provenance.json, and SHA256SUMS downloaded from the public repository and compared byte-for-byte",
+    "sha256": {
+      "README.md": "d9fa406b828fb693f4a373d3324ef93fde96fb482892889b989dbb080f89fd95",
+      "provenance.json": "5c8070295ce49dde3a2a3343ab52ff795e30b22ebaabdb95b9861e4d3dbf1a03",
+      "SHA256SUMS": "0bd05633e68ffa59092ffbaf67fb08ae70f2e6951342a572b08cf597b276d160"
+    }
+  },
+  "lfs_upload": {
+    "method": "Authenticated main machine issued short-lived multipart LFS actions; Strix uploaded presigned parts and recorded per-part ETags. No Hugging Face account token was installed on Strix.",
+    "signed_url_validity_seconds": 36000,
+    "workers": 24,
+    "resume_state": "Every completed part and ETag was persisted; an early progress-report bug was corrected and the controller resumed without reuploading completed parts.",
+    "shards": [
+      {
+        "name": "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-00001-of-00002.gguf",
+        "bytes": 39969168288,
+        "sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+        "parts": 1000,
+        "final_controller_wall_seconds": 7679,
+        "completed_lfs": true
+      },
+      {
+        "name": "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-00002-of-00002.gguf",
+        "bytes": 26680767616,
+        "sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+        "parts": 1000,
+        "final_controller_wall_seconds": 5491,
+        "completed_lfs": true
+      }
+    ],
+    "pointer_repair": {
+      "raw_pointer_commit": "9882c339070bfd78a27d11b4885f6ace9dacf7f8",
+      "correct_lfs_pointer_commit": "694d57e65b887b0620cd32fdebb23f2f0a6f3003",
+      "detail": "A first raw-pointer experiment exposed 136-byte pointer blobs. The pointers were replaced through the normal legacy-LFS commit path with the already completed OIDs; Xet was disabled for that commit."
+    },
+    "verification": {
+      "shard1_http": "206 after redirect",
+      "shard1_content_range": "bytes 0-0/39969168288",
+      "shard1_linked_etag": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+      "shard2_http": "206 after redirect",
+      "shard2_content_range": "bytes 0-0/26680767616",
+      "shard2_linked_etag": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+      "api_sizes_match": true
+    },
+    "signed_action_cleanup": "All local and remote generated LFS action JSON files were deleted after completion; zero remain."
+  },
+  "cleanup": {
+    "obsolete_personal_repo": "Kearm/Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix",
+    "preflight_contents": [
+      ".gitattributes",
+      "README.md",
+      "manifest.json"
+    ],
+    "shards_present_before_delete": 0,
+    "deleted": true,
+    "post_delete_http": 401
+  },
+  "checks": [
+    {
+      "name": "public-repository",
+      "command": "curl https://huggingface.co/RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-GGUF",
+      "exit": 0,
+      "result": "HTTP 200"
+    },
+    {
+      "name": "metadata-roundtrip",
+      "command": "hf download README.md provenance.json SHA256SUMS; cmp against source",
+      "exit": 0,
+      "result": "all three files matched"
+    },
+    {
+      "name": "lfs-parts",
+      "commands": [
+        "upload_lfs_parts.py action-00001 shard-00001 state 24",
+        "upload_lfs_parts.py action-00002 shard-00002 state 24"
+      ],
+      "exit": 0,
+      "result": "2,000 of 2,000 parts completed and both LFS completion requests passed"
+    },
+    {
+      "name": "public-lfs-identity",
+      "command": "ranged GET on both public shard URLs",
+      "exit": 0,
+      "result": "HTTP 206, complete logical content ranges, and linked SHA-256 etags matched"
+    },
+ {
+      "name": "old-personal-repository-cleanup",
+      "commands": [
+        "list old repository files and assert no GGUF was present",
+        "hf repos delete Kearm/Qwen3.8-Flash-Next-IQ2_XS-Standard-iMatrix --yes"
+      ],
+      "exit": 0,
+      "result": "metadata-only obsolete destination removed"
+    }
+  ],
+  "non_claims": [
+    "Ranged public requests and Hub LFS OIDs verify storage identity without re-downloading all 66.65 GB.",
+    "The model card's one-token execution result is not a quality or general-throughput claim.",
+    "The calibration corpus and importance matrix remain private.",
+    "The final public shard files are the previously tensor-payload-verified split; no new quantization was performed for publication."
+  ]
+}

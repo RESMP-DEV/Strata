@@ -433,3 +433,22 @@ stayed on the main machine. Increasing Kearm private storage or explicitly
 selecting another private destination is the remaining action; a public upload
 is not permitted. Details are in
 [Hugging Face upload evidence](../evidence/huggingface-standard-iq2xs-upload.json).
+
+### Public RESMP-DEV publication, 2026-10-16
+
+The user then made the destination policy explicit: future model uploads go to
+the RESMP-DEV Hugging Face organization, and this research artifact was
+explicitly authorized as public. The better-named public repository is
+[RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-GGUF](https://huggingface.co/RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-GGUF).
+Its model card follows the organization's existing GGUF format and states the
+essential boundary: this is a static, compounded IQ4_XS-to-IQ2_XS/Q2_0 research
+requantization, not runtime dynamic quantization or a quality-equivalent BF16
+conversion, and only a one-token execution gate has run.
+
+The main machine issued short-lived multipart LFS actions while Strix uploaded
+2,000 presigned parts and persisted every ETag; no Hugging Face token was placed
+on Strix. Both 1,000-part shards completed, and the final public LFS pointers
+were verified with HTTP 206 logical ranges and linked SHA-256 etags. The
+obsolete metadata-only personal destination was deleted after confirming it
+contained no shards. Details and cleanup are in
+[publication evidence](../evidence/huggingface-standard-iq2xs-publication.json).
