@@ -1,0 +1,13 @@
+{
+  "recorded_at": "2026-10-17T21:31:35.130433+00:00",
+  "agent": "Codex",
+  "scope": "Align the Strata repository instruction with the permanent RESMP-DEV no-upstream policy.",
+  "change": "Replaced the stale explicit-instruction upstream exception with a permanent no-contribution rule.",
+  "validation": {
+    "command": "git diff --check",
+    "exit_code": 0
+  },
+  "non_claims": [
+    "Documentation-only change; no Strata runtime, installer, or benchmark claim."
+  ]
+}

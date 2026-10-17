@@ -98,9 +98,8 @@ evidence, not acceptance.
 - Use the existing CLI/server interfaces before desktop automation. The MCP
   interface in `docs/MCP_SERVER.md` remains an alternative surface, not a
   reason to build another one.
-- Preserve upstream technical content while this private RESMP-DEV mirror
-  evolves. Do not push to `upstream`; upstream contribution requires an explicit
-  instruction in the active task.
+- Preserve upstream technical content while this RESMP-DEV mirror evolves. Do
+  not contribute to `upstream`; RESMP-DEV publishes its own changes.
 </project_boundaries>
 
 <coordination>
