@@ -463,3 +463,19 @@ make the actual meaning explicit:
 The old repository URL redirects. Both LFS shard OIDs and byte counts are
 unchanged; this was a naming and model-card clarification only. Details are in
 [naming evidence](../evidence/huggingface-imatrix-naming-clarification.json).
+
+### Strix M.2 retainer part research, 2026-10-17
+
+The unusable Strix bay uses ASUS's 2025 ROG tool-less rotating cam SSD latch:
+official G635/G615 service documentation calls component 25 an `SSD latch`,
+says to rotate the latch knobs counterclockwise and clockwise, and shows the
+same left/right mechanism for G615LP and G615LW. The only separately cataloged
+ASUS SSD lock latch found is `13NR0L80P10011`, listed by ASUS US for $0.08 but
+temporarily out of stock with a 4 to 9 week lead time. It is not yet a
+confirmed exact fit: this machine reports a G615LP board while its chassis
+serial resolves as G615LW, and Asus-Parts rejects that SKU for G615LW. A
+physical macro comparison, molded part number, or ASUS fitment confirmation
+remains required before purchase. IPC lists the candidate at €28.90 including
+VAT on an eight-week request basis; no order or seller inquiry was made. Full
+manual hashes, seller snapshots, and non-claims are in
+[M.2 retainer evidence](../evidence/strix-m2-retainer-part-research.json).

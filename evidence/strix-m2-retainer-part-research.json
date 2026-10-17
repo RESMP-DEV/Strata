@@ -1,0 +1,160 @@
+{
+  "recorded_at": "2026-10-17T13:27:18Z",
+  "agent": "Codex",
+  "source_revision": "624435d463f33f3f06c051ac0c463b88e0ff290d",
+  "source_dirty": false,
+  "scope": "Read-only identification and price research for the unusable M.2 bay retainer on the Strix host. No order, seller inquiry, disassembly, reboot, stress test, or Strix configuration change was made.",
+  "host": {
+    "ssh_target": "kearm@10.243.112.172 with HostKeyAlias=192.168.1.182",
+    "reachable": true,
+    "hostname": "compute",
+    "live_dmi": {
+      "product_name": "ROG Strix G16 G615LP_G615LP",
+      "board_name": "G615LP",
+      "product_version": "1.0",
+      "board_version": "1.0"
+    },
+    "serial_privacy": "Serial retained as masked; Asus-Parts serial lookup resolved the chassis as ASUS ROG G615LW.",
+    "identity_interpretation": "The machine is hybrid or modified: firmware/board identity is G615LP, while the chassis serial resolves as G615LW. The M.2 latch is motherboard-mounted, so serial-only fitment is not authoritative for this unit."
+  },
+  "mechanism": {
+    "official_name": "SSD latch",
+    "service_manual_component_callout": 25,
+    "operation": "Rotate latch knob counterclockwise to release and clockwise to lock; both M.2 SSD slots use the same procedure.",
+    "customer_guide_observation": "The left and right sequences show a dark plastic cam/lever centered on a small circular pivot, with a brass-colored pivot visible in the manual photographs. No separate M.2 screw, spring slider, or driver step is shown.",
+    "classification": "ASUS 2025 ROG tool-less rotating cam SSD latch, not the older desktop-board twist Q-Latch and not a normal screw/standoff.",
+    "both_slots_same_family": true
+  },
+  "official_documents": [
+    {
+      "title": "G635L_G615L_G615J Service Manual for English Edition",
+      "version": "24206",
+      "url": "https://dlcdnets.asus.com/pub/ASUS/GamingNB/G635LW/E24206_G615_G635_SM_WEB.pdf",
+      "retrieved_http_status": 200,
+      "bytes": 9221082,
+      "pdf_pages": 138,
+      "sha256": "2fa21b9a693237266d9d6cdf81015c503884e04be7b43d9c7e7edd2d44536403",
+      "evidence": "Major components item 25 is SSD latch. M.2 removal says to turn latch knob(s) counterclockwise; installation says clockwise. The plural applies to both slots."
+    },
+    {
+      "title": "G615LR_LW_LH_LM_LP_JM_JMR_JH_JHR_JPR_G635LX_LR_LW Customer self repair guide",
+      "url": "https://dlcdnets.asus.com/pub/ASUS/GamingNB/G615LR/G615LR_LW_LH_LM_LP_JM_JMR_JH_JHR_JH_G635LX_LR_LW_Customer_Self_Repair_Guide_20250724_1.pdf",
+      "retrieved_http_status": 200,
+      "bytes": 1353688,
+      "pdf_pages": 18,
+      "sha256": "a2628c7e5264a7037405802213859d3829c7e7f0ac07c7a6c1b5b066b9711baa",
+      "evidence": "The covered model list includes G615LW and G615LP. Separate left and right M.2 photo sequences both say rotate the SSD LATCH; both show the same cam/pivot mechanism."
+    }
+  ],
+  "candidate_part": {
+    "part_number": "13NR0L80P10011",
+    "asus_name": "G635LX SSD LOCK LATCH",
+    "classification": "The only separately cataloged ASUS SSD LOCK LATCH found by exact-name search.",
+    "official_product_images": [
+      {
+        "url": "https://partshop.asus.com/us/media/catalog/product/1/b/1b2d82c5cf0439534e7edffecdbd9725.jpg",
+        "sha256": "b3fb9cbe6636d19efff69bc3b182b095b89c148cfb627f7807b3d7399de1da8d"
+      },
+      {
+        "url": "https://partshop.asus.com/us/media/catalog/product/f/5/f508b607d07698a0108dc21293f1c84c.jpg",
+        "sha256": "742f35167aea84547464805ad57a890fc07ab1cf3f2b4d6a2d90738d7f75db37"
+      }
+    ],
+    "image_observation": "Official photos show one loose, asymmetric black plastic cam with a projecting pin and hooked/fingered end. No scale, second handed part, screw, coil spring, or metal insert is visible.",
+    "fitment_status": "plausible_but_unconfirmed",
+    "fitment_evidence": {
+      "supports": [
+        "The official service manual uses the same SSD latch mechanism for G635 and G615 families, including both G615LP and G615LW in the customer guide model list.",
+        "Impact Computers lists this SKU as compatible with a different G615 variant, G615LM, in addition to G635/G815/G835 models."
+      ],
+      "opposes": [
+        "The ASUS PartShop product is named for G635LX and does not publicly list a compatibility table.",
+        "The Asus-Parts serial lookup resolved this chassis as ASUS ROG G615LW and its product compatibility checker returned: This part does not fit your ASUS ROG G615LW.",
+        "Neither the G615LW nor G615LP Asus-Parts model catalog lists a separately purchasable SSD lock latch."
+      ],
+      "decision": "Do not treat 13NR0L80P10011 as an exact confirmed replacement without a physical comparison, a molded part number, or ASUS confirmation for this LP/LW hybrid board."
+    }
+  },
+  "price_snapshots": [
+    {
+      "seller": "ASUS PartShop US",
+      "url": "https://partshop.asus.com/us/13nr0l80p10011.html",
+      "item_price_usd": 0.08,
+      "availability": "Temporarily out of stock; estimated delivery lead-time 4 to 9 weeks.",
+      "order_condition": "Page says to log in as a member and use Advanced Search by 90PN or serial number.",
+      "shipping": "Not available before member ordering and stock.",
+      "compatibility": "Named G635LX; exact fit unconfirmed for this unit."
+    },
+    {
+      "seller": "Asus-Parts.com (IPC-Computer)",
+      "url": "https://www.asus-parts.com/en-eu/G635LX-SSD-LOCK-LATCH/13NR0L80P10011",
+      "item_price_eur_incl_vat": 28.90,
+      "availability": "Available on request; usual delivery time 8 weeks once confirmed.",
+      "shipping": "Advertised as plus shipping; no destination quote requested.",
+      "compatibility": "Serial checker explicitly rejected it for the chassis-resolved ASUS ROG G615LW."
+    },
+    {
+      "seller": "Impact Computers",
+      "url": "https://impactcomputers.com/index.php/miscellaneous/asus-ssd-13nr0l80p10011",
+      "item_price_usd": null,
+      "price_display": "Quote; regular and sale placeholders are $0.00.",
+      "availability": "Notify me; no live stock or sell price.",
+      "shipping": "Calculated at checkout after availability.",
+      "compatibility": "Lists G615LM plus G815LP/G835LW/G835LX among compatibles, but not G615LP or G615LW."
+    },
+    {
+      "seller": "eBay",
+      "url": "https://www.ebay.com/sch/i.html?_nkw=13NR0L80P10011",
+      "result": "Zero exact listings for 13NR0L80P10011.",
+      "generic_warning": "A $10.99 ASUS M.2 Q-LATCH 13M0000T04011 listing appears under broader terms, but that is the older desktop twist-collar Q-Latch and is not this laptop cam."
+    }
+  ],
+  "fallback_observation": {
+    "g615lw_model_catalog": "https://www.asus-parts.com/en-eu/laptops/rog/asus-rog-g615lw/",
+    "separately_listed_latch": false,
+    "mainboard_price_range_eur_incl_vat": "2876.00 to 3022.50",
+    "interpretation": "A whole new G615LW mainboard is technically available but is not a sensible route for one plastic latch."
+  },
+  "checks": [
+    {
+      "name": "strix-live-identity",
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o HostKeyAlias=192.168.1.182 kearm@10.243.112.172 'cat /sys/class/dmi/id/{product_name,product_version,board_name,board_version}'",
+      "exit": 0,
+      "result": "reachable; product ROG Strix G16 G615LP_G615LP, board G615LP, versions 1.0"
+    },
+    {
+      "name": "official-pdf-retrieval",
+      "command": "curl --http1.1 -L --fail <dlcdnets URLs>",
+      "exit": 0,
+      "result": "both PDFs returned HTTP 200, passed file/PDF identification, and were hash-recorded"
+    },
+    {
+      "name": "manual-text-and-diagram-review",
+      "command": "pdftotext -layout and targeted rg; pdftoppm plus zai-vision diagram review",
+      "exit": 0,
+      "result": "official text names SSD latch/latch knobs for both slots; photo review found the same rotating plastic cam on left and right sequences"
+    },
+    {
+      "name": "serial-compatibility-check",
+      "command": "Playwright fill of the Asus-Parts product compatibility field with the verified chassis serial",
+      "exit": 0,
+      "result": "serial resolves to ASUS ROG G615LW; verdict: This part does not fit your ASUS ROG G615LW."
+    },
+    {
+      "name": "seller-price-snapshot",
+      "command": "Playwright and curl reads of ASUS PartShop, Asus-Parts, Impact Computers, and eBay",
+      "exit": 0,
+      "result": "prices and availability recorded above; no seller was contacted and no cart or request was submitted"
+    }
+  ],
+  "non_claims": [
+    "The bay was not disassembled or photographed, so this research does not determine whether the failed left or right latch is broken, lost, cracked, or seized.",
+    "No exact replacement SKU is confirmed for the G615LP board installed in this chassis.",
+    "13NR0L80P10011 is the strongest public candidate, not a proven exact fit.",
+    "No shipping quote, tax calculation, order, reservation, or seller inquiry was made.",
+    "The official product image has no scale, and absolute dimensions or left/right handedness were not measured.",
+    "The brass-colored pivot material and internal spring/post construction cannot be proven from the manual photographs.",
+    "The generic 13M0000T04011 Q-Latch is not this mechanism and should not be ordered for this repair.",
+    "A whole mainboard is listed as a fallback source of the latch, but compatibility with this exact hybrid configuration and the practicality of transplanting the latch were not tested."
+  ]
+}
