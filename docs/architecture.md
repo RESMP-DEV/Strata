@@ -452,3 +452,14 @@ were verified with HTTP 206 logical ranges and linked SHA-256 etags. The
 obsolete metadata-only personal destination was deleted after confirming it
 contained no shards. Details and cleanup are in
 [publication evidence](../evidence/huggingface-standard-iq2xs-publication.json).
+
+### Public naming clarification, 2026-10-17
+
+The word `Standard` in the first public repository name meant the internal
+RESMP-DEV calibration standard, not a generic or default GGUF quantization.
+That was confusing to external users. The repository and files were renamed to
+make the actual meaning explicit:
+[RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-GGUF](https://huggingface.co/RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-GGUF).
+The old repository URL redirects. Both LFS shard OIDs and byte counts are
+unchanged; this was a naming and model-card clarification only. Details are in
+[naming evidence](../evidence/huggingface-imatrix-naming-clarification.json).

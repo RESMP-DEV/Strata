@@ -1,0 +1,69 @@
+{
+  "recorded_at": "2026-10-17T10:07:01Z",
+  "agent": "Codex",
+  "source_revision": "7540242e8843d19bdc57b1710107fd81beca9efa",
+  "source_dirty": false,
+  "scope": "Clarifies the public Hugging Face name after user feedback that the internal word standard was confusing to model users.",
+  "reasoning": {
+    "internal_meaning": "standard referred to the RESMP-DEV calibration standard: a pinned exact-token view containing 256 disjoint windows of 2,048 token IDs.",
+    "public_problem": "The word could be misread as a generic or default GGUF quantization, which this compounded research artifact is not.",
+    "resolution": "Use explicit iMatrix-Calibrated-256x2048 naming in the repository, title, files, usage commands, provenance, and checksum manifest."
+  },
+  "repository": {
+    "old_repo_id": "RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-GGUF",
+    "repo_id": "RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-GGUF",
+    "url": "https://huggingface.co/RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-GGUF",
+    "public": true,
+    "final_revision": "d80233332687dd87fe3a41292b7d500c966dbb63",
+    "old_url_behavior": "HTTP 200 with redirect to the final URL",
+    "card_title": "Qwen3.8 Flash-Next · IQ2_XS / Q2_0 iMatrix-Calibrated 256×2,048 GGUF"
+  },
+  "files": {
+    "added": [
+      "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf",
+      "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00002-of-00002.gguf"
+    ],
+    "removed": [
+      "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-00001-of-00002.gguf",
+      "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-Standard-iMatrix-00002-of-00002.gguf"
+    ],
+    "bytes_and_oids_unchanged": true
+  },
+  "checks": [
+    {
+      "name": "repository-rename",
+      "command": "hf repos move <old> <new>",
+      "exit": 0,
+      "result": "repository moved within RESMP-DEV"
+    },
+    {
+      "name": "metadata-and-lfs-pointers",
+      "command": "create commit with updated card, provenance, checksums, new LFS pointers, and old-file deletions",
+      "exit": 0,
+      "result": "commit d80233332687dd87fe3a41292b7d500c966dbb63; no new bytes uploaded"
+    },
+    {
+      "name": "metadata-roundtrip",
+      "command": "hf download README.md provenance.json SHA256SUMS; cmp",
+      "exit": 0,
+      "result": "all three files matched the updated local copies"
+    },
+    {
+      "name": "public-lfs-identity",
+      "command": "ranged GET both renamed shard paths",
+      "exit": 0,
+      "result": "HTTP 206 with complete logical sizes and linked SHA-256 etags unchanged"
+    },
+    {
+      "name": "local-copy-names",
+      "command": "rename both retained Strix shard files",
+      "exit": 0,
+      "result": "local names now match the public paths"
+    }
+  ],
+  "non_claims": [
+    "This is a naming and communication change only; no quantization or model bytes changed.",
+    "The private calibration corpus and importance matrix remain unpublished.",
+    "The artifact remains a research static requantization with no quality-equivalence claim."
+  ]
+}
