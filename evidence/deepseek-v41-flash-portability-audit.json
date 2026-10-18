@@ -1,0 +1,347 @@
+{
+  "recorded_at": "2026-10-18T11:28:53Z",
+  "agent": "Codex",
+  "source_revision": "4c13571dfc976f1ee95eb8f9ac800aa321c87386",
+  "source_dirty": false,
+  "scope": "Portability audit of the Strata engine, packer, server, installer, and accelerator seam for DeepSeek-V4.1-Flash. This is a static source and published-artifact analysis plus arithmetic on published shapes. It does NOT build a backend, convert a checkpoint, download 475 GiB, or run one token of DeepSeek-V4.1-Flash, and it does not prove any speed, quality, or fitment claim.",
+  "target_model": {
+    "repo": "deepseek-ai/DeepSeek-V4.1-Flash",
+    "pinned_revision": "314113f8a7dadb388215396ba5fbee2c610a04d6",
+    "model_type": "deepseek_v41",
+    "architectures": [
+      "DeepseekV41ForCausalLM"
+    ],
+    "text_config": {
+      "num_hidden_layers": 40,
+      "hidden_size": 5120,
+      "num_attention_heads": 64,
+      "num_key_value_heads": 1,
+      "head_dim": 512,
+      "qk_rope_head_dim": 64,
+      "q_lora_rank": 1280,
+      "o_lora_rank": 1024,
+      "o_groups": 8,
+      "n_routed_experts": 384,
+      "num_experts_per_tok": 6,
+      "n_shared_experts": 1,
+      "moe_intermediate_size": 2304,
+      "sliding_window": 128,
+      "index_topk": 512,
+      "candidate_topk_blocks": 2048,
+      "candidate_block_size": 8,
+      "compress_ratios": [
+        0,
+        1,
+        2
+      ],
+      "kv_source_layer_ids": [
+        2,
+        8,
+        14,
+        20
+      ],
+      "index_source_layer_ids": [
+        2,
+        8,
+        14,
+        20,
+        24,
+        28,
+        32,
+        36
+      ],
+      "engram_layer_ids": [
+        1,
+        14
+      ],
+      "engram_num_embeddings": [
+        384006168,
+        384016682
+      ],
+      "engram_max_ngram_size": 4,
+      "engram_head_dim": 256,
+      "engram_n_heads": 8,
+      "hc_mult": 4,
+      "hc_sinkhorn_iters": 20,
+      "topk_method": "noaux_tc",
+      "scoring_func": "sqrtsoftplus",
+      "norm_topk_prob": true,
+      "routed_scaling_factor": 1.5,
+      "num_nextn_predict_layers": 3,
+      "dspark_n_routed_experts": 128,
+      "dspark_num_experts_per_tok": 3,
+      "max_position_embeddings": 1048576,
+      "rope_scaling": {
+        "rope_type": "yarn",
+        "factor": 16,
+        "beta_fast": 32,
+        "beta_slow": 1,
+        "original_max_position_embeddings": 65536
+      },
+      "compress_rope_theta": 160000,
+      "rms_norm_eps": 1e-20,
+      "swiglu_limit": 10.0
+    },
+    "quantization_config": {
+      "quant_method": "fp8",
+      "weight_block_size": [
+        32,
+        32
+      ],
+      "scale_fmt": "ue8m0",
+      "expert_dtype": "fp4"
+    },
+    "vision_config": {
+      "num_hidden_layers": 32,
+      "hidden_size": 1024,
+      "num_attention_heads": 16,
+      "intermediate_size": 2816,
+      "patch_size": 14,
+      "downsample_ratio": 3,
+      "max_image_tokens": 1024
+    },
+    "checkpoint": {
+      "shards": 48,
+      "tensors": 96085,
+      "metadata_total_bytes": 510286023000,
+      "safetensors_parameters": {
+        "BF16": 1976441856,
+        "F32": 42307282,
+        "F8_E4M3": 204015223296,
+        "I8": 557171343360
+      },
+      "parameter_total": 763205315794
+    }
+  },
+  "derived_scale_arithmetic": {
+    "note": "Computed from the published shapes above; not a measurement of a converted artifact.",
+    "per_backbone_expert_params": 35389440,
+    "backbone_routed_expert_params": 543581798400,
+    "mtp_routed_expert_params": 13589544960,
+    "shared_expert_params": 1415577600,
+    "routed_experts_fp4_gib": 253.125,
+    "routed_experts_fp8_gib": 506.25,
+    "mtp_routed_experts_fp4_gib": 6.328125,
+    "engram_rows_total": 768022850,
+    "engram_fp8_gib": 183.11091661453247,
+    "engram_bf16_gib": 366.22183322906494,
+    "published_checkpoint_gib": 475.2408927306533,
+    "checkpoint_gb": 510.286023
+  },
+  "strata_current_contracts": {
+    "architecture_guard": {
+      "file": "include/strata/artifact/gguf_reader.hpp",
+      "lines": "575-607",
+      "required_architecture": "qwen4exp",
+      "compiled_constants": {
+        "block_count": 48,
+        "hidden": 2560,
+        "head_count": 24,
+        "head_count_kv": 2
+      }
+    },
+    "model_geometry": {
+      "file": "include/strata/core/layout.hpp",
+      "lines": "27-59",
+      "n_embd": 2560,
+      "n_layers": 48,
+      "n_expert": 512,
+      "n_ff": 640,
+      "hc": 4,
+      "hc_lr": 320,
+      "qsa_interval": 4,
+      "n_head": 24,
+      "n_head_kv": 2,
+      "head_dim": 256,
+      "idx_q_heads": 4,
+      "idx_key_dim": 128,
+      "attention_families": "GDN linear-attention layers + QSA sparse full-attention layers (every 4th)"
+    },
+    "expert_quant_types": [
+      "Q2_0",
+      "IQ2_XXS",
+      "IQ2_XS",
+      "IQ2_S",
+      "IQ3_XXS",
+      "IQ3_S",
+      "IQ4_XS",
+      "IQ4_NL",
+      "Q4_K",
+      "Q5_K",
+      "Q5_1",
+      "Q8_0"
+    ],
+    "ngram_table": {
+      "file": "include/strata/ngram/ple_reader.hpp",
+      "rows": "320001536",
+      "row_bytes": {
+        "IQ4_NL": 90,
+        "FP8": 160
+      },
+      "qwen_rows_per_token": 16
+    },
+    "mtp": {
+      "file": "include/strata/core/mtp.hpp",
+      "layers": 1,
+      "note": "qwen4_exp single MTP layer"
+    }
+  },
+  "compatibility_matrix": [
+    {
+      "component": "serve/ (OpenAI+Anthropic API, web app, MCP, monitoring)",
+      "verdict": "reusable",
+      "why": "Model-agnostic protocol surface; only tokenizer/chat-template inputs and the engine subprocess contract are model-specific."
+    },
+    {
+      "component": "setup.py installer and its host detection",
+      "verdict": "reusable with a new family entry",
+      "why": "RAM-to-model selection, download, card detection, and launch are architecture-independent; --family/--model would need a deepseek entry and new artifact URLs."
+    },
+    {
+      "component": "Accelerator plugin ABI (src/runtime, plugins/)",
+      "verdict": "reusable",
+      "why": "Backend-neutral ABI v1 router_logits_bf16 operation; the Qwen router shape is a parameter, not a hard-coded contract."
+    },
+    {
+      "component": "Expert tiering infrastructure (expert_cache, peer_experts, remote_experts, foresight_swap, dma_batch, expert_source, hit_hook)",
+      "verdict": "reusable in design",
+      "why": "Slots, residency table, profile ranking, hit/miss split, and DMA staging are geometry-agnostic; every expert-bytes and slot-count constant changes."
+    },
+    {
+      "component": "GGUF split reader and mmap (gguf_split, GgufModel, artifact/dequant)",
+      "verdict": "reusable",
+      "why": "Generic GGUF v3 parsing, shard index, duplicate-tensor refusal, and dequantizers are not architecture-bound; only the arch guard and accepted type list change."
+    },
+    {
+      "component": "Platform and memory tier (direct_file, memory, pinned, vmm)",
+      "verdict": "reusable",
+      "why": "No Qwen literals; general-purpose I/O and pinning."
+    },
+    {
+      "component": "Speculative decoding policy (spec/, draft_policy, suffix_drafter, coupled_draft, verify)",
+      "verdict": "reusable",
+      "why": "Acceptance policy, verify window, and sampler coupling are model-agnostic; only the draft source differs (DeepSeek ships DSpark + 3 MTP layers, not a Qwen MTP)."
+    },
+    {
+      "component": "Sampler and elementwise kernels",
+      "verdict": "reusable",
+      "why": "No architecture coupling."
+    },
+    {
+      "component": "MoE expert math (native_moe, grouped expert kernels, shared_expert, cpu/expert)",
+      "verdict": "reusable in structure, not in types",
+      "why": "Grouped top-k expert execution and the shared-expert add are the same operation; gate/up/down byte layouts must be re-implemented for FP4 E2M1 + per-32 UE8M0 scales, which no current kernel decodes."
+    },
+    {
+      "component": "Router (router_top10 / native_router)",
+      "verdict": "must be rewritten",
+      "why": "Strata pins softmax over all experts with top-10 renormalisation; DeepSeek uses sqrtsoftplus scores, a noaux_tc auxiliary-corrected top-6, and routed_scaling_factor 1.5, with a separate vision bias."
+    },
+    {
+      "component": "Dense layers (attention, MLA-style q/o LoRA, hyper-connections)",
+      "verdict": "must be rewritten",
+      "why": "Strata's Qwen block is Qwen-specific: GDN linear attention or QSA, hc=4 with hc_lr=320 and 3 dense mixer matrices per sublayer. DeepSeek has q_lora_rank/o_lora_rank/o_groups and mHC with Sinkhorn mixing over hc_mult=4 copies."
+    },
+    {
+      "component": "Sparse attention (QSA decode/prompt/select/indexer)",
+      "verdict": "conceptually related, must be rewritten",
+      "why": "Both select a top-k of cached KV positions with an auxiliary indexer, but DeepSeek CSA2 shares KV and index keys across Full/Reindex/Reuse layers over a 128-token sliding window plus compressed latent KV with per-layer compress_ratios, and adds a hierarchical candidate-block stage. Strata's QSA is per-layer 4-cell-block pooling over its own geometry."
+    },
+    {
+      "component": "KV cache quantisation (kv_q4, kv_q8, kv_stream)",
+      "verdict": "reusable in concept only",
+      "why": "DeepSeek's global KV is FP4 E2M1 with one E4M3 scale per 16 channels and SWA-bounded replay; Strata has INT8/INT4 pools with its own cell layout."
+    },
+    {
+      "component": "Engram / n-gram memory (ngram, ple, ple_reader)",
+      "verdict": "reusable as a concept only",
+      "why": "Strata's PLE is a 320M-row 90-byte table read 16 rows per token from SSD; DeepSeek's Engram is 2 tables of ~384M rows x 256 dims with prime-modulus n-gram hashing, a compressed 99,092-token vocab, and 3 lookback sizes x 8 heads per token. The hash, row width, and lookup fan-out all change."
+    },
+    {
+      "component": "MTP drafter (core/mtp.cpp)",
+      "verdict": "must be rewritten",
+      "why": "Strata's MtpDrafter is transcribed from llama.cpp's qwen4_exp single MTP layer; DeepSeek ships 3 MTP layers plus a separate DSpark semi-autoregressive block with its own Markov head, confidence head, and 128-expert MoE."
+    },
+    {
+      "component": "Vision path (mrope table, image encoder)",
+      "verdict": "partially reusable",
+      "why": "Strata's per-cell (t,h,w) M-RoPE table is generic; the Qwen ViT-style encoder and Strata's image-token PLE hashing are Qwen-specific, and DeepSeek uses a DeepSeek-ViT with 2D-RoPE, 3x3 unshuffle downsampling, and a 2-layer aligner."
+    },
+    {
+      "component": "Model geometry + layout checks (layout.hpp/cpp)",
+      "verdict": "must be rewritten",
+      "why": "The struct's defaults are the Qwen model; every field differs and the per-tensor name/shape assertions are keyed to blk.N.* names."
+    },
+    {
+      "component": "Engine build (CMakeLists, sycl/)",
+      "verdict": "reusable",
+      "why": "Build graph, backend flags, and the SYCL migration model do not name a model."
+    }
+  ],
+  "measured_reuse_surface": {
+    "note": "Counts are ripgrep line matches for Qwen-specific literals (2560, 10240, hc_lr, qwen4exp, NG_N_EMBD, n_expert = 512, top-10/topk_512) per directory; they bound coupling, not effort.",
+    "cxx_cuda_lines_in_src_and_include": 109139,
+    "qwen_coupled_lines": {
+      "src/kernels": 313,
+      "src/prefill": 56,
+      "src/core": 55,
+      "src/program": 17,
+      "serve": 3,
+      "src/runtime": 2,
+      "src/ngram": 1,
+      "src/artifact": 0,
+      "src/spec": 0,
+      "src/platform": 0
+    }
+  },
+  "blockers_to_running_on_strix": {
+    "strix_ram_bytes": 98159583232,
+    "strix_vram_bytes": 8546942976,
+    "note": "Strix has 8 GiB VRAM and 91.4 GiB RAM. V4.1-Flash needs ~475 GiB of weights before any KV cache.",
+    "reasons": [
+      "Published checkpoint is ~475 GiB (510.3 GB) across 48 shards; Strix RAM is ~91 GiB.",
+      "Engram tables alone are ~183 GiB at FP8 or ~366 GiB at BF16.",
+      "Routed experts alone are ~253 GiB at the shipped FP4.",
+      "Community GGUF ports exist (vcruz305, JigSawPT, smalinin) but require a patched llama.cpp; they are not the artifact Strata loads, and Strata's loader requires general.architecture == qwen4exp."
+    ]
+  },
+  "recommendation": {
+    "verdict": "Treat as a second model family, not a port.",
+    "rationale": "The reusable part is the runtime shell (server, installer, tiering design, artifact plumbing, plugin ABI, speculative policy). The part that must be written is the whole model core: geometry, tensor names, router semantics, attention/CSA2, KV quantisation, Engram, MTP/DSpark, and the FP4/FP8 decode paths.",
+    "cheapest_correct_first_step": "Stand up the published PyTorch reference (inference/model.py + convert.py + kernel.py) on the B550 dual-3090Ti host with --expert-dtype fp8 and a small max_seq_len to prove real decode, then decide whether a Strata C++/CUDA implementation is worth it. A B550-only 552B MoE will still be far too small, so treat this as a correctness harness, not a capacity plan.",
+    "alternative_first_step": "Evaluate whether an existing patched llama.cpp (vcruz305/llama.cpp/patches/patch_llamacpp_v41.py) is sufficient before committing to a Strata implementation."
+  },
+  "checks": [
+    {
+      "name": "repo-clean",
+      "command": "git status --porcelain=v1",
+      "exit": 0,
+      "result": "empty"
+    },
+    {
+      "name": "strix-memory",
+      "command": "ssh strix 'awk \"/MemTotal|MemAvailable/{print}\" /proc/meminfo; nvidia-smi --query-gpu=memory.total --format=csv,noheader'",
+      "exit": 0,
+      "result": "MemTotal 95858968 kB, MemAvailable 93712628 kB, VRAM 8151 MiB"
+    },
+    {
+      "name": "target-config",
+      "command": "curl https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/config.json",
+      "exit": 0,
+      "result": "sha 314113f8; see target_model block"
+    },
+    {
+      "name": "target-index",
+      "command": "curl https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/model.safetensors.index.json",
+      "exit": 0,
+      "result": "48 shards, 96085 tensors, total_size 510286023000"
+    }
+  ],
+  "non_claims": [
+    "No DeepSeek-V4.1-Flash weights were downloaded and no Strata code was built or modified for this audit.",
+    "The derived GiB figures are arithmetic on published shapes, not measurements of a converted or requantized artifact.",
+    "This audit does not claim the port is impossible; it claims the model-specific core must be written and the target does not fit the Strix box as shipped.",
+    "Community GGUF ports were identified by search only; their fidelity, patch completeness, and output agreement with the official implementation were not verified.",
+    "No upstream project was contacted or contributed to, per the standing no-upstreaming policy."
+  ]
+}

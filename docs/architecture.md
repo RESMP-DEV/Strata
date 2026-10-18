@@ -479,3 +479,33 @@ remains required before purchase. IPC lists the candidate at €28.90 including
 VAT on an eight-week request basis; no order or seller inquiry was made. Full
 manual hashes, seller snapshots, and non-claims are in
 [M.2 retainer evidence](../evidence/strix-m2-retainer-part-research.json).
+
+### DeepSeek-V4.1-Flash portability audit, 2026-10-18
+
+DeepSeek-V4.1-Flash is `deepseek_v41`, a 40-layer, 5120-hidden MoE with 384 routed
+experts per layer activating 6 plus one shared expert, FP8 dense weights with FP4
+experts, CSA2 sparse attention over a 128-token sliding window plus compressed latent
+KV, a 1M-token YaRN context, a DeepSeek-ViT vision tower, two Engram n-gram memory
+tables of about 384M rows each, and 3 MTP layers plus a DSpark speculative block. The
+published checkpoint is 510,286,023,000 bytes across 48 shards at revision
+`314113f8a7dadb388215396ba5fbee2c610a04d6`.
+
+Strata's loader refuses anything whose `general.architecture` is not `qwen4exp`, and
+its `ModelGeometry` is the Qwen model itself: 48 layers, hidden 2560, 512 experts,
+hc 4 with hc_lr 320, GDN plus QSA attention families, and Qwen-shaped tensor names.
+The reusable surface is the runtime shell: the server and web app, the installer's
+host detection and download logic, the expert tiering design, the GGUF split reader
+and dequantizers, the accelerator plugin ABI, speculative acceptance policy, the
+sampler, and the platform and memory tiers. The part that would have to be written is
+the whole model core: geometry and layout checks, the `sqrtsoftplus` plus `noaux_tc`
+top-6 router, CSA2 attention and its hierarchical indexer, FP4 and FP8 decode paths,
+KV quantisation, Engram hashing and lookup, the DSpark and 3-layer MTP drafter, and the
+DeepSeek-ViT encoder. This is a second model family, not a port.
+
+On the Strix box the model does not fit: 91.4 GiB RAM and 8 GiB VRAM against roughly
+475 GiB of weights, with the routed experts alone at about 253 GiB at the shipped FP4
+and the Engram tables at about 183 GiB at FP8. Community GGUF ports exist but require a
+patched llama.cpp, so they are not the artifact Strata reads. No weights were
+downloaded, no code was changed for this audit, and no Strata backend was built. Full
+compatibility matrix, measured coupling counts, scale arithmetic, and non-claims are in
+[DeepSeek-V4.1-Flash portability audit](../evidence/deepseek-v41-flash-portability-audit.json).
