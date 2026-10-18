@@ -746,9 +746,10 @@ conditions, and non-claims are in
 
 ### Qwen B550 one-versus-two-GPU optimization plan, 2026-10-18
 
-B550's two RTX 3090 Ti cards have no NVLink and report a `PHB` topology; GPU 0
-has a Gen3 x16 maximum and GPU 1 a Gen4 x16 maximum, while both embedding
-replicas remain resident. This makes Strata's native layer split, helper expert
+B550's two RTX 3090 Ti cards have no NVLink and report a `PHB` topology. GPU 0
+hangs off the B550 chipset with an effective Gen3 x4 maximum; GPU 1 is on the
+CPU root with Gen4 x16. Both embedding replicas remain resident. This makes
+Strata's native layer split, helper expert
 cache, adaptive CPU/GPU expert tier, PCIe share, and pipeline windows more
 relevant than a K-Transformers-style tensor-parallel port. The local
 K-Transformers checkout at `c6a9ee3` contributes only Qwen/DeepSeek registry
@@ -756,11 +757,15 @@ entries on top of upstream; no K-Transformers code is imported by Strata. Its
 useful concepts, hotness-aware GPU experts and a CPU/GPU MoE split, already
 have native Strata counterparts.
 
-The source checkpoint is not itself runnable. When the transfer and artifact
-gate complete, the first benchmark must use identical hashes, prompts, context,
-KV mode, speculative depth, expert profile, NVMe staging path, and engine
-binary. Measure each single GPU separately, then layer-split auto in both card
-orders and a bounded manual split sweep, then the helper-expert alternative.
+The source checkpoint is not itself runnable, but the RESMP-owned calibrated
+IQ2_XS/Q2_0 artifact already exists on Strix and in the public RESMP-DEV
+repository at revision `d802333`; both local shard hashes were rechecked on
+2026-10-18. It is the first benchmark candidate, with the same external
+GSQ-RCO artifact available as a control. Every benchmark must use identical
+hashes, prompts, context, KV mode, speculative depth, expert profile, NVMe
+staging path, and engine binary. Measure each single GPU separately, then
+layer-split auto in both card orders and a bounded manual split sweep, then the
+helper-expert alternative.
 Only after choosing the best placements should `--adapt-async`, pipeline
 windows, fused prefill, short-prompt helper sharing, and batch groups be added
 and compared separately. A close community 2x3090 Qwen IQ3_S report suggests a
