@@ -614,3 +614,26 @@ followed by a CUDA implementation that passes it away from near ties. No format,
 converter, kernel, or model execution was implemented by this decision. Details
 and non-claims are in
 [own-quantization and backend-order evidence](../evidence/deepseek-v41-own-quantization-and-backend-order.json).
+
+### DeepSeek V4.1 implementation kickoff, 2026-10-18
+
+The first build cycle is split into three disjoint host-safe slices so the new
+model family can enter Strata without importing Lucebox's runtime or ROCMFP
+artifact:
+
+| Slice | Writer path | File ownership | First acceptance |
+| --- | --- | --- | --- |
+| Checkpoint manifest gate | `.worktrees/deepseek-manifest` | `scripts/check_deepseek.py`, `scripts/tests/test_check_deepseek.py`, `data/deepseek_v41_manifest.json` | Python unit tests plus `just quality`; no checkpoint download |
+| Geometry contract | `.worktrees/deepseek-geometry` | `include/strata/deepseek/geometry.hpp`, `src/deepseek/geometry_test.cpp`, minimal CMake test target | Host C++ test and `just quality` |
+| Candidate-selection reference | `.worktrees/deepseek-candidates` | `include/strata/deepseek/candidate_select.hpp`, `src/deepseek/candidate_select_test.cpp`, minimal CMake test target | Host C++ tests for newest-block pinning, block top-k, restricted row top-k, ties, and visibility beyond 16,384 rows |
+
+The parent checkout remains the build owner and integration point. Writers must
+not modify `scripts/strata.py` or the top-level CMake target list; the parent
+will integrate their disjoint targets after reviewing diffs and receipts. The
+manifest slice may encode the already-pinned 1017 shape contract but must treat
+the 510-GiB checkpoint as an external input, never download it, and emit a
+refusal with missing or extra tensor families. The geometry slice defines only
+the model contract, not an executable engine claim. The candidate slice is the
+first CUDA-blocking correctness primitive and must use deterministic tie
+behavior. No worker may start a model run, alter B550, or touch the in-progress
+checkpoint transfer.
