@@ -509,3 +509,38 @@ patched llama.cpp, so they are not the artifact Strata reads. No weights were
 downloaded, no code was changed for this audit, and no Strata backend was built. Full
 compatibility matrix, measured coupling counts, scale arithmetic, and non-claims are in
 [DeepSeek-V4.1-Flash portability audit](../evidence/deepseek-v41-flash-portability-audit.json).
+
+### DeepSeek-V4.1-Flash engine landscape and B550 probe, 2026-10-18
+
+A live probe of B550 found both RTX 3090 Ti cards idle at 0% GPU utilization with 84 GiB
+RAM available and 20 TiB free on `/mnt/weights`, but no GPU-enabled llama.cpp build, no
+torch, no vLLM, and no SGLang. The distro llama.cpp 8681 package carries no `deepseek_v41`
+token at all, so it cannot serve this model. An unrelated transfer of
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` at revision `1bae0e1088993b9b82de08f59de5be5a34e42170`
+(48 shards, 510,311,045,295 bytes) was already running there under another owner and was
+left untouched; no model was started and no download was started, resumed, or cancelled.
+
+Three read-only research sweeps then mapped the engine landscape. DeepSeek's own
+`inference/` tree is a readable PyTorch plus TileLang reference implementation, not a
+production engine: it implements CSA2-style compressed sparse attention, Engram, the
+DSpark forward pass, FP8 dense weights, FP4 routed experts, and vision, but omits the
+DSpark speculative loop, any expert or SSD tiering, and the 1M-token context its shipped
+runner defaults to 64K interactive. The production path is FlashMLA, DeepGEMM,
+TileKernels, and DeepSelect, all of which now require Blackwell-class NVIDIA or Ascend and
+have dropped Hopper. Among general frameworks, vLLM ships native V4.1 support in v0.30.0
+with Engram pinned-host offload on by default; SGLang has it on main and first tag
+v0.5.21; TensorRT-LLM has it on main only; ik_llama.cpp has a merged `deepseek41` GGUF
+arch with a `-dple` file-backed sparse-table option; FreeToken streams the two Engram
+tables from NVMe; and ROCm ATOM runs it natively on MI355. Transformers has no
+`deepseek_v41` at all.
+
+Several community engines do what Strata does, which is the useful part of this survey.
+JigSawPT's llama.cpp fork measures a VRAM 18 GiB, pinned RAM 72 GiB, NVMe tier on one
+RTX 5090 at 5.12 tok/s cold and 21.27 tok/s resident. Lucebox places routed experts on a
+first GPU, a second GPU, then SSD. antirez's DwarfStar exposes `--ssd-streaming` with
+Engram always disk-mapped and targets Apple Metal. sybil-solutions mirrors experts from
+VRAM to pinned RAM with disk Engram on a single RTX 3090. None of them is byte-compatible
+with Strata's `qwen4exp` loader or documents the FP4 E2M1 plus UE8M0 contract Strata needs,
+so the reusable value is the design, not the code. Full host state, worker receipts,
+served-route evidence, engine classifications, and non-claims are in
+[engine landscape evidence](../evidence/deepseek-v41-flash-engine-landscape.json).

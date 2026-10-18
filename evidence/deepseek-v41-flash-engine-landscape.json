@@ -1,0 +1,383 @@
+{
+  "recorded_at": "2026-10-18T12:14:26Z",
+  "agent": "Codex",
+  "source_revision": "e2532ad139454d4d1040b4af3c6d8c6018257d9c",
+  "source_dirty": false,
+  "scope": "Live B550 host probe plus three parallel read-only CCR research sweeps over DeepSeek-V4.1-Flash inference engines: the official DeepSeek stack, mainstream frameworks, and niche or overfit ports. The host probe is read-only; no model was started, no download was started or altered, and no engine was built or benchmarked. Worker classifications are research findings, not measurements.",
+  "b550_probe": {
+    "address": "192.168.1.171",
+    "hostname_reported": "compute",
+    "kernel": "Linux 7.0.0-38-generic",
+    "uptime_at_probe": "1:31",
+    "load_average": [
+      0.23,
+      0.66,
+      0.78
+    ],
+    "ram_total_gib": 91,
+    "ram_available_gib": 84,
+    "swap": "8.0 GiB, 55 MiB used",
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "vram_total_mib": 24564,
+        "memory_used_mib": 3728,
+        "utilization_pct": 0,
+        "memory_utilization_pct": 0,
+        "temperature_c": 34,
+        "power_draw_w": 11.68
+      },
+      {
+        "index": 1,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "vram_total_mib": 24564,
+        "memory_used_mib": 4418,
+        "utilization_pct": 0,
+        "memory_utilization_pct": 6,
+        "temperature_c": 34,
+        "power_draw_w": 22.88
+      }
+    ],
+    "topology": "GPU0<->GPU1 PHB (PCIe host bridge), no NVLink",
+    "storage": {
+      "root": {
+        "device": "/dev/nvme0n1p2",
+        "size": "3.6T",
+        "used": "1.3T",
+        "avail": "2.2T"
+      },
+      "weights": {
+        "device": "/dev/sda1",
+        "mount": "/mnt/weights",
+        "size": "22T",
+        "used": "1.2T",
+        "avail": "20T"
+      }
+    },
+    "other_services_present": [
+      "milvus run standalone",
+      "etcd",
+      "minio server",
+      "dockerd",
+      "zerotier-one",
+      "rust-indexer cuda_embed_server on 127.0.0.1:1236 and :1237"
+    ],
+    "installed_inference_tools": {
+      "llama-cli": "/usr/bin/llama-cli",
+      "llama-server": "/usr/bin/llama-server",
+      "llama_cpp_version": "8681 (Debian, package llama.cpp-tools)",
+      "torch": "absent",
+      "vllm": "absent",
+      "sglang": "absent",
+      "uv": "absent",
+      "pip3": "absent"
+    },
+    "installed_llama_supports_deepseek_v41": false,
+    "installed_llama_probe": "strings on /usr/bin/llama-server found chat-template tokens for deepseek and lfm2 but zero occurrences of deepseek_v41/deepseekv41/DEEPSEEK_V41, and no LLM_ARCH_* tokens; the distro build is CPU-only in practice (no CUDA ggml backend in backends0). It cannot load V4.1.",
+    "conclusion": "B550 has both 3090 Ti cards effectively idle and 84 GiB RAM available, but no GPU-enabled llama.cpp, no torch, no vLLM, and no SGLang. It has ample storage (20 TiB free on /mnt/weights) and no existing engine that can serve DeepSeek-V4.1-Flash."
+  },
+  "preexisting_deepseek_transfer_on_b550": {
+    "state": "in_progress, owned by another process, left untouched",
+    "repo": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "resolved_revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "endpoint": "https://huggingface.co",
+    "destination": "/mnt/weights/hf-weights/deepseek-ai_DeepSeek-V4.1-Flash-1017",
+    "manifest_files": 83,
+    "manifest_bytes": 510311045295,
+    "shard_files": 48,
+    "tool": "aria2c, pid 16749 at probe time",
+    "progress_first_probe": {
+      "shards_started": 4,
+      "sidecars": 4,
+      "allocated": "2.4G"
+    },
+    "progress_second_probe": {
+      "shards_started": 6,
+      "sidecars": 4,
+      "allocated": "6.7G",
+      "minutes_running": 42
+    },
+    "measured_rate_note": "Two 30 s allocated-block samples gave about 2 MiB/s; apparent logical file sizes are sparse and must not be read as progress. The exact sustained rate is not established.",
+    "other_active_transfers_observed": [
+      "Qwen3.8-Flash-Next at revision de4b8e4d43b917e7706784d8bb445c9af86a3540",
+      "Qwen3.8-27B at revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+      "MiniMaxAI/MiniMax-H3 at revision 42ed227ee7df40d41602854ae760620d6eb651fe"
+    ],
+    "non_action": "No download was started, resumed, paused, or deleted by this task, and no GPU work was launched; the host is shared and these transfers belong to other work."
+  },
+  "workers": {
+    "official_deepseek_stack": {
+      "thread_id": "01a14ed5-ca7e-7703-97f0-501dbe45354c",
+      "outcome": "completed",
+      "exit_code": 0,
+      "requested_route": "zai,glm-5.3-flash",
+      "served_route_in_receipt": null,
+      "failed_tool_commands": 0,
+      "elapsed_seconds": 730.449,
+      "read_only": true,
+      "network_allowed": true,
+      "report_path": "build/deepseek-engine-research/official-deepseek.txt",
+      "report_bytes": 17074,
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261018-044636-56smoeb9"
+    },
+    "mainstream_frameworks": {
+      "thread_id": "01a14ed5-e54f-7c71-8a62-a76da27b56e7",
+      "outcome": "completed",
+      "exit_code": 0,
+      "requested_route": "zai,glm-5.3-flash",
+      "served_route_in_receipt": null,
+      "failed_tool_commands": 2,
+      "elapsed_seconds": 1309.938,
+      "read_only": true,
+      "network_allowed": true,
+      "report_path": "build/deepseek-engine-research/frameworks.txt",
+      "report_bytes": 25883,
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261018-044643-a8uv5a_5"
+    },
+    "niche_and_overfit_ports": {
+      "thread_id": "01a14ed6-04ac-7ff1-81ee-dea3339b9f47",
+      "outcome": "completed",
+      "exit_code": 0,
+      "requested_route": "zai,glm-5.3-flash",
+      "served_route_in_receipt": null,
+      "failed_tool_commands": 3,
+      "elapsed_seconds": 812.629,
+      "read_only": true,
+      "network_allowed": true,
+      "report_path": "build/deepseek-engine-research/niche-overfit.txt",
+      "report_bytes": 10720,
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261018-044651-0_95pri9"
+    }
+  },
+  "served_route_evidence": {
+    "receipt_served_route": null,
+    "note": "codex-ccr-worker reports served_route: null by design. The requested route in all three receipts is zai,glm-5.3-flash, but the deployed policy primary for glm-workers.json is minimax,MiniMax-M3.1-Flash-Preview, so the requested route was not authoritative.",
+    "router_log": "/Users/kearm/.claude-code-router/logs/glm-workers.stdout.log",
+    "listener": "ccr-rust pid 1650, 127.0.0.1:3457, up about 1:10",
+    "observed_at_launch_window_2026-10-18T11:46:42Z": [
+      "Incoming request for model: zai,glm-5.3-flash (frontend: Codex)",
+      "Rate limited on zai attempt 1 for tier zai,glm-5.3-flash",
+      "Success on zai after 11.40s (tier zai,glm-5.3)",
+      "Success on minimax after 4.32s (tier minimax,MiniMax-M3.1-Flash-Preview), throughput tier=minimax"
+    ],
+    "interpretation": "At worker start the zai tiers were rate-limited and the router completed requests on zai,glm-5.3 and minimax,MiniMax-M3.1-Flash-Preview. The Z.AI Flash tier was being rejected during this window, so the research reports are worker output and evidence to check, not proof of a specific served model."
+  },
+  "research_findings": {
+    "official_stack": {
+      "verdict": "DeepSeek ships a readable PyTorch+TileLang reference implementation in the model repo's inference/ tree plus four production kernel libraries: FlashMLA, DeepGEMM, TileKernels, DeepSelect. The reference implementation is explicitly not a production engine and has no expert or SSD offload.",
+      "reference_implementation": {
+        "artifact": "HF safetensors converted per rank by inference/convert.py",
+        "implemented": [
+          "CSA2-style Compressor+Indexer+select_candidate_blocks",
+          "Engram FP8 hashed embedding + gated residual write",
+          "DSpark forward pass (spec loop out of scope)",
+          "FP8 dense weights (TileLang fp8_gemm, per-32 UE8M0)",
+          "FP4 routed experts (fp4_gemm; FP8 tensor-core math)",
+          "vision ViT with 2D-RoPE and Aligner"
+        ],
+        "not_implemented": [
+          "DSpark speculative loop",
+          "1M context in the shipped runner (64K interactive, 4K batch default)",
+          "expert/SSD tiering",
+          "scheduler, paged KV, continuous batching"
+        ],
+        "hardware": "CUDA only via torch.set_default_device('cuda'); TP by torchrun, no EP or sequence parallelism",
+        "overfit_score_0_5": 5
+      },
+      "production_libraries": {
+        "FlashMLA": {
+          "hardware": "SM100/SM103 Blackwell + CUDA 13.1+, or Ascend 950; Hopper and earlier removed 2026-09-30",
+          "role": "sparse attention, 528 B/token FP8 and 288 B/token FP4 extra_k_cache"
+        },
+        "DeepGEMM": {
+          "hardware": "SM90 or SM100, CUDA 12.9+",
+          "role": "Mega-Gate, Mega-mHC, Mega-MoE, FP8xFP4, MQA logits"
+        },
+        "TileKernels": {
+          "hardware": "SM90/SM100, CUDA 13.1+, PyTorch 2.13+",
+          "role": "Engram gate, MoE routing, quant, mHC"
+        },
+        "DeepSelect": {
+          "hardware": "CUDA and Ascend",
+          "role": "TopK for the indexer and sampler, 2-20x over torch.topk"
+        },
+        "overfit_score_0_5": 4,
+        "implication": "Hopper (RTX 3090 Ti) and AMD are outside the official production path for V4.1."
+      }
+    },
+    "mainstream_frameworks": {
+      "vLLM": {
+        "classification": "native, shipped in v0.30.0 (2026-09-22); v0.32.0 current 2026-10-18",
+        "offload": "Engram cpu_offload defaults on with pinned host UVA tables; /dev/shm DP sharing",
+        "overfit_score_0_5": 4
+      },
+      "SGLang": {
+        "classification": "native on main; first tag v0.5.21 (2026-10-02); cookbook still points at dev-dsv41 image",
+        "offload": "Engram host table opt-in, HiCache, Mooncake; DSpark as the only draft path",
+        "overfit_score_0_5": 3
+      },
+      "TensorRT-LLM": {
+        "classification": "native on main only (commit 16df7eaf2, 2026-10-11), in no tag",
+        "offload": "standard TRT-LLM KV connectors",
+        "overfit_score_0_5": 2
+      },
+      "ik_llama.cpp": {
+        "classification": "native deepseek41 arch merged (PRs #2455/#2506/#2545); master-only, no release tag",
+        "offload": "-dple keeps PLE/Engram tables on file; upstream llama.cpp PR #25294 adds disk-streamed MoE experts",
+        "open_bugs": [
+          "#2683 context loss at long context",
+          "#2519 NaN logits on MXFP4 routed experts",
+          "#2611 repack corrupts output"
+        ],
+        "overfit_score_0_5": 4
+      },
+      "FreeToken": {
+        "classification": "purpose-built FTW engine; Engram tables stream from NVMe shards; DSpark not served",
+        "overfit_score_0_5": 4
+      },
+      "ROCm_ATOM": {
+        "classification": "native deepseek_v41 runtime on MI355 with host-half Engram and FP4 KV",
+        "overfit_score_0_5": 3
+      },
+      "MLX": {
+        "classification": "mlx-lm has deepseek_v41 but raises on engram_layer_ids; mlx-vlm has full path incl. DSpark drafter",
+        "overfit_score_0_5": 2
+      },
+      "llama_cpp_upstream": {
+        "classification": "V4 only; V4.1 PR #28696 open since 2026-09-10",
+        "overfit_score_0_5": 3
+      },
+      "transformers": {
+        "classification": "no deepseek_v41; PRs #48721/#48768 closed unmerged 2026-09-16; issue #48755 open",
+        "overfit_score_0_5": 4
+      },
+      "neMo_automodel": {
+        "classification": "native, training/fine-tuning oriented, 16x H100 or 16x4 GB200",
+        "overfit_score_0_5": 3
+      },
+      "NIM": {
+        "classification": "hosted/containerized vLLM on B100/B200/GB200/H200",
+        "overfit_score_0_5": 5
+      },
+      "KTransformers": {
+        "classification": "DeepSeek-V4 only; issue #2213 asking for V4.1 still open",
+        "overfit_score_0_5": 2
+      },
+      "LMDeploy": {
+        "classification": "deepseek_v4 only",
+        "overfit_score_0_5": 4
+      },
+      "Ollama": {
+        "classification": "no in-tree support; cloud-only",
+        "overfit_score_0_5": 5
+      }
+    },
+    "niche_and_overfit_ports": {
+      "closest_strata_analogues": [
+        {
+          "name": "JigSawPT llama.cpp fork (RTX 5090)",
+          "commit": "8ce0968",
+          "tag": "dsv41-v1",
+          "tiering": "VRAM 18 GiB -> pinned RAM 72 GiB -> NVMe, O_DIRECT variant",
+          "measured": "cold 5.12 tok/s, resident 21.27 tok/s on one RTX 5090 with 125.7 GiB RAM",
+          "overfit_score_0_5": 5
+        },
+        {
+          "name": "Lucebox",
+          "commit": "5ada2a5",
+          "tiering": "GPU -> second GPU -> SSD expert owners with router bias and protected experts",
+          "hardware": "R9700 + Strix Halo 192 GB",
+          "overfit_score_0_5": 5
+        },
+        {
+          "name": "antirez DwarfStar (ds4)",
+          "commit": "fc80bd6",
+          "tiering": "--ssd-streaming expert cache; Engram always disk-mapped; Apple Metal primary",
+          "overfit_score_0_5": 4
+        },
+        {
+          "name": "Baekpica ds4-dfm-rs",
+          "commit": "c942523",
+          "tiering": "Engram io_uring row reads, budgeted residency; DGX Spark",
+          "overfit_score_0_5": 5
+        },
+        {
+          "name": "0xBakeer single-Spark runner",
+          "commit": "45a0caf",
+          "tiering": "73.8 GB routed-hot arena + NVMe misses, about 0.92 GB/token NVMe in original mode",
+          "overfit_score_0_5": 5
+        },
+        {
+          "name": "atbender 16 GB Mac mini runner",
+          "commit": "8bdd543",
+          "tiering": "bounded dense cache + expert/Engram pread",
+          "overfit_score_0_5": 5
+        },
+        {
+          "name": "sybil-solutions EXL3 3090 offload",
+          "commit": "2b60498",
+          "tiering": "VRAM mirror -> pinned all experts -> disk Engram on RTX 3090 24 GB + about 194 GiB pinned DDR4",
+          "overfit_score_0_5": 5
+        },
+        {
+          "name": "sqliteai WARP/WASTE",
+          "commit": "09fcff3",
+          "tiering": "trunk RAM + bounded expert cache + NVMe reads, 64 GB demonstrated",
+          "overfit_score_0_5": 3
+        }
+      ],
+      "artifact_paths": {
+        "antirez": "antirez/deepseek-v4.1-flash-gguf, GGUF arch deepseek41, 1.55M downloads",
+        "dsv41_draft": "Lucebox/DeepSeek-V4.1-Flash-DSpark-GGUF, GGUF arch deepseek41-dflash-draft",
+        "mlx": "pipenetwork/DeepSeek-V4.1-Flash-MLX-mixed-4_8bit, library_name mlx",
+        "unsloth": "unsloth/DeepSeek-V4.1-Flash-1017-GGUF"
+      },
+      "target_caveat": "The current Hub top entry is DeepSeek-V4.1-Flash-1017 (revision 1bae0e1), a minor update with better agentic scores and top_p 1.0. Support for the original V4.1-Flash may not carry over; any port should pin which of the two it targets.",
+      "strata_compatibility": "No candidate is byte-compatible with Strata's qwen4exp loader, and none documents the FP4 E2M1 plus UE8M0 and Qwen-shaped kernel contract Strata would need."
+    }
+  },
+  "answers_to_the_user_questions": {
+    "locally_moveable_concepts": [
+      "Expert tiering: VRAM slots over pinned RAM over SSD, per-layer profiles, hit/miss accounting, foresight swap. JigSawPT, Lucebox, and Strata all do this.",
+      "SSD-streamed n-gram memory: Strata already streams a 320M-row PLE table; DeepSeek's Engram tables are larger and are disk-mapped by FreeToken, ATOM, WARP, ds4, and atbender.",
+      "Host-side n-gram hashing with row gather: identical primitive in Strata's ngram_rows and DeepSeek's NgramHashState.",
+      "Grouped top-k expert execution with a shared expert add: same operation; router semantics differ (softmax top-10 vs sqrtsoftplus noaux_tc top-6)."
+    ],
+    "does_strata_support_ssd_streaming": "Yes: --mmap-experts, --resident-cpu-experts, --resident-budget-gib, and PleReader's O_DIRECT pread pool.",
+    "can_both_fit_in_either_host": "Not on Strix (8 GiB VRAM, 91.4 GiB RAM) and not on B550 (2x24 GiB VRAM, 91 GiB RAM, 20 TiB disk) with the published 475 GiB FP4 checkpoint. Both hosts can host the SSD-streaming design; neither has the VRAM or RAM to skip streaming. A 200 GB-class or 128 GB unified-memory box, or a cluster, is where the shipped artifact fits without requantization."
+  },
+  "checks": [
+    {
+      "name": "b550-probe",
+      "command": "ssh B550 '<system, nvidia-smi, topo, df, tools, strings>'",
+      "exit": 0,
+      "result": "2 idle 3090 Ti, 84 GiB RAM free, 20 TiB free on /mnt/weights, no torch/vllm/sglang, distro llama.cpp lacks deepseek_v41"
+    },
+    {
+      "name": "download-identification",
+      "command": "ssh B550 'jq manifest.json; find shards; pgrep aria2c'",
+      "exit": 0,
+      "result": "DeepSeek-V4.1-Flash-1017 @ 1bae0e1, 48 shards, 510311045295 bytes, in progress, untouched"
+    },
+    {
+      "name": "workers",
+      "command": "three codex-ccr-worker read-only network runs",
+      "exit": 0,
+      "result": "all completed with exit 0; failed_tool_commands 0/2/3 (jq quoting and similar shell slips, none fatal)"
+    },
+    {
+      "name": "router-log",
+      "command": "grep glm-workers.stdout.log at 11:46:42Z",
+      "exit": 0,
+      "result": "zai,glm-5.3-flash rate-limited; successes on zai,glm-5.3 and minimax,MiniMax-M3.1-Flash-Preview"
+    }
+  ],
+  "non_claims": [
+    "No engine was built, started, or benchmarked on B550 or Strix for this task.",
+    "The DeepSeek-V4.1-Flash-1017 transfer on B550 was already running and was not touched; no download was started, resumed, or cancelled.",
+    "Worker classifications (native vs fallback, release status, overfit scores) are their reading of upstream source at the cited commits, not measurements.",
+    "All performance figures (JigSawPT tok/s, sybil-solutions, ATOM hit rates, vLLM recipes) are third-party published numbers and were not reproduced here.",
+    "The actually served worker model per thread could not be tied to a thread id from the router log; the receipt requested_route is not proof of what answered."
+  ]
+}
