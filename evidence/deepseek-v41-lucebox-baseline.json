@@ -1,0 +1,206 @@
+{
+  "recorded_at": "2026-10-18T13:04:58Z",
+  "agent": "Codex",
+  "source_revision": "b65f785dfe0cf92372305866025f689548a29730",
+  "source_dirty": false,
+  "scope": "Selected and fetched the most Strata-like feature-complete DeepSeek-V4.1-Flash engine baseline with DSpark speculative decoding. Source and tiny artifact metadata only; no engine build, model download, model run, B550 restart, or Optane change was made.",
+  "selection": {
+    "candidate": "Luce-Org/lucebox",
+    "verdict": "selected as the architecture and implementation baseline",
+    "reason": [
+      "Native deepseek41 loader and execution graph",
+      "DSpark three-stage speculative head, adaptive width, rollback, and fused verify",
+      "CSA2 compressed sparse attention and Engram implementation",
+      "Three-tier expert ownership across primary GPU, secondary GPU/host, and SSD",
+      "Router bias, protected experts, placement files, prefetch, and streamed expert slot cache",
+      "Paged concurrent serving and prefix-cache work",
+      "Active upstream and permissive Apache-2.0 licensing"
+    ],
+    "alternatives": {
+      "vLLM": "Most complete mainstream production path and also Apache-2.0, but its V4.1 Engram offload is pinned-host oriented rather than the desired consumer SSD expert tier.",
+      "SGLang": "Native and Apache-2.0 with DSpark, but less focused on consumer heterogeneous expert streaming.",
+      "JigSawPT llama.cpp fork": "Close measured single-RTX-5090 SSD tier, but a narrower research fork/report than Lucebox.",
+      "DS41RT": "Native DSpark service, but targets RTX PRO 6000 plus four DGX Spark workers and lacks the same SSD expert-owner design."
+    }
+  },
+  "source_baseline": {
+    "local_path": "build/engines/lucebox-src",
+    "origin_fetch": "git@github.com:Luce-Org/lucebox.git",
+    "push_url": "DISABLED/no-push",
+    "commit": "5ada2a526a88f2982e0e9a1c86b36e123ee7cada",
+    "commit_date": "2026-10-17T13:28:07+02:00",
+    "commit_subject": "feat(server): tool-use checks on chat requests with tools (#853)",
+    "remote_main_at_check": "5ada2a526a88f2982e0e9a1c86b36e123ee7cada",
+    "license": "Apache-2.0",
+    "source_files": 7806,
+    "worktree_size": "272M",
+    "lfs_note": "26 documentation image pointers were left unsmudged; no LFS image payloads were downloaded.",
+    "submodules": [
+      {
+        "path": "server/deps/Block-Sparse-Attention",
+        "commit": "49d6c39e4dc0303442cda3bb758b3925d4399c49",
+        "license": "BSD-3-Clause",
+        "push_url": "DISABLED/no-push"
+      },
+      {
+        "path": "server/deps/Block-Sparse-Attention/csrc/cutlass",
+        "commit": "a75b4ac483166189a45290783cb0a18af5ff0ea5",
+        "license": "BSD-3-Clause",
+        "push_url": "DISABLED/no-push"
+      }
+    ],
+    "vendored_llama_cpp_license": "MIT",
+    "key_sha256": {
+      "LICENSE": "faaa016218cfd6fd60bb36f9a5ff676f30da9658bc445c239a6469a3205cad6a",
+      "server/docs/DS41.md": "e288639efb4e8f7a6f6394d846da43d7be0fb8a23da629385e0c41fa759e0bb1",
+      "server/src/deepseek4/deepseek4_dspark.h": "a91c30f34518dc6a50c0164c16636feeb8df8414763f52c828742e5a181bacf4",
+      "server/src/deepseek4/deepseek4_dspark.cpp": "83c0f0a719c6371ba7ba921311df2199408ee33a892edf0c6636ff0eedf32b9d",
+      "server/src/deepseek4/deepseek4_dspark_spec.cpp": "4e1e43bb90ffc94d8ae0f3257c585ea9dcf8bed4d8d521659e0e2495128e01c7",
+      "server/src/deepseek4/deepseek4_loader.cpp": "b15748e4e5c8fd91d1c3aa632e8714a28f0c5138143d31487ecb189fe39c07a2",
+      "server/src/common/moe_hybrid_expert_cache.cpp": "47546b3b03c0af42e2b87501ac89b864bff7283623cb57c0b6d70c80316b95da",
+      "server/src/server/launch_profiles.h": "dace1834fa02f45900e4feda525bdfb60a8af469fe99308116e0681dfac17986"
+    }
+  },
+  "feature_contracts": {
+    "architecture": "deepseek41",
+    "dspark": {
+      "head_arch": "deepseek41-dflash-draft",
+      "stages": 3,
+      "target_capture_layers": [
+        40,
+        41,
+        42
+      ],
+      "routed_experts": 128,
+      "experts_per_token": 3,
+      "block_size": 5,
+      "vocab": 129280,
+      "mask_token": 128799,
+      "tied_target_embedding_and_head": true,
+      "default_verify_width": 3,
+      "supported_verify_width": "2..5; q=6 is explicitly unsupported",
+      "implementation": [
+        "server/src/deepseek4/deepseek4_dspark.cpp",
+        "server/src/deepseek4/deepseek4_dspark_spec.cpp",
+        "server/src/common/dspark_head.cpp",
+        "server/scripts/convert_ds4_dspark_draft_to_gguf.py"
+      ]
+    },
+    "expert_tiering": {
+      "owners": [
+        "primary",
+        "secondary",
+        "stream"
+      ],
+      "placement_file": "server/share/deepseek41/placement_lucebox.json",
+      "router_bias": "server/share/deepseek41/router_bias_lucebox_40x384_f32.bin",
+      "protected_experts": "server/share/deepseek41/massive_experts.json",
+      "loader_threads": 4,
+      "bulk_prompt_threshold_tokens": 256,
+      "bulk_io": "O_DIRECT",
+      "cache": "fixed secondary-device slot pool with layer-ahead prefetch"
+    },
+    "supported_by_docs": [
+      "deepseek41 loader and Engram metadata",
+      "shared compressed caches and top-512 indexer",
+      "Engram across rollback and snapshots",
+      "candidate block preselection",
+      "three expert owners plus router bias and protected experts",
+      "fused hybrid decode/verify and DSpark",
+      "IQ2_XXS/IQ3_XXS experts with MXFP8 dense weights",
+      "paged concurrent serving",
+      "dense layer-major prefill and prefix cache"
+    ],
+    "important_limit": "The checked-in DS41 guide says CUDA V4.1 builds are refused because sm_121 candidate-block selection differs from the reference in 6 of 80 queries. Therefore Lucebox is an architecture baseline, not an out-of-box B550 executable path; B550's sm_86 3090 Ti cards need a port and parity proof or a different backend."
+  },
+  "artifact_metadata_1017": {
+    "repo": "Lucebox/DeepSeek-V4.1-Flash-1017-ROCMFP-GGUF",
+    "revision": "ba58445f0818edfc69e680390bc9b4873af8a621",
+    "license": "MIT",
+    "base_model_revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "recommended_streaming_target": {
+      "file": "DeepSeek-V4.1-Flash-1017-ROCMFP2S-IM1017.gguf",
+      "bytes": 382700617728
+    },
+    "higher_quality_resident_targets": [
+      {
+        "file": "DeepSeek-V4.1-Flash-1017-ROCMFP2S-MIX10-IM1017.gguf",
+        "bytes": 388362928128
+      },
+      {
+        "file": "DeepSeek-V4.1-Flash-1017-ROCMFP23S-IM1017.gguf",
+        "bytes": 405349859328
+      }
+    ],
+    "dspark_mxfp4_q8": {
+      "file": "DeepSeek-V4.1-Flash-1017-DSpark-draft-MXFP4-Q8.gguf",
+      "bytes": 7965746848,
+      "sha256": "02468aa72b7233d50696682817b66ea661ebf387a0b6beecf6954febd8680b1e",
+      "engine_commit": "5ada2a526a88f2982e0e9a1c86b36e123ee7cada",
+      "source_shards": [
+        "model-00044-of-00048.safetensors",
+        "model-00045-of-00048.safetensors",
+        "model-00046-of-00048.safetensors"
+      ]
+    },
+    "dspark_q2k_q4k": {
+      "file": "DeepSeek-V4.1-Flash-1017-DSpark-draft-Q2K-Q4K.gguf",
+      "bytes": 4923041440,
+      "sha256": "fa71f5455ec1405dac5fb6938b5af5102c9724ac50fcacf8ad5dd1aed367edaa"
+    },
+    "vision_projector": {
+      "file": "DeepSeek-V4.1-Flash-1017-mmproj-BF16.gguf",
+      "bytes": 970556480,
+      "sha256": "c920e675b4024bfe3ddeb1c3a6f6549010cc6d6a388fdb635c5ca91e6b74e53b",
+      "tensors": 266
+    },
+    "local_metadata_dir": "build/engines/lucebox-artifact-metadata",
+    "weights_downloaded": false
+  },
+  "build_boundary": {
+    "documented_v41_backend": "HIP",
+    "documented_command": "cmake -S server -B server/build-hip -DCMAKE_BUILD_TYPE=Release -DLUCE_GPU_BACKEND=hip -DLUCE_HIP_ARCHITECTURES='gfx1151;gfx1201' -DCMAKE_HIP_ARCHITECTURES='gfx1151;gfx1201'",
+    "b550": "Two sm_86 RTX 3090 Ti cards; Lucebox V4.1 CUDA is refused upstream, so no build was attempted",
+    "optane_and_restart": "Deferred by the user; no B550 restart, storage change, or remote configuration change was made"
+  },
+  "checks": [
+    {
+      "name": "remote-current",
+      "command": "git ls-remote origin refs/heads/main",
+      "exit": 0,
+      "result": "5ada2a526a88f2982e0e9a1c86b36e123ee7cada equals local HEAD"
+    },
+    {
+      "name": "git-integrity",
+      "command": "git fsck in Lucebox, Block-Sparse-Attention, and CUTLASS",
+      "exit": 0,
+      "result": "all clean"
+    },
+    {
+      "name": "clean-and-fetch-only",
+      "command": "git status and git remote -v at each checkout",
+      "exit": 0,
+      "result": "outer and nested worktrees clean; every push URL disabled"
+    },
+    {
+      "name": "converter-syntax",
+      "command": "python3 -m py_compile server/scripts/convert_ds4_dspark_draft_to_gguf.py",
+      "exit": 0,
+      "result": "passed; generated __pycache__ removed"
+    },
+    {
+      "name": "artifact-metadata",
+      "command": "curl HF raw README.md and DSpark/vision JSON metadata",
+      "exit": 0,
+      "result": "1017 DSpark head is explicitly bound to engine commit 5ada2a526a88f2982e0e9a1c86b36e123ee7cada"
+    }
+  ],
+  "non_claims": [
+    "No Lucebox backend was compiled or run.",
+    "No target, DSpark, vision, or Engram weights were downloaded.",
+    "No numerical parity, throughput, acceptance-rate, vision, paged-serving, or long-context claim was reproduced.",
+    "Lucebox's published performance numbers remain third-party measurements.",
+    "The local DS41 guide predates the 1017 artifact card and contains a V4.1 refusal row whose wording conflicts with the newer 1017 mmproj card and present DS4V source. Resolve that discrepancy only with a real build and representative image test.",
+    "B550 remains unusable for this baseline as installed because it has no HIP backend and Lucebox refuses V4.1 CUDA."
+  ]
+}

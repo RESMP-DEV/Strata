@@ -544,3 +544,36 @@ with Strata's `qwen4exp` loader or documents the FP4 E2M1 plus UE8M0 contract St
 so the reusable value is the design, not the code. Full host state, worker receipts,
 served-route evidence, engine classifications, and non-claims are in
 [engine landscape evidence](../evidence/deepseek-v41-flash-engine-landscape.json).
+
+### Lucebox V4.1 baseline fetched, 2026-10-18
+
+The selected DeepSeek-V4.1-Flash architecture baseline is Lucebox at
+`5ada2a526a88f2982e0e9a1c86b36e123ee7cada`, fetched read-only under
+`build/engines/lucebox-src`. It is Apache-2.0 and has the closest public
+implementation to Strata's intended design: a native `deepseek41` loader,
+CSA2 shared compressed caches and indexer, Engram, DSpark speculative
+decoding, paged serving, router bias and protected experts, and explicit
+primary-GPU/secondary-GPU/SSD expert ownership with an `O_DIRECT` streamed
+slot cache. The Block-Sparse-Attention and CUTLASS submodule commits are also
+pinned and their push URLs are disabled. All three Git object stores passed
+`git fsck`; the DSpark converter passed Python syntax compilation. No model
+weights or LFS image payloads were downloaded.
+
+The matching October 1017 artifacts are metadata-pinned separately. The
+recommended streaming target is 382,700,617,728 bytes, the exact three-stage
+DSpark MXFP4/Q8 head is 7,965,746,848 bytes with SHA-256
+`02468aa72b7233d50696682817b66ea661ebf387a0b6beecf6954febd8680b1e`, and its
+metadata explicitly binds that head to engine commit
+`5ada2a526a88f2982e0e9a1c86b36e123ee7cada`. The existing B550
+source-checkpoint transfer already contains the three safetensors shards from
+which this head can be regenerated, so duplicating the 7.4-GiB sidecar before
+storage is settled would be premature.
+
+This is an architecture baseline, not a B550 runtime. Lucebox's V4.1 path is
+HIP-only and its documentation refuses CUDA V4.1 builds after an sm_121
+candidate-selection mismatch. B550 has two sm_86 RTX 3090 Ti cards and no HIP
+backend, so running this baseline there would require a port plus parity
+evidence. No B550 restart, Optane change, engine build, or model run was made.
+Full licensing, submodule provenance, artifact metadata, checks, and
+non-claims are in
+[Lucebox baseline evidence](../evidence/deepseek-v41-lucebox-baseline.json).
