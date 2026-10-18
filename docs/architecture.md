@@ -666,3 +666,28 @@ unrelated llama.cpp `FetchContent`; the standalone project now configures and
 runs without fetching or compiling CUDA, HIP, or SYCL. Full commands, worker
 integration evidence, sanitizer results, and non-claims are in
 [first host-contracts evidence](../evidence/deepseek-v41-first-host-contracts.json).
+
+### DeepSeek V4.1 B550 host bring-up, 2026-10-18
+
+The pinned `7f882ef` contract revision was transferred to B550 as a Git bundle
+and checked out at `/home/kearm/strata-deepseek-v41`, with the push URL pointed
+at a non-repository path and verified by reading the remote config back. B550 is
+therefore an execution host for this work, not a source authority. The transfer
+did not use remote Git credentials and did not touch the already-active DeepSeek,
+Qwen, or Fable transfers, the running tmux sessions, or the GPU jobs owned by the
+indexing and distillation services.
+
+B550 answered at `192.168.1.171` with two RTX 3090 Ti cards, and reports the
+hostname `b550` today where an earlier probe recorded `compute`; `AGENTS.md` now
+states that hostnames drift and selection stays by alias and address. GPU 0 was
+held at 99% by the indexing and distillation services, so this validation stayed
+CPU-only. GCC 15.2 and CMake 4.2.3 configured the dependency-free project, built
+both contract tests, and passed CTest 2/2, with a separate command asserting that
+no dependency directory was created. The deterministic candidate-selection
+reference passed direct optimized and AddressSanitizer/UndefinedBehaviorSanitizer
+runs. All eight build inputs, including both compiled test sources and the
+standalone CMake file, matched the main-machine SHA-256 digests, and all 15
+official 1017 metadata checks passed after copying only `config.json` and
+`model.safetensors.index.json` from the pinned revision to the host. Commands,
+per-check timings, digests, and non-claims are in
+[B550 bring-up evidence](../evidence/deepseek-v41-b550-bringup.json).
