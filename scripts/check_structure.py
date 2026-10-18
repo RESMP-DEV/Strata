@@ -22,6 +22,11 @@ REQUIRED_FILES = (
     "scripts/strata.py",
     "scripts/check_structure.py",
     "scripts/check_setup.py",
+    "scripts/check_deepseek.py",
+    "scripts/check_deepseek_contracts.py",
+    "scripts/tests/test_check_deepseek.py",
+    "scripts/tests/test_check_deepseek_contracts.py",
+    "data/deepseek_v41_manifest.json",
     "scripts/tests/test_check_structure.py",
     "scripts/tests/test_check_setup.py",
 )

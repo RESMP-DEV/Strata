@@ -33,7 +33,7 @@ change did not modify runtime behavior.
 | Engine | `src/`, `include/`, `CMakeLists.txt` | CUDA and HIP are primary; SYCL remains separately qualified | Compile every backend touched; measure behavior on real hardware |
 | Accelerator plugin seam | `include/strata/runtime/`, `src/runtime/`, `plugins/` | Backend-neutral ABI v1, reference CPU plugin, probe, and external OpenVINO/NPU router plugin; no default engine call site | An accelerator becomes a routing candidate only after real-operation parity, explicit opt-in configuration, failure tests, and same-day transfer/latency accounting |
 | Quantization calibration | `tools/standard_imatrix.py`, opt-in llama.cpp token patch | Pins the RESMP-DEV Qwen3.8 `[256,2048]` token view and preserves its selected windows; the public mradermacher matrix remains a separate dated input | A standard-calibrated artifact needs deterministic quantization plus quality and same-day throughput/memory controls |
-| DeepSeek V4.1 quantization and port | planned RESMP-owned converter/quantizer; Lucebox commit `5ada2a5` is a read-only semantic reference | External prequantized artifacts, including Lucebox ROCMFP files, are research inputs only; runnable Strata artifacts must be produced and hashed by an RESMP-owned pipeline from a pinned source checkpoint | Require exact pack inversion, deterministic conversion, backend parity, DSpark parity, quality controls, and same-day memory/throughput evidence before an executable path is claimed |
+| DeepSeek V4.1 quantization and port | exact 1017 tensor-taxonomy gate, geometry contract, and deterministic CPU candidate-selection reference are implemented host-side; RESMP-owned converter/quantizer remains to be built, with Lucebox commit `5ada2a5` as a read-only semantic reference | External prequantized artifacts, including Lucebox ROCMFP files, are research inputs only; runnable Strata artifacts must be produced and hashed by an RESMP-owned pipeline from a pinned source checkpoint | Require exact pack inversion, deterministic conversion, backend parity, DSpark parity, quality controls, and same-day memory/throughput evidence before an executable path is claimed |
 | Installer | `setup.py`, shell and Windows launchers | Existing installer tests cover many choices without downloads | Run affected setup tests and a platform-appropriate smoke test |
 | Local API and web app | `serve/` | OpenAI-, Anthropic-, and Responses-compatible surfaces are implemented in the inherited tree | Exercise the changed protocol and lifecycle boundary |
 | Verification state | `build/reports/`, `evidence/` | Generated receipts are transient; durable evidence is tracked | Receipts must bind revision, dirty state, scope, commands, and non-claims |
@@ -86,7 +86,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 
 | Topic | Current position | Decision gate |
 | --- | --- | --- |
-| Common quality mode | `just quality` checks host-safe structure and selected regressions | Add a check only with a test and an explicit non-claim |
+| Common quality mode | `just quality` checks host-safe structure, selected regressions, the plugin ABI, and dependency-free DeepSeek host contracts | Add a check only with a test and an explicit non-claim |
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
@@ -637,3 +637,32 @@ the model contract, not an executable engine claim. The candidate slice is the
 first CUDA-blocking correctness primitive and must use deterministic tie
 behavior. No worker may start a model run, alter B550, or touch the in-progress
 checkpoint transfer.
+
+### DeepSeek V4.1 first host contracts, 2026-10-18
+
+The three worker slices are now integrated in the parent checkout. The exact
+1017 manifest gate compiles 114 tensor-pattern families, 96,085 indexed tensor
+names, 94,464 routed-expert tensor entries, 48 shards, unpadded layer and
+expert indices, and the 510,286,023,000-byte index total. Missing or unknown
+tensor families are hard failures. The same gate passed against the official
+revision `1bae0e1088993b9b82de08f59de5be5a34e42170` `config.json` and
+`model.safetensors.index.json` metadata already fetched under `/tmp`; it did
+not open a shard or download weights.
+
+`strata::deepseek_v41` now owns the host geometry contract (40 backbone
+layers, three DSpark-tail stages, the exact compress/KV/index/Engram sets, and
+DSpark/candidate-selection dimensions) plus the deterministic two-stage CPU
+candidate-selection reference. Selection pins the newest block, orders block
+ties by block ID, restricts row top-k to selected blocks, resolves row ties by
+row ID, returns ascending rows, reports near-tie diagnostics, and exercises
+more than 16,384 visible rows. It is a correctness primitive, not a CUDA
+kernel or engine path.
+
+The common gate now runs `scripts/check_deepseek_contracts.py`, which checks
+the manifest and configures only the dependency-free CMake project in
+`src/deepseek`. An initial attempt to place these targets behind an option in
+the top-level engine CMake file was rejected after configuration reached the
+unrelated llama.cpp `FetchContent`; the standalone project now configures and
+runs without fetching or compiling CUDA, HIP, or SYCL. Full commands, worker
+integration evidence, sanitizer results, and non-claims are in
+[first host-contracts evidence](../evidence/deepseek-v41-first-host-contracts.json).

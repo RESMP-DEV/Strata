@@ -44,15 +44,17 @@ roadmap.
 
 Run `just quality` first on a host without GPU toolchains. It writes
 `build/reports/quality/receipt.json` and covers maintained structure, selected
-setup regressions, the host-safe accelerator-plugin ABI test, script tests,
-Ruff, ShellCheck warning severity, and Git whitespace. It intentionally does
-not compile an engine.
+setup regressions, the host-safe accelerator-plugin ABI test, the
+dependency-free DeepSeek manifest and C++ contract tests, script tests, Ruff,
+ShellCheck warning severity, and Git whitespace. It intentionally does not
+compile an engine.
 
 | Changed area | Required evidence |
 | --- | --- |
 | `AGENTS.md`, `CONTRIBUTING.md`, governance docs, receipt runner | `just quality` |
 | `scripts/` | `just quality`; add or update the colocated test for each check domain |
 | Host-safe plugin ABI and probe | `python3 scripts/check_plugins.py` (included in `just quality`) |
+| DeepSeek V4.1 host contracts | `python3 scripts/check_deepseek_contracts.py` (included in `just quality`); the standalone `src/deepseek` CMake project must not gain a backend or dependency |
 | `setup.py` or installer behavior | Affected `python3 tools/test_setup_<name>.py`, plus a fresh installer smoke test appropriate to the platform |
 | Standard calibration token path | `python3 tools/test_standard_imatrix.py` and `python3 tools/test_setup_token_imatrix.py` (both are in `just quality`); a real iMatrix run also needs model/dataset hashes and a durable receipt |
 | `serve/` | Affected `serve/test_*.py` and an API/request lifecycle check that exercises the changed boundary |

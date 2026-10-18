@@ -65,8 +65,9 @@ authorization.
 
 <quality_and_receipts>
 Use `just quality` for the host-safe repository gate. It checks project
-structure, selected setup regressions, script unit tests, Ruff on maintained
-scripts, ShellCheck at warning severity, whitespace, and writes
+structure, selected setup regressions, the accelerator-plugin ABI,
+dependency-free DeepSeek manifest and C++ contracts, script unit tests, Ruff on
+maintained scripts, ShellCheck at warning severity, whitespace, and writes
 `build/reports/quality/receipt.json`. The runner removes an old receipt before
 starting and writes a failure receipt on startup errors.
 

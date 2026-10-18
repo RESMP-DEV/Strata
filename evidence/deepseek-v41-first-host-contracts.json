@@ -1,0 +1,140 @@
+{
+  "recorded_at": "2026-10-18T14:32:31Z",
+  "agent": "Codex",
+  "source_revision": "9c845c8ccf13e1a053645fa89f73417eb2d158a2",
+  "source_dirty": true,
+  "dirty_scope": "The dirty state is this integration: three DeepSeek contract slices, their standalone host gate, common-gate wiring, and the architecture/status updates referencing this receipt. The worktrees still contain the reviewed worker-owned copies until integration is committed and cleaned up.",
+  "scope": "Integrate and independently validate the first host-only DeepSeek-V4.1-Flash contracts: exact official 1017 index taxonomy, model geometry, and deterministic CPU candidate selection. This receipt does not claim an executable DeepSeek engine, pack format, quantizer, CUDA/HIP/SYCL kernel, checkpoint read, model download, or model run.",
+  "official_metadata": {
+    "repository": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "config": "/tmp/dsv41-1017/config.json",
+    "index": "/tmp/dsv41-1017/model.safetensors.index.json",
+    "index_total_size_bytes": 510286023000,
+    "tensor_count": 96085,
+    "shard_count": 48
+  },
+  "implemented_contracts": {
+    "manifest": {
+      "tensor_pattern_families": 114,
+      "tensor_names": 96085,
+      "routed_expert_tensors": 94464,
+      "layer_index_width": 1,
+      "expert_index_width": 1,
+      "missing_or_unknown_tensor_policy": "hard failure"
+    },
+    "geometry": {
+      "backbone_layers": 40,
+      "dspark_tail_layers": 3,
+      "kv_source_layers": [
+        2,
+        8,
+        14,
+        20
+      ],
+      "index_source_layers": [
+        2,
+        8,
+        14,
+        20,
+        24,
+        28,
+        32,
+        36
+      ],
+      "engram_layers": [
+        1,
+        14
+      ]
+    },
+    "candidate_selection": {
+      "implementation": "deterministic CPU reference",
+      "newest_block": "pinned",
+      "block_order": "descending pooled score, then ascending block ID",
+      "row_order": "descending reader score, then ascending row ID; output ascending by row",
+      "largest_visible_row_case": 40000
+    }
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_check_deepseek",
+      "exit": 0,
+      "result": "17 tests passed after correcting two test-side assertions: a compress-ratio mutation now changes unequal values, and balanced missing-plus-unknown tensor replacement is correctly a coverage failure rather than a tensor-count failure."
+    },
+    {
+      "command": "python3 -m unittest scripts.tests.test_check_deepseek scripts.tests.test_check_deepseek_contracts",
+      "exit": 0,
+      "result": "20 tests passed in the integrated parent checkout."
+    },
+    {
+      "command": "ruff check scripts/check_deepseek.py scripts/check_deepseek_contracts.py scripts/tests/test_check_deepseek.py scripts/tests/test_check_deepseek_contracts.py && ruff format --check scripts/check_deepseek.py scripts/check_deepseek_contracts.py scripts/tests/test_check_deepseek.py scripts/tests/test_check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "Maintained DeepSeek scripts pass lint and formatting."
+    },
+    {
+      "command": "python3 scripts/check_deepseek.py --config /tmp/dsv41-1017/config.json --index /tmp/dsv41-1017/model.safetensors.index.json --manifest data/deepseek_v41_manifest.json",
+      "exit": 0,
+      "result": "All 15 metadata checks passed, including exact tensor coverage, family totals, shard consistency, and index total size."
+    },
+    {
+      "command": "clang++ -std=c++20 -Wall -Wextra -Wpedantic -I.worktrees/deepseek-geometry/include .worktrees/deepseek-geometry/src/deepseek/geometry_test.cpp -o /tmp/strata-geometry-test && /tmp/strata-geometry-test",
+      "exit": 0,
+      "result": "289 geometry checks passed."
+    },
+    {
+      "command": "clang++ -std=c++20 -Wall -Wextra -Wpedantic -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-candidate-test && /tmp/strata-candidate-test",
+      "exit": 0,
+      "result": "All CPU candidate-selection cases passed, including 40,000-row, 32,768-row, and 17,000-row visibility cases."
+    },
+    {
+      "command": "clang++ -std=c++20 -fsanitize=address,undefined -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-candidate-test-asan && /tmp/strata-candidate-test-asan",
+      "exit": 0,
+      "result": "All CPU candidate-selection cases passed under AddressSanitizer and UndefinedBehaviorSanitizer."
+    },
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "After deleting the rejected task-owned build directory, clean CMake configuration took 1.2 seconds, both standalone targets built, and CTest passed 2 of 2."
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "Aggregate PASS at source revision 9c845c8ccf13e1a053645fa89f73417eb2d158a2 with dirty integration state; 13 top-level checks passed. Generated receipt: build/reports/quality/receipt.json."
+    }
+  ],
+  "boundary_correction": {
+    "attempted": "A temporary top-level STRATA_BUILD_DEEPSEEK_TESTS option was configured with STRATA_BUILD_TESTS=OFF.",
+    "observed": "Top-level configuration nevertheless reached the unrelated llama.cpp FetchContent and began a partial git clone under build/deepseek-contracts/_deps.",
+    "action": "The configure was interrupted, the top-level option was removed, the task-owned partial build directory was deleted, and the dependency-free src/deepseek/CMakeLists.txt project was used instead.",
+    "clean_rerun": "The standalone project configured in 1.2 seconds with no dependency directory and passed both CTest targets."
+  },
+  "worker_integration": [
+    {
+      "slice": "manifest",
+      "worktree": ".worktrees/deepseek-manifest",
+      "worker_receipt": "/Users/kearm/.cache/ccr-worker-runs/20261018-065539-mduy2ju9/status.json",
+      "parent_action": "Corrected the taxonomy to the official 1017 index and repaired two test assertions before integration."
+    },
+    {
+      "slice": "geometry",
+      "worktree": ".worktrees/deepseek-geometry",
+      "worker_report": "build/deepseek-build/geometry.txt",
+      "parent_action": "Renamed the three trailing layers to DSpark tail and independently reran the direct test."
+    },
+    {
+      "slice": "candidate selection",
+      "worktree": ".worktrees/deepseek-candidates",
+      "worker_report": "build/deepseek-build/candidates.txt",
+      "parent_action": "Independently reran normal and sanitizer test binaries before integration."
+    }
+  ],
+  "non_claims": [
+    "No DeepSeek checkpoint shard was opened, hashed, converted, quantized, uploaded, or run.",
+    "No official metadata file is committed; only its derived taxonomy and counts are encoded in the manifest and tests.",
+    "No CUDA, HIP, SYCL, NPU, or engine backend was compiled or claimed for DeepSeek V4.1.",
+    "No RESMP-owned DeepSeek quantizer or pack format exists yet.",
+    "No DSpark capture, rollback, verification, hashing, Engram, expert ownership, placement, or streaming scheduler is implemented by these contracts.",
+    "No model quality, throughput, memory, latency, or cross-backend parity measurement was performed.",
+    "The full checkpoint metadata gate used local /tmp inputs and is not automatically repeated by just quality; the common gate checks manifest self-consistency and unit-level official-shape contracts without network access."
+  ]
+}

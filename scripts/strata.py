@@ -20,9 +20,10 @@ REPORT = ROOT / "build" / "reports" / "quality" / "receipt.json"
 LOG_ROOT = ROOT / "build" / "reports" / "quality" / "logs"
 SCOPE = (
     "Validates repository governance, ten selected setup regressions, the host-safe "
-    "accelerator-plugin ABI test, script tests, maintained-script Ruff lint/format, "
-    "shell warning lint, and Git whitespace on this host. It does not compile CUDA, "
-    "HIP, or SYCL, run the full setup matrix, start the "
+    "accelerator-plugin ABI test, DeepSeek manifest and host C++ contract tests, "
+    "script tests, maintained-script Ruff lint/format, shell warning lint, and Git "
+    "whitespace on this host. It does not compile CUDA, HIP, or SYCL, run the full "
+    "setup matrix, start the "
     "server, download a model, or measure performance."
 )
 
@@ -138,6 +139,10 @@ def quality() -> int:
                 run_logged(
                     "plugin-abi",
                     [sys.executable, "scripts/check_plugins.py"],
+                ),
+                run_logged(
+                    "deepseek-contracts",
+                    [sys.executable, "scripts/check_deepseek_contracts.py"],
                 ),
                 run_logged("ruff-check", ["ruff", "check", "scripts"]),
                 run_logged("ruff-format", ["ruff", "format", "--check", "scripts"]),

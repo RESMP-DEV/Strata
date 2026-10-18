@@ -10,6 +10,7 @@
 | Local project governance | Lapis-style authority structure in place: [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [stand-up evidence](evidence/project-standup.json) |
 | Common verification | `just quality` runs on this macOS host; it does not claim a CUDA, HIP, or SYCL build |
 | Strix hardware evidence | An 8 GB RTX 5070 engine build launched; the Intel NPU also passed an external, opt-in one-token router probe through the new plugin ABI. Neither is a Strata model-run or speed claim. See [accelerator evidence](evidence/accelerator-plugin-router-probe.json) |
+| DeepSeek V4.1 port preparation | Exact 1017 checkpoint metadata taxonomy, model geometry, and deterministic CPU candidate selection are implemented and exercised host-side. There is no Strata DeepSeek quantized artifact, backend path, or model-run claim yet. See [first host contracts](evidence/deepseek-v41-first-host-contracts.json) |
 
 <p align="center"><b>Run a 125-billion-parameter AI model on your own gaming PC</b><br>
 NVIDIA or AMD graphics card (12 GB recommended) · Windows or Linux · free and open source</p>

@@ -1,0 +1,1018 @@
+{
+  "manifest_version": 1,
+  "model": {
+    "repo": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "upstream_repo": "deepseek-ai/DeepSeek-V4.1-Flash",
+    "upstream_revision": "314113f8a7dadb388215396ba5fbee2c610a04d6",
+    "model_type": "deepseek_v41",
+    "architectures": [
+      "DeepseekV41ForCausalLM"
+    ],
+    "scope": "Shape contract of the official 1017 revision only. It is not a quantization, conversion, or runtime claim."
+  },
+  "checkpoint": {
+    "shards": 48,
+    "shard_file_pattern": "model-{index:05d}-of-{total:05d}.safetensors",
+    "shard_manifest_total_bytes": 510311045295
+  },
+  "tensors": {
+    "total": 96085,
+    "index_total_size_bytes": 510286023000,
+    "shard_tensor_count_range": [
+      2,
+      2342
+    ],
+    "layer_index_width": 1,
+    "expert_index_width": 1
+  },
+  "text_config_invariants": {
+    "model_type": "deepseek_v41_text",
+    "vocab_size": 129280,
+    "hidden_size": 5120,
+    "moe_intermediate_size": 2304,
+    "num_hidden_layers": 40,
+    "num_attention_heads": 64,
+    "num_key_value_heads": 1,
+    "head_dim": 512,
+    "qk_rope_head_dim": 64,
+    "q_lora_rank": 1280,
+    "o_lora_rank": 1024,
+    "o_groups": 8,
+    "hidden_act": "silu",
+    "rms_norm_eps": 1e-20,
+    "swiglu_limit": 10.0,
+    "attention_bias": false,
+    "use_cache": true,
+    "tie_word_embeddings": false,
+    "max_position_embeddings": 1048576,
+    "rope_theta": 10000,
+    "compress_rope_theta": 160000,
+    "sliding_window": 128,
+    "n_routed_experts": 384,
+    "n_shared_experts": 1,
+    "num_experts_per_tok": 6,
+    "scoring_func": "sqrtsoftplus",
+    "topk_method": "noaux_tc",
+    "norm_topk_prob": true,
+    "routed_scaling_factor": 1.5,
+    "compress_ratios": [
+      0,
+      0,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0
+    ],
+    "kv_source_layer_ids": [
+      2,
+      8,
+      14,
+      20
+    ],
+    "index_source_layer_ids": [
+      2,
+      8,
+      14,
+      20,
+      24,
+      28,
+      32,
+      36
+    ],
+    "index_n_heads": 32,
+    "index_head_dim": 128,
+    "index_topk": 512,
+    "candidate_source_layer_id": 20,
+    "candidate_topk_blocks": 2048,
+    "candidate_block_size": 8,
+    "hc_mult": 4,
+    "hc_sinkhorn_iters": 20,
+    "hc_eps": 1e-06,
+    "engram_layer_ids": [
+      1,
+      14
+    ],
+    "engram_num_embeddings": [
+      384006168,
+      384016682
+    ],
+    "engram_max_ngram_size": 4,
+    "engram_vocab_size": 16000000,
+    "engram_n_heads": 8,
+    "engram_head_dim": 256,
+    "engram_compressed_vocab_size": 99092,
+    "num_nextn_predict_layers": 3,
+    "dspark_block_size": 5,
+    "dspark_n_routed_experts": 128,
+    "dspark_num_experts_per_tok": 3
+  },
+  "quantization_config": {
+    "quant_method": "fp8",
+    "activation_scheme": "dynamic",
+    "weight_block_size": [
+      32,
+      32
+    ],
+    "scale_fmt": "ue8m0",
+    "expert_dtype": "fp4"
+  },
+  "vision_config_invariants": {
+    "model_type": "deepseek_v41_vision",
+    "num_hidden_layers": 32,
+    "hidden_size": 1024,
+    "num_attention_heads": 16,
+    "intermediate_size": 2816,
+    "patch_size": 14,
+    "downsample_ratio": 3,
+    "max_image_tokens": 1024
+  },
+  "tensor_families": [
+    {
+      "family": "aligner_w1_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "aligner.w1.bias"
+    },
+    {
+      "family": "aligner_w1_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "aligner.w1.weight"
+    },
+    {
+      "family": "aligner_w2_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "aligner.w2.bias"
+    },
+    {
+      "family": "aligner_w2_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "aligner.w2.weight"
+    },
+    {
+      "family": "embed_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "embed.weight"
+    },
+    {
+      "family": "head_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "head.weight"
+    },
+    {
+      "family": "image_end",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "image_end"
+    },
+    {
+      "family": "image_newline",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "image_newline"
+    },
+    {
+      "family": "image_start",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "image_start"
+    },
+    {
+      "family": "layers_layer_attn_attn_sink",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.attn_sink",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_compressor_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.compressor.norm.weight",
+      "layers": [
+        2,
+        8,
+        14,
+        20
+      ]
+    },
+    {
+      "family": "layers_layer_attn_compressor_wgate_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.compressor.wgate.weight",
+      "layers": [
+        2,
+        8,
+        14
+      ]
+    },
+    {
+      "family": "layers_layer_attn_compressor_wkv_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.compressor.wkv.weight",
+      "layers": [
+        2,
+        8,
+        14,
+        20
+      ]
+    },
+    {
+      "family": "layers_layer_attn_indexer_k_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.indexer.k_norm.weight",
+      "layers": [
+        2,
+        8,
+        14,
+        20
+      ]
+    },
+    {
+      "family": "layers_layer_attn_indexer_weights_proj_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.indexer.weights_proj.weight",
+      "layers": "index"
+    },
+    {
+      "family": "layers_layer_attn_indexer_wk_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.indexer.wk.weight",
+      "layers": [
+        2,
+        8,
+        14,
+        20
+      ]
+    },
+    {
+      "family": "layers_layer_attn_indexer_wq_b_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.indexer.wq_b.scale",
+      "layers": "index"
+    },
+    {
+      "family": "layers_layer_attn_indexer_wq_b_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.indexer.wq_b.weight",
+      "layers": "index"
+    },
+    {
+      "family": "layers_layer_attn_kv_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.kv_norm.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_q_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.q_norm.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wkv_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wkv.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wkv_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wkv.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wo_a_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wo_a.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wo_a_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wo_a.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wo_b_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wo_b.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wo_b_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wo_b.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wq_a_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wq_a.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wq_a_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wq_a.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wq_b_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wq_b.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_wq_b_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn.wq_b.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_attn_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.attn_norm.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_engram_embed_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.engram.embed.scale",
+      "layers": "engram"
+    },
+    {
+      "family": "layers_layer_engram_embed_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.engram.embed.weight",
+      "layers": "engram"
+    },
+    {
+      "family": "layers_layer_engram_k_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.engram.k_weight",
+      "layers": "engram"
+    },
+    {
+      "family": "layers_layer_engram_q_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.engram.q_weight",
+      "layers": "engram"
+    },
+    {
+      "family": "layers_layer_engram_wkv_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.engram.wkv.scale",
+      "layers": "engram"
+    },
+    {
+      "family": "layers_layer_engram_wkv_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.engram.wkv.weight",
+      "layers": "engram"
+    },
+    {
+      "family": "layers_layer_ffn_experts_expert_w1_scale",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.experts.{expert}.w1.scale",
+      "layers": "backbone",
+      "experts": "routed"
+    },
+    {
+      "family": "layers_layer_ffn_experts_expert_w1_weight",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.experts.{expert}.w1.weight",
+      "layers": "backbone",
+      "experts": "routed"
+    },
+    {
+      "family": "layers_layer_ffn_experts_expert_w2_scale",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.experts.{expert}.w2.scale",
+      "layers": "backbone",
+      "experts": "routed"
+    },
+    {
+      "family": "layers_layer_ffn_experts_expert_w2_weight",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.experts.{expert}.w2.weight",
+      "layers": "backbone",
+      "experts": "routed"
+    },
+    {
+      "family": "layers_layer_ffn_experts_expert_w3_scale",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.experts.{expert}.w3.scale",
+      "layers": "backbone",
+      "experts": "routed"
+    },
+    {
+      "family": "layers_layer_ffn_experts_expert_w3_weight",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.experts.{expert}.w3.weight",
+      "layers": "backbone",
+      "experts": "routed"
+    },
+    {
+      "family": "layers_layer_ffn_gate_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.gate.bias",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_gate_bias_vl",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.gate.bias_vl",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_gate_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.gate.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_shared_experts_w1_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.shared_experts.w1.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_shared_experts_w1_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.shared_experts.w1.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_shared_experts_w2_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.shared_experts.w2.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_shared_experts_w2_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.shared_experts.w2.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_shared_experts_w3_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.shared_experts.w3.scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_shared_experts_w3_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn.shared_experts.w3.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_ffn_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.ffn_norm.weight",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_hc_attn_base",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.hc_attn_base",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_hc_attn_fn",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.hc_attn_fn",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_hc_attn_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.hc_attn_scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_hc_ffn_base",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.hc_ffn_base",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_hc_ffn_fn",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.hc_ffn_fn",
+      "layers": "backbone"
+    },
+    {
+      "family": "layers_layer_hc_ffn_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "layers.{layer}.hc_ffn_scale",
+      "layers": "backbone"
+    },
+    {
+      "family": "mtp_layer_attn_attn_sink",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.attn_sink",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_kv_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.kv_norm.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_q_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.q_norm.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wkv_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wkv.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wkv_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wkv.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wo_a_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wo_a.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wo_a_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wo_a.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wo_b_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wo_b.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wo_b_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wo_b.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wq_a_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wq_a.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wq_a_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wq_a.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wq_b_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wq_b.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_wq_b_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn.wq_b.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_attn_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.attn_norm.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_confidence_head_proj_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.confidence_head.proj.weight",
+      "layers": [
+        2
+      ]
+    },
+    {
+      "family": "mtp_layer_ffn_experts_expert_w1_scale",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.experts.{expert}.w1.scale",
+      "layers": "mtp",
+      "experts": "mtp_routed"
+    },
+    {
+      "family": "mtp_layer_ffn_experts_expert_w1_weight",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.experts.{expert}.w1.weight",
+      "layers": "mtp",
+      "experts": "mtp_routed"
+    },
+    {
+      "family": "mtp_layer_ffn_experts_expert_w2_scale",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.experts.{expert}.w2.scale",
+      "layers": "mtp",
+      "experts": "mtp_routed"
+    },
+    {
+      "family": "mtp_layer_ffn_experts_expert_w2_weight",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.experts.{expert}.w2.weight",
+      "layers": "mtp",
+      "experts": "mtp_routed"
+    },
+    {
+      "family": "mtp_layer_ffn_experts_expert_w3_scale",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.experts.{expert}.w3.scale",
+      "layers": "mtp",
+      "experts": "mtp_routed"
+    },
+    {
+      "family": "mtp_layer_ffn_experts_expert_w3_weight",
+      "kind": "routed",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.experts.{expert}.w3.weight",
+      "layers": "mtp",
+      "experts": "mtp_routed"
+    },
+    {
+      "family": "mtp_layer_ffn_gate_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.gate.bias",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_gate_bias_vl",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.gate.bias_vl",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_gate_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.gate.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_shared_experts_w1_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.shared_experts.w1.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_shared_experts_w1_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.shared_experts.w1.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_shared_experts_w2_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.shared_experts.w2.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_shared_experts_w2_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.shared_experts.w2.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_shared_experts_w3_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.shared_experts.w3.scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_shared_experts_w3_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn.shared_experts.w3.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_ffn_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.ffn_norm.weight",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_hc_attn_base",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.hc_attn_base",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_hc_attn_fn",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.hc_attn_fn",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_hc_attn_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.hc_attn_scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_hc_ffn_base",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.hc_ffn_base",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_hc_ffn_fn",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.hc_ffn_fn",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_hc_ffn_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.hc_ffn_scale",
+      "layers": "mtp"
+    },
+    {
+      "family": "mtp_layer_main_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.main_norm.weight",
+      "layers": [
+        0
+      ]
+    },
+    {
+      "family": "mtp_layer_main_proj_scale",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.main_proj.scale",
+      "layers": [
+        0
+      ]
+    },
+    {
+      "family": "mtp_layer_main_proj_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.main_proj.weight",
+      "layers": [
+        0
+      ]
+    },
+    {
+      "family": "mtp_layer_markov_head_embed_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.markov_head.embed.weight",
+      "layers": [
+        2
+      ]
+    },
+    {
+      "family": "mtp_layer_markov_head_head_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.markov_head.head.weight",
+      "layers": [
+        2
+      ]
+    },
+    {
+      "family": "mtp_layer_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "mtp.{layer}.norm.weight",
+      "layers": [
+        2
+      ]
+    },
+    {
+      "family": "norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "norm.weight"
+    },
+    {
+      "family": "vision_blocks_layer_attn_wo_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.attn.wo.bias",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_attn_wo_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.attn.wo.weight",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_attn_wqkv_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.attn.wqkv.bias",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_attn_wqkv_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.attn.wqkv.weight",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_mlp_w1_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.mlp.w1.weight",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_mlp_w2_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.mlp.w2.weight",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_norm1_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.norm1.weight",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_blocks_layer_norm2_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.blocks.{layer}.norm2.weight",
+      "layers": "vision"
+    },
+    {
+      "family": "vision_norm_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.norm.weight"
+    },
+    {
+      "family": "vision_patch_embed_proj_bias",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.patch_embed.proj.bias"
+    },
+    {
+      "family": "vision_patch_embed_proj_weight",
+      "kind": "dense",
+      "status": "published",
+      "pattern": "vision.patch_embed.proj.weight"
+    }
+  ],
+  "layer_groups": {
+    "backbone": "the 40 text decoder layers, 0 through 39",
+    "mtp": "the 3 DSpark stages, 0 through 2",
+    "vision": "the 32 vision-tower layers, 0 through 31",
+    "engram": "the two Engram memory layers, 1 and 14",
+    "compressing": "the text decoder layers whose compress ratio is nonzero, 2 through 39",
+    "index": "the indexer source layers, 2, 8, 14, 20, 24, 28, 32, and 36"
+  },
+  "non_claims": [
+    "This manifest is a static shape contract generated from the official 1017 config and model.safetensors.index metadata. No checkpoint shard was downloaded, opened, hashed, or executed.",
+    "checkpoint.shard_manifest_total_bytes is the 1017 download-manifest total and tensors.index_total_size_bytes is the 1017 model.safetensors.index metadata total; their 25,022,295-byte difference is recorded, not explained.",
+    "The gate compares tensor names, shard mapping, and index metadata only. It does not verify dtypes, tensor shapes, quantization blocks, weights, or numerical agreement with the official implementation.",
+    "Exact tensor-pattern coverage proves naming and count consistency for the pinned revision; it is not a loader, converter, quantizer, or runtime claim."
+  ]
+}
