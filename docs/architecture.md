@@ -691,3 +691,32 @@ official 1017 metadata checks passed after copying only `config.json` and
 `model.safetensors.index.json` from the pinned revision to the host. Commands,
 per-check timings, digests, and non-claims are in
 [B550 bring-up evidence](../evidence/deepseek-v41-b550-bringup.json).
+
+### B550 Qwen AVX2 ceiling and DeepSeek CPU boundary, 2026-10-18
+
+B550's live CPU ceiling is AVX2 with FMA3 and F16C, with no AVX-512. The
+regular Strata Qwen engine was therefore built there at revision `83f67c4` for
+both sm_86 cards with CUDA 12.4 and the portable AVX2 CPU baseline. The build
+used the pinned llama.cpp tree `3cf0325`, supplied from the main machine after
+the default GitHub FetchContent clone stalled behind four active transfers. All
+145 build steps completed and linked the 62 MB `strata` engine.
+
+The existing AVX2 kernels are already wired and passed on B550: router BF16 dot
+parity, the i-quant expert-row parity suite, Q8_K activation quantization, and
+the opt-in Q2 bitplane check. CTest passed 3/3. The CUDA device selftest also
+passed without a model: the busy GPU 0 correctly refused its default plan, while
+the idle GPU 1 reported 18.9 GiB free and marked that plan as fitting. The Qwen
+model itself remains unavailable as a runnable Strata artifact because the
+active source transfer is only 17 of 131 safetensors shards and no GGUF pack or
+PLE table exists on the host.
+
+A DeepSeek-specific AVX2 kernel is not the next useful CPU boundary. At the real
+40,000-row candidate geometry, compiling the current reference for AVX2 improved
+one call by only about 9% (2.019 ms to 1.831 ms, identical checksums). Stage
+two costs about 2.000 ms because it fully sorts 16,384 candidate rows to keep
+512; the vectorizable 40,000-row block-maximum scan costs only 0.035 ms. The
+format-independent opportunity is bounded top-k/partial ordering, not an AVX2
+scan rewrite. More importantly, no RESMP-owned DeepSeek pack layout exists yet,
+so there is no weight-row layout for an AVX2 expert kernel to target. Full
+commands, measurements, GPU occupancy, and non-claims are in
+[B550 AVX2 ceiling evidence](../evidence/deepseek-v41-b550-avx2-ceiling.json).

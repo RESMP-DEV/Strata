@@ -1,0 +1,136 @@
+{
+  "recorded_at": "2026-10-18T15:23:00Z",
+  "agent": "Codex",
+  "source_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+  "source_dirty": true,
+  "dirty_scope": "This evidence record and its architecture work-log entry only; no engine, kernel, or contract code differs from source revision 83f67c4fff7262ec4af6000f3e7d973db5f21dc0.",
+  "scope": "Determine the CPU-kernel ceiling on the B550 compute host, build and exercise the regular Strata Qwen engine and its AVX2 parity targets there, and measure whether a DeepSeek-specific AVX2 kernel is justified before a pack layout exists. No model was downloaded, converted, loaded, or run, and no GPU inference was executed.",
+  "host": {
+    "ssh_alias": "B550",
+    "address": "192.168.1.171",
+    "reported_hostname": "b550",
+    "kernel": "Linux 7.0.0-38-generic x86_64",
+    "cpu": "AMD Ryzen 9 5900XT, 16 cores / 32 threads",
+    "isa_ceiling": "AVX2 with FMA3 and F16C; no AVX-512 on this silicon, so Strata's AVX-512 expert kernels cannot run here and the AVX2 rung is the highest one",
+    "gpu_occupancy_during_the_run": "GPU 0 stayed held by the rust-indexer embedding service and distillkit-tracesmith; validation stayed CPU-only",
+    "tools": {
+      "gcc": "15.2.0",
+      "g++": "15.2.0",
+      "cmake": "4.2.3",
+      "ninja": "1.13.2",
+      "nvcc": "12.4.131",
+      "ccache": "present"
+    }
+  },
+  "remote_checkouts": [
+    {
+      "path": "/home/kearm/strata-main",
+      "branch": "qwen-b550",
+      "revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+      "origin_fetch": "/home/kearm/strata-main-83f67c4.bundle",
+      "origin_pushurl": "/home/kearm/.config/no-upstream-push"
+    },
+    {
+      "path": "/home/kearm/strata-llamacpp-3cf0325",
+      "role": "llama.cpp source at the pinned tag 3cf03257f219afbe7334045ff7c6a06ac68c627d, transferred as a tarball from the main machine because the source tree's own FetchContent clone stalled behind four large transfers"
+    }
+  ],
+  "regular_strata_qwen": {
+    "status": "Built and exercised on B550 for both sm_86 cards; no model was run because none exists there",
+    "build": {
+      "configure": "cmake -S . -B build/qwen-sm86 -G Ninja -DSTRATA_ENABLE_CUDA=ON -DSTRATA_BUILD_TESTS=ON -DSTRATA_PORTABLE=ON -DCMAKE_CUDA_ARCHITECTURES=86 -DCMAKE_CUDA_COMPILER=/usr/bin/nvcc -DSTRATA_GGML_DIR=/home/kearm/strata-llamacpp-3cf0325",
+      "configure_result": "Configured in 3.1 seconds; ggml built its CPU backend with -msse4.2 -mf16c -mfma -mbmi2 -mavx -mavx2 and no AVX-512 variant, which independently confirms the AVX2 ceiling from the build system rather than from lscpu",
+      "build_result": "145 of 145 steps completed and linked strata, a 62 MB engine binary, with CUDA 12.4 for sm_86",
+      "warnings": "cuda-unreachable-loop warnings from native_mmvq.cu are upstream nvcc diagnostics and did not stop the build"
+    },
+    "checks": [
+      {
+        "command": "CUDA_VISIBLE_DEVICES=1 ./strata-device --selftest",
+        "exit": 0,
+        "result": "Reported the RTX 3090 Ti as compute capability 8.6, 84 SMs, 23.5 GiB total and 18.9 GiB free on the idle card, refused an over-allocation, and marked the 20480-cell memory plan FITS"
+      },
+      {
+        "command": "cd build/qwen-sm86 && ./strata-device --selftest",
+        "exit": 0,
+        "result": "The same selftest on the busy card correctly reported 2.6 GiB free and refused the default plan with DOES NOT FIT, which is the occupancy-aware refusal working rather than a failure"
+      },
+      {
+        "command": "./router_dot_parity",
+        "exit": 0,
+        "result": "0 failures; AVX2 nt=1 rel 3.16e-07 and nt=8 rel 3.22e-07 against a double reference, and the AVX1 fallback 3.25e-07"
+      },
+      {
+        "command": "./iq_avx2_parity",
+        "exit": 0,
+        "result": "0 failures across iq2_xxs, iq2_xs, iq2_s, iq3_xxs, iq3_s, iq4_xs, iq4_nl and q2_0, each within 1.09e-07 of ggml's dot or a double reference, scalar and gather variants identical at 1 to 8 tokens"
+      },
+      {
+        "command": "./q8k_quant_parity",
+        "exit": 0,
+        "result": "16 rows x 4 sizes, AVX-2 copy identical"
+      },
+      {
+        "command": "STRATA_Q2_BITPLANE=1 ./q2_bitplane_parity",
+        "exit": 0,
+        "result": "PASS once the flag the test requires was set"
+      },
+      {
+        "command": "ctest -R '^(router_dot_parity|iq_avx2_parity|q8k_quant_parity)$'",
+        "exit": 0,
+        "result": "3 of 3 passed"
+      }
+    ],
+    "artifact_state": "The regular Qwen path cannot yet run a model on B550: the Qwen3.8-Flash-Next transfer is the upstream safetensors source checkpoint, at 17 of 131 shards with 4 .aria2 markers still in flight, and Strata consumes GSQ-RCO or Unsloth GGUF shards plus a prepared pack and a PLE table, none of which exist on the host."
+  },
+  "deepseek_avx2_finding": {
+    "question": "Should a DeepSeek-V4.1-specific AVX2 CPU kernel be written now?",
+    "answer": "Not yet. It is a measurable answer, not a preference: the only DeepSeek CPU code that exists is candidate selection, and on this CPU it is dominated by std::sort, not by vectorizable scoring.",
+    "geometry": "40,000 rows, block size 8, 2048 blocks wanted, k 512, the model's real decode geometry, pinned to one core with taskset",
+    "measurements": [
+      {
+        "build": "g++ -O2",
+        "ns_per_call": 2019230.9,
+        "checksum": 3560000
+      },
+      {
+        "build": "g++ -O3 -mavx2 -mfma",
+        "ns_per_call": 1830814.7,
+        "checksum": 3560000
+      },
+      {
+        "build": "g++ -O2 -mavx2 -mfma",
+        "ns_per_call": 1832077.1,
+        "checksum": 3560000
+      }
+    ],
+    "speedup_from_avx2_flags": "about 9 percent, identical checksums, so the AVX2 and generic builds already agree bit for bit on this input",
+    "stage_decomposition": [
+      {
+        "stage": "stage one, choose_candidate_blocks",
+        "ns_per_call": 508491.4
+      },
+      {
+        "stage": "stage two, choose_top_rows over 16384 candidates",
+        "ns_per_call": 2000216.6
+      },
+      {
+        "stage": "block-maximum scan alone over 40000 rows",
+        "ns_per_call": 34570.0
+      },
+      {
+        "stage": "sort of 5000 block scores alone",
+        "ns_per_call": 338910.3
+      }
+    ],
+    "interpretation": "Stage two is about 80 percent of the cost and it sorts 16384 candidate rows to keep 512. The block-maximum scan, the only genuinely vectorizable loop in the pair, costs about 1.7 percent of a stage-one call. An AVX2 rewrite of the scan would optimize the part that is not the bottleneck; the leverage is an algorithmic change such as a bounded top-k heap or a partial sort, which is format-independent and is therefore not AVX2-specific.",
+    "next_boundary": "The next CPU boundary is the RESMP-owned pack format and its inverse, plus the safetensors layout planner. Until a pack layout is fixed there is no weight row layout for an AVX2 expert kernel to target, and writing one now would be speculative work against a layout that is about to be decided."
+  },
+  "non_claims": [
+    "No Qwen3.8-Flash-Next model was downloaded, converted, quantized, loaded, or run; the engine binary was exercised only through its self-tests and its help text.",
+    "No DeepSeek-V4.1 pack, quantizer, expert kernel, or runtime path was implemented or benchmarked; the timings above measure the existing reference only.",
+    "No CUDA kernel was executed on either RTX 3090 Ti; no GPU inference, no VRAM model placement, and no throughput number is claimed.",
+    "The candidate-selection timings are single-core, same-process, and are not a model throughput claim; they compare two builds of one function on one host.",
+    "The stalled llama.cpp FetchContent clone was interrupted and its partial build directory removed; the pinned source was supplied from the main machine instead, so the configure path used is not the default one.",
+    "No active B550 transfer, tmux session, GPU process, storage configuration, or service was modified."
+  ]
+}
