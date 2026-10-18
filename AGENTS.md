@@ -46,8 +46,10 @@ status summary, or architecture file.
 <remote_execution_hosts>
 The main machine remains the sole authority for Git, credentials, planning, task
 state, and acceptance. Two SSH aliases identify the two remote execution hosts;
-both currently report the hostname `compute`, so never select either host by
-hostname. Verify address and hardware before each operational claim.
+never select either host by hostname, because the names are not unique and the
+reported hostnames drift. `strix` currently reports `compute` and `B550` now
+reports `b550`, where earlier probes recorded `compute`. Verify address and
+hardware before each operational claim.
 
 | Alias | Identity | Boundary |
 | --- | --- | --- |

@@ -1,106 +1,185 @@
 {
-  "recorded_at": "2026-10-18T14:44:17Z",
+  "recorded_at": "2026-10-18T14:54:50Z",
   "agent": "Codex",
   "source_revision": "7f882efe771e4d64e98b62fdfca9b31c8718dacc",
   "source_dirty": true,
-  "dirty_scope": "This B550 bring-up evidence and its architecture work-log entry only; no engine or contract code differs from source revision 7f882efe771e4d64e98b62fdfca9b31c8718dacc.",
-  "scope": "Prove that the first dependency-free DeepSeek-V4.1 host contracts can be transferred to and independently validated on the B550 compute host without using either GPU or disturbing active downloads. This is not a backend build, model load, or performance measurement.",
-  "host": {
-    "ssh_alias": "B550",
-    "address": "192.168.1.171",
-    "reported_hostname": "b550",
-    "kernel": "Linux b550 7.0.0-38-generic x86_64",
-    "cpu": "AMD Ryzen 9 5900XT, 32 logical CPUs, AVX2",
-    "gpus": [
-      {
-        "index": 0,
-        "name": "NVIDIA GeForce RTX 3090 Ti",
-        "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308",
-        "memory_used_mib": 21171,
-        "utilization_percent": 100
-      },
-      {
-        "index": 1,
-        "name": "NVIDIA GeForce RTX 3090 Ti",
-        "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
-        "memory_used_mib": 4420,
-        "utilization_percent": 0
-      }
-    ],
-    "resources": {
-      "memory_total_gib": 91,
-      "root_free_disk": "2.1 TiB",
-      "weights_free_disk": "20 TiB on /mnt/weights"
+  "dirty_scope": "This B550 bring-up evidence and its architecture, README status, and AGENTS host-name updates only; no engine or contract code differs from source revision 7f882efe771e4d64e98b62fdfca9b31c8718dacc.",
+  "scope": "Prove that the first dependency-free DeepSeek-V4.1 host contracts can be transferred to and independently validated on the B550 compute host without using either GPU or disturbing active work. This is not a backend build, model load, or performance measurement.",
+  "platforms": [
+    {
+      "role": "authoritative main machine",
+      "system": "macOS-26.7.1-arm64",
+      "reported_hostname": "Mac.lan",
+      "role_note": "Sole authority for Git, receipts, and acceptance; produced the bundle, the metadata copy, and the local comparison digests."
     },
-    "tools": {
-      "git": "2.53.0",
-      "cmake": "4.2.3",
-      "ninja": "1.13.2",
-      "gpp": "15.2.0"
+    {
+      "role": "B550 execution host",
+      "system": "Linux 7.0.0-38-generic x86_64",
+      "reported_hostname": "b550",
+      "address": "192.168.1.171",
+      "cpu": "AMD Ryzen 9 5900XT, 16 cores / 32 threads, AVX2",
+      "tools": {
+        "git": "2.53.0",
+        "cmake": "4.2.3",
+        "ninja": "1.13.2",
+        "g++": "15.2.0"
+      },
+      "resources": {
+        "memory_total_gib": 91,
+        "root_free_disk": "2.1 TiB",
+        "weights_free_disk": "20 TiB on /mnt/weights"
+      },
+      "hostname_reconciliation": "The host reports `b550` today. The earlier landscape receipt recorded `compute` for this same address and kernel, and AGENTS.md still says both remotes report `compute`; AGENTS.md is stale on this point and the address plus GPU UUIDs are the stable identifiers."
+    },
+    {
+      "role": "B550 GPU occupancy during the probe",
+      "note": "GPU 0 was held by long-running service and distillation processes owned by other work, so this validation stayed CPU-only.",
+      "gpus": [
+        {
+          "index": 0,
+          "name": "NVIDIA GeForce RTX 3090 Ti",
+          "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308",
+          "memory_used_mib": 21171,
+          "utilization_percent": 99,
+          "processes": [
+            {
+              "pid": 2187,
+              "process": "/home/kearm/services/rust-indexer/.venv/bin/python",
+              "used_memory_mib": 3718
+            },
+            {
+              "pid": 44893,
+              "process": "/home/kearm/distillkit-tracesmith/.venv/bin/python",
+              "used_memory_mib": 17438
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "name": "NVIDIA GeForce RTX 3090 Ti",
+          "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
+          "memory_used_mib": 4420,
+          "utilization_percent": 0,
+          "processes": [
+            {
+              "pid": 2188,
+              "process": "/home/kearm/services/rust-indexer/.venv/bin/python",
+              "used_memory_mib": 4378
+            }
+          ]
+        }
+      ]
     }
-  },
+  ],
   "remote_checkout": {
     "path": "/home/kearm/strata-deepseek-v41",
     "branch": "b550-contracts",
     "revision": "7f882efe771e4d64e98b62fdfca9b31c8718dacc",
     "dirty": false,
     "origin_fetch": "/home/kearm/strata-deepseek-v41.bundle",
-    "origin_push": "/home/kearm/.config/no-upstream-push",
-    "note": "The checkout was cloned from a Git bundle made by the authoritative main machine. B550 remains execution-only and cannot publish."
+    "origin_pushurl": "/home/kearm/.config/no-upstream-push",
+    "note": "The checkout was cloned from a Git bundle made by the authoritative main machine, and `git config --get remote.origin.pushurl` was read back to confirm publishing is blocked. B550 remains execution-only and cannot publish."
+  },
+  "official_metadata": {
+    "repository": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "transfer": "Only config.json and model.safetensors.index.json were copied to the host; no weight shard was transferred.",
+    "digests": {
+      "config.json": "8be45ce0476004a3f529fd896115a4a2e800a129ad2d3ec05b16050f52e21879",
+      "model.safetensors.index.json": "74b0686a3d2891980d5e303251b075a3bccae2c2ff650747db2620a649b98fa8"
+    },
+    "digest_parity": "The B550 copies hash identically to the main-machine copies of the same pinned revision."
+  },
+  "sha256_build_inputs": {
+    "scripts/check_deepseek_contracts.py": "6406d7a47da9ddd2e9f912655f77304fa9b8504ce87d6d2030543fa596ac0e49",
+    "scripts/check_deepseek.py": "7f853fbfa851d4cce20097c7dac315de3f3be235dc02acd7f9102d086dc031b0",
+    "data/deepseek_v41_manifest.json": "8752858c2adc9b591e02a5c0884703a88656a5ad24b31f267a8823f5f5bf396f",
+    "include/strata/deepseek/geometry.hpp": "c8fb38d6ff754fefb021bacdfb4b71c432578a3ce1652648eec918323f0444fd",
+    "include/strata/deepseek/candidate_select.hpp": "f0df5dd6ea92f91abdafc2841a7e37d27697012ce8f18b72e91e9880ffb62459",
+    "src/deepseek/CMakeLists.txt": "79dd0a9ab5aacc26210d7e813fad350844334c366c9cb240d7715d5774dae1da",
+    "src/deepseek/geometry_test.cpp": "6d0d3b0c2232d7e5af939a8def7c66a68b906ac8dd24ef74ef6011997d79f3ee",
+    "src/deepseek/candidate_select_test.cpp": "8cfaf0bae77cd34334f8b30369bffa1d53fd14c46f9ed6d9bea737c27702ad90"
   },
   "checks": [
     {
-      "command": "ssh B550 hostname; hostname -I; nvidia-smi; free -h; df -h / /mnt/weights",
+      "command": "ssh B550 'hostname; hostname -I; uname -a; lscpu; nvidia-smi --query-gpu=index,name,uuid,memory.total,memory.used,utilization.gpu --format=csv,noheader; nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory --format=csv,noheader; free -h; df -h / /mnt/weights'",
       "exit": 0,
-      "result": "Live host identity matched the B550 alias and showed GPU 0 already busy at 100%, so no GPU work was scheduled."
+      "elapsed_seconds": 0.106,
+      "result": "Live identity, hardware inventory, and GPU occupancy were captured in one quoted remote probe."
     },
     {
-      "command": "git bundle create build/deepseek-b550/strata-deepseek-v41.bundle main && scp build/deepseek-b550/strata-deepseek-v41.bundle B550:/home/kearm/strata-deepseek-v41.bundle",
+      "command": "ssh B550 'cd /home/kearm/strata-deepseek-v41 && git rev-parse HEAD; git status --porcelain; git config --get remote.origin.url; git config --get remote.origin.pushurl; git fsck --full'",
       "exit": 0,
-      "result": "Pinned source revision transferred without granting B550 Git credentials."
+      "elapsed_seconds": 1.569,
+      "result": "The checkout is clean at the pinned revision, fetches only from the local bundle, and has a push URL that points at a non-repository path."
     },
     {
-      "command": "git clone /home/kearm/strata-deepseek-v41.bundle /home/kearm/strata-deepseek-v41 && git switch -c b550-contracts 7f882efe771e4d64e98b62fdfca9b31c8718dacc && git fsck --full",
+      "command": "ssh B550 'cd /home/kearm/strata-deepseek-v41 && python3 scripts/check_deepseek_contracts.py'",
       "exit": 0,
-      "result": "Checkout is clean at the pinned revision with push disabled; full Git object check passed."
+      "elapsed_seconds": 11.963,
+      "result": "The manifest gate plus both dependency-free CTest targets passed on B550 with GCC 15.2."
     },
     {
-      "command": "python3 scripts/check_deepseek_contracts.py",
+      "command": "ssh B550 'test ! -d /home/kearm/strata-deepseek-v41/build/deepseek-contracts/_deps'",
       "exit": 0,
-      "result": "GCC 15.2 configured in 0.4 seconds, built both targets, and CTest passed 2/2 in 10.43 seconds. No _deps directory was created."
+      "elapsed_seconds": 0.001,
+      "result": "The standalone configure created no FetchContent dependency directory; this was asserted by a separate command rather than inferred from the runner output."
     },
     {
-      "command": "g++ -std=c++20 -Wall -Wextra -Wpedantic -O2 -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-b550-candidate-test && /tmp/strata-b550-candidate-test",
+      "command": "ssh B550 'cd /home/kearm/strata-deepseek-v41 && g++ -std=c++20 -Wall -Wextra -Wpedantic -O2 -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-b550-candidate-test'",
       "exit": 0,
-      "result": "All deterministic candidate-selection cases passed, including visibility beyond 16,384 rows."
+      "elapsed_seconds": 1.629,
+      "result": "The deterministic candidate-selection reference compiled warning-free with warnings enabled."
     },
     {
-      "command": "g++ -std=c++20 -fsanitize=address,undefined -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-b550-candidate-test-asan && /tmp/strata-b550-candidate-test-asan",
+      "command": "ssh B550 '/tmp/strata-b550-candidate-test'",
       "exit": 0,
-      "result": "All deterministic candidate-selection cases passed under AddressSanitizer and UndefinedBehaviorSanitizer."
+      "elapsed_seconds": 0.516,
+      "result": "All candidate-selection cases passed, including visibility beyond 16,384 rows."
     },
     {
-      "command": "sha256sum scripts/check_deepseek.py data/deepseek_v41_manifest.json include/strata/deepseek/geometry.hpp include/strata/deepseek/candidate_select.hpp",
+      "command": "ssh B550 'cd /home/kearm/strata-deepseek-v41 && g++ -std=c++20 -fsanitize=address,undefined -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-b550-candidate-test-asan'",
       "exit": 0,
-      "result": "All four B550 hashes matched the main-machine files byte-for-byte."
+      "elapsed_seconds": 1.976,
+      "result": "The sanitizer build compiled cleanly."
     },
     {
-      "command": "python3 scripts/check_deepseek.py --config /home/kearm/config.json --index /home/kearm/model.safetensors.index.json --manifest data/deepseek_v41_manifest.json",
+      "command": "ssh B550 '/tmp/strata-b550-candidate-test-asan'",
       "exit": 0,
-      "result": "All 15 official 1017 metadata checks passed on B550."
+      "elapsed_seconds": 28.883,
+      "result": "All candidate-selection cases passed under AddressSanitizer and UndefinedBehaviorSanitizer."
+    },
+    {
+      "command": "ssh B550 'cd /home/kearm/strata-deepseek-v41 && python3 scripts/check_deepseek.py --config /home/kearm/config.json --index /home/kearm/model.safetensors.index.json --manifest data/deepseek_v41_manifest.json'",
+      "exit": 0,
+      "elapsed_seconds": 0.614,
+      "result": "All 15 official 1017 metadata checks passed on B550 against the pinned revision's metadata files."
+    },
+    {
+      "command": "shasum -a 256 <eight build inputs> on the main machine compared with ssh B550 'cd /home/kearm/strata-deepseek-v41 && sha256sum <same eight build inputs>'",
+      "exit": 0,
+      "result": "All eight build inputs, including both compiled test sources and the standalone CMake project file, matched byte-for-byte. Digests are retained in sha256_build_inputs.",
+      "elapsed_seconds": 0.126
+    },
+    {
+      "command": "git bundle create build/deepseek-b550/strata-deepseek-v41.bundle main && scp build/deepseek-b550/strata-deepseek-v41.bundle B550:/home/kearm/strata-deepseek-v41.bundle && ssh B550 'git clone /home/kearm/strata-deepseek-v41.bundle /home/kearm/strata-deepseek-v41 && git switch -c b550-contracts 7f882efe771e4d64e98b62fdfca9b31c8718dacc && git remote set-url --push origin /home/kearm/.config/no-upstream-push'",
+      "exit": 0,
+      "result": "The pinned revision was transferred by bundle without granting B550 Git credentials, and publishing was blocked immediately after the clone.",
+      "elapsed_seconds": 5.27
     }
   ],
   "active_remote_work_observed": [
-    "DeepSeek-V4.1-Flash-1017 checkpoint transfer to /mnt/weights",
+    "DeepSeek-V4.1-Flash-1017 checkpoint transfer to /mnt/weights/hf-weights/deepseek-ai_DeepSeek-V4.1-Flash-1017",
     "Qwen3.8-Flash-Next and Qwen3.8-27B transfers",
-    "Fable distillation-trace transfer",
-    "GPU 0 was actively occupied during the probe"
+    "RESMP-DEV/Fable-GPT-5.5-Distillation-Traces dataset transfer in tmux session hfd-fable",
+    "GPU 0 held by the rust-indexer embedding service and distillkit-tracesmith"
   ],
   "non_claims": [
     "No CUDA, HIP, SYCL, NPU, or engine backend was compiled or run for DeepSeek V4.1.",
     "No GPU kernel, CUDA toolchain, driver capability, transfer bandwidth, or performance was measured.",
     "No checkpoint shard was opened, quantized, converted, uploaded, or run; only config and index metadata were read.",
     "No active B550 download, process, tmux session, GPU job, restart, or storage configuration was changed.",
-    "B550 does not become an authoritative Git remote or control plane; its checkout is execution-only and bundle-backed."
+    "B550 does not become an authoritative Git remote or control plane; its checkout is execution-only and bundle-backed.",
+    "Hostname selection is still by SSH alias and address, not by hostname, because AGENTS.md's `compute` claim is stale for this host."
   ]
 }
