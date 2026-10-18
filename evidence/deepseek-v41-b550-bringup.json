@@ -1,0 +1,106 @@
+{
+  "recorded_at": "2026-10-18T14:44:17Z",
+  "agent": "Codex",
+  "source_revision": "7f882efe771e4d64e98b62fdfca9b31c8718dacc",
+  "source_dirty": true,
+  "dirty_scope": "This B550 bring-up evidence and its architecture work-log entry only; no engine or contract code differs from source revision 7f882efe771e4d64e98b62fdfca9b31c8718dacc.",
+  "scope": "Prove that the first dependency-free DeepSeek-V4.1 host contracts can be transferred to and independently validated on the B550 compute host without using either GPU or disturbing active downloads. This is not a backend build, model load, or performance measurement.",
+  "host": {
+    "ssh_alias": "B550",
+    "address": "192.168.1.171",
+    "reported_hostname": "b550",
+    "kernel": "Linux b550 7.0.0-38-generic x86_64",
+    "cpu": "AMD Ryzen 9 5900XT, 32 logical CPUs, AVX2",
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308",
+        "memory_used_mib": 21171,
+        "utilization_percent": 100
+      },
+      {
+        "index": 1,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
+        "memory_used_mib": 4420,
+        "utilization_percent": 0
+      }
+    ],
+    "resources": {
+      "memory_total_gib": 91,
+      "root_free_disk": "2.1 TiB",
+      "weights_free_disk": "20 TiB on /mnt/weights"
+    },
+    "tools": {
+      "git": "2.53.0",
+      "cmake": "4.2.3",
+      "ninja": "1.13.2",
+      "gpp": "15.2.0"
+    }
+  },
+  "remote_checkout": {
+    "path": "/home/kearm/strata-deepseek-v41",
+    "branch": "b550-contracts",
+    "revision": "7f882efe771e4d64e98b62fdfca9b31c8718dacc",
+    "dirty": false,
+    "origin_fetch": "/home/kearm/strata-deepseek-v41.bundle",
+    "origin_push": "/home/kearm/.config/no-upstream-push",
+    "note": "The checkout was cloned from a Git bundle made by the authoritative main machine. B550 remains execution-only and cannot publish."
+  },
+  "checks": [
+    {
+      "command": "ssh B550 hostname; hostname -I; nvidia-smi; free -h; df -h / /mnt/weights",
+      "exit": 0,
+      "result": "Live host identity matched the B550 alias and showed GPU 0 already busy at 100%, so no GPU work was scheduled."
+    },
+    {
+      "command": "git bundle create build/deepseek-b550/strata-deepseek-v41.bundle main && scp build/deepseek-b550/strata-deepseek-v41.bundle B550:/home/kearm/strata-deepseek-v41.bundle",
+      "exit": 0,
+      "result": "Pinned source revision transferred without granting B550 Git credentials."
+    },
+    {
+      "command": "git clone /home/kearm/strata-deepseek-v41.bundle /home/kearm/strata-deepseek-v41 && git switch -c b550-contracts 7f882efe771e4d64e98b62fdfca9b31c8718dacc && git fsck --full",
+      "exit": 0,
+      "result": "Checkout is clean at the pinned revision with push disabled; full Git object check passed."
+    },
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "GCC 15.2 configured in 0.4 seconds, built both targets, and CTest passed 2/2 in 10.43 seconds. No _deps directory was created."
+    },
+    {
+      "command": "g++ -std=c++20 -Wall -Wextra -Wpedantic -O2 -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-b550-candidate-test && /tmp/strata-b550-candidate-test",
+      "exit": 0,
+      "result": "All deterministic candidate-selection cases passed, including visibility beyond 16,384 rows."
+    },
+    {
+      "command": "g++ -std=c++20 -fsanitize=address,undefined -Iinclude src/deepseek/candidate_select_test.cpp -o /tmp/strata-b550-candidate-test-asan && /tmp/strata-b550-candidate-test-asan",
+      "exit": 0,
+      "result": "All deterministic candidate-selection cases passed under AddressSanitizer and UndefinedBehaviorSanitizer."
+    },
+    {
+      "command": "sha256sum scripts/check_deepseek.py data/deepseek_v41_manifest.json include/strata/deepseek/geometry.hpp include/strata/deepseek/candidate_select.hpp",
+      "exit": 0,
+      "result": "All four B550 hashes matched the main-machine files byte-for-byte."
+    },
+    {
+      "command": "python3 scripts/check_deepseek.py --config /home/kearm/config.json --index /home/kearm/model.safetensors.index.json --manifest data/deepseek_v41_manifest.json",
+      "exit": 0,
+      "result": "All 15 official 1017 metadata checks passed on B550."
+    }
+  ],
+  "active_remote_work_observed": [
+    "DeepSeek-V4.1-Flash-1017 checkpoint transfer to /mnt/weights",
+    "Qwen3.8-Flash-Next and Qwen3.8-27B transfers",
+    "Fable distillation-trace transfer",
+    "GPU 0 was actively occupied during the probe"
+  ],
+  "non_claims": [
+    "No CUDA, HIP, SYCL, NPU, or engine backend was compiled or run for DeepSeek V4.1.",
+    "No GPU kernel, CUDA toolchain, driver capability, transfer bandwidth, or performance was measured.",
+    "No checkpoint shard was opened, quantized, converted, uploaded, or run; only config and index metadata were read.",
+    "No active B550 download, process, tmux session, GPU job, restart, or storage configuration was changed.",
+    "B550 does not become an authoritative Git remote or control plane; its checkout is execution-only and bundle-backed."
+  ]
+}
