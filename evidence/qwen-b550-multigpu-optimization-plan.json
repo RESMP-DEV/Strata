@@ -1,0 +1,190 @@
+{
+  "recorded_at": "2026-10-18T22:38:11Z",
+  "agent": "Codex",
+  "source_revision": "ee1116cf6b098c595399f64717cc29223944e4de",
+  "source_dirty": false,
+  "scope": "Audit Strata's existing one- and two-GPU Qwen optimization surfaces, B550's live topology, and the local K-Transformers checkout; define the matched benchmark required once a runnable Qwen GGUF pack exists. No model was downloaded, converted, loaded, run, or benchmarked in this task.",
+  "checkpoint_state_at_plan_time": {
+    "observed_at": "2026-10-18T22:37:50Z",
+    "qwen_flash_next": {
+      "revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540",
+      "complete_shards": 55,
+      "partial_shards": 4,
+      "missing_shards": 72,
+      "allocated_bytes": 166233477120,
+      "total_bytes": 360000192888,
+      "progress": "46.18%",
+      "rate": "5.3 MiB/s"
+    },
+    "deepseek_v41_flash": {
+      "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+      "complete_shards": 17,
+      "partial_shards": 8,
+      "missing_shards": 23,
+      "allocated_bytes": 148636663808,
+      "total_bytes": 510296708312,
+      "progress": "29.13%",
+      "rate": "5.3 MiB/s"
+    },
+    "boundary": "The Qwen source safetensors checkpoint is not itself a runnable Strata artifact. Strata needs a supported GSQ-RCO or Unsloth GGUF set, prepared pack inputs, and the PLE table. A finished source transfer therefore gates conversion or a separately produced runnable artifact, not immediate model execution."
+  },
+  "b550_topology": {
+    "observed_at": "2026-10-18T22:36:12Z",
+    "host": "b550 at 192.168.1.171",
+    "cpu": "AMD Ryzen 9 5900XT, 16 cores / 32 threads, AVX2, no AVX-512",
+    "ram": "91 GiB",
+    "gpus": [
+      {
+        "index": 0,
+        "model": "RTX 3090 Ti",
+        "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308",
+        "idle_link": "Gen1 x4",
+        "maximum_link": "Gen3 x16",
+        "resident_service_mib": 3728
+      },
+      {
+        "index": 1,
+        "model": "RTX 3090 Ti",
+        "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
+        "idle_link": "Gen1 x16",
+        "maximum_link": "Gen4 x16",
+        "resident_service_mib": 4422
+      }
+    ],
+    "interconnect": "nvidia-smi reports PHB between the cards; no NVLink",
+    "implication": "A K-Transformers-style tensor-parallel allreduce would cross PCIe through the host. Strata's layer pipeline, helper expert caches, and CPU/GPU MoE placement are better matched to this topology. Both long-running embedding replicas must remain untouched; all arms will start with the same roughly 20.5 GiB free per card unless a later dedicated-run decision explicitly stops them."
+  },
+  "strata_native_capability": {
+    "code_verified": [
+      "src/program/generate.cpp implements --layer-split, --split-device, --peer-device, --expert-cache-device1..3, --remote-expert-opt, --adapt-async, --pipeline-windows, --batch-groups, and PCIe share controls",
+      "serve/server.py treats several GPUs as a layer split unless --peer-device selects the alternate peer-expert tier",
+      "tools/calibrate.py already sweeps PCIe share, speculative draft threshold, CPU workers, and adaptive expert settings",
+      "bench/bench_vs_llama.py and tools/ab_engine.py provide paired server benchmark surfaces"
+    ],
+    "modes": [
+      {
+        "name": "single GPU",
+        "controls": "one card, calibrated expert cache, adaptive tier, PCIe share, and speculative decoding",
+        "purpose": "the mandatory control; test each card because their maximum PCIe generations differ"
+      },
+      {
+        "name": "layer split",
+        "controls": "--gpus 0,1 or 1,0; --layer-split auto followed by a bounded manual K sweep; --trim-stage-weights",
+        "purpose": "pipeline model parallelism across layers and approximately double aggregate expert-cache capacity"
+      },
+      {
+        "name": "helper expert GPU",
+        "controls": "--expert-cache-device1 auto --remote-expert-opt",
+        "purpose": "keep one primary and assign a complementary hot-expert cache to the second card over pinned host buffers, avoiding a P2P requirement"
+      },
+      {
+        "name": "pipeline windows",
+        "controls": "--pipeline-windows 2, with --adapt-async 1 and STRATA_ADAPT_LAG/STRATA_EXCHANGE_ROTATE as follow-on arms",
+        "purpose": "overlap the next verify window across the two stages, primarily targeting prefill and pipeline stalls"
+      },
+      {
+        "name": "short-prompt peer help",
+        "controls": "STRATA_PREFILL_HELP=1 and STRATA_PREFILL_HELP_FRAC, separate from fused prefill",
+        "purpose": "let the otherwise idle stage stream some one-chunk prompt experts over its own PCIe link"
+      },
+      {
+        "name": "batched conversations",
+        "controls": "--batch N --batch-groups G --trim-stage-weights",
+        "purpose": "measure aggregate multi-client throughput, not single-stream latency"
+      }
+    ],
+    "not_appropriate_here": "--peer-device is a separate P2P-oriented peer-expert tier and is incompatible with layer split/helper caches. B550 has no NVLink and reports PHB, so helper-cache and layer-split arms are the primary modes; a peer-device arm is optional only after cudaDeviceCanAccessPeer is proven live."
+  },
+  "ktransformers_audit": {
+    "local_checkout": "/Users/kearm/ktransformers",
+    "canonical_remote": "git@github.com:RESMP-DEV/ktransformers.git",
+    "branch": "research/qwen38-dsv41-registry",
+    "revision": "c6a9ee34eaecf74ddd0c810f7272196d6c4bd969",
+    "upstream_base": "c40722b",
+    "local_delta": "One commit changes kt-kernel/python/cli/utils/model_registry.py only, adding Qwen3.8-Flash-Next and DeepSeek-V4.1-Flash registry entries. No K-Transformers code is imported by Strata.",
+    "qwen_registry_defaults": {
+      "kt_method": "FP8",
+      "gpu_prefill_token_threshold": 4096,
+      "attention_backend": "flashinfer",
+      "max_total_tokens": 100000,
+      "chunked_prefill_size": 32768,
+      "mem_fraction_static": 0.8,
+      "disable_shared_experts_fusion": true
+    },
+    "portable_ideas": [
+      "Hotness-aware GPU-resident experts: Strata already has the stronger native analogue in its expert profile, per-card expert caches, adaptive swaps, and helper complementary ownership.",
+      "CPU/GPU MoE split: Strata already owns a C++/CUDA CPU expert pool, pinned arena, PCIe share, and asynchronous adaptive exchanges.",
+      "Multi-GPU execution: K-Transformers leans on serving-framework tensor parallelism, while Strata has native layer split, helper expert caches, pipeline windows, and batch groups. These are different mechanisms; K-Transformers TP is not automatically superior on consumer PCIe.",
+      "The only immediately useful K-Transformers registry numbers as candidate workload bounds are chunked prefill 32768 and max total tokens 100000, not direct engine settings."
+    ],
+    "do_not_port": [
+      "The archived module-replacement YAML machinery and KT-Kernel method registry do not map onto Strata's compiled engine.",
+      "Deferred CPU experts from the older research path; prior work identified output-corrupting behavior.",
+      "AMX, dual-NUMA, and SM120-only assumptions; none match B550.",
+      "DeepSeek V4.1 Engram placement maps; they are incompatible with the 1017 checkpoint and unrelated to Qwen."
+    ]
+  },
+  "benchmark_protocol": {
+    "artifact_gate": [
+      "Finish and size-verify the source checkpoint.",
+      "Produce or select a supported runnable Qwen GGUF artifact. The existing external GSQ-RCO artifact can be a performance control, but any RESMP-improved runnable artifact must come from the own-quantization pipeline before a product claim.",
+      "Stage the runnable GGUF/pack on ext4 NVMe scratch, not /mnt/weights; prior measurement showed HDD expert-slot random reads are 10.8x slower at queue depth 1.",
+      "Run the engine already built at /home/kearm/strata-main/build/qwen-sm86 or rebuild from the exact published Strata head after any change."
+    ],
+    "controls": [
+      "Same model hashes, engine binary, prompt IDs, tokenizer, context, KV mode, speculative depth, expert profile, and storage path in every arm.",
+      "Restart the server between configurations and collect startup-selected layer split, cache slots, PCIe fractions, pool workers, and telemetry.",
+      "Use paired/interleaved runs with one discarded warm-up; report medians and dispersion, not a best run.",
+      "Keep both embedding replicas resident for the primary comparison. A later dedicated ceiling run may revisit that only by explicit service-owner decision."
+    ],
+    "stage_a": "Correctness and capacity: launch one GPU, verify representative output/function checks, record expert slots, VRAM, pinned arena, and PCIe probe.",
+    "stage_b": "Single-GPU controls: GPU0 and GPU1 separately; run tools/calibrate.py for pcie_frac, spec_min_p, workers, and adaptive tier. Use fresh and cached prompt paths.",
+    "stage_c": "Two-GPU mode selection: layer-split auto in both card orders, then manual split points around the auto choice (for a 48-layer model, typically 18, 20, 22, 24, 26, 28, 30); separately test helper-expert mode.",
+    "stage_d": "Optimization stack: on the best two placements, compare --adapt-async 1, --pipeline-windows 2, STRATA_PF_FUSED=1, and STRATA_PREFILL_HELP=1 in separate arms before combining only winners.",
+    "stage_e": "Concurrency: --batch 2/4/8 with --batch-groups auto and explicit 1/2, measuring aggregate and per-request throughput.",
+    "workloads": [
+      "cold fresh prefill: about 1.5K, 2K, 3K, 4K, 16K, 32K, and 128K tokens with nonce/no reuse",
+      "follow-up cached prefill and conversation restore",
+      "decode: temperature 0, 256-, 500-, and 1500-token outputs, at least five measured runs per arm after warm-up",
+      "multi-client aggregate decode with 2, 4, and 8 concurrent requests"
+    ],
+    "metrics": [
+      "prompt tok/s and TTFT from the server",
+      "decode tok/s, draft acceptance, and verified/generated counts",
+      "per-GPU utilization, memory, power, temperature, PCIe RX/TX",
+      "expert cache hit/miss, PCIe-share count, CPU pool rows, and helper-computed experts",
+      "stage handoff and adaptive-exchange timings where the engine exposes them"
+    ]
+  },
+  "hypotheses_and_prior_evidence": {
+    "one_versus_two": [
+      "Two cards should clearly help prefill by overlapping chunks and adding PCIe bandwidth, but single-stream decode should not be assumed 2x. It may be approximately equal if one card already holds the hot experts or if per-layer handoff dominates.",
+      "Two cards become more likely to win decode when the quantized expert set does not fit one cache; the second cache reduces CPU misses.",
+      "Aggregate multi-client throughput has the best chance of approaching the additional compute because batch groups can occupy both stages."
+    ],
+    "closest_published_strata_result": {
+      "rig": "2x RTX 3090, no NVLink, Qwen3.8-Flash-Next GSQ-RCO IQ3_S, resident experts, int8 KV, spec 4 MTP",
+      "source": "docs/MULTI_GPU.md, community report #1447; not reproduced on B550",
+      "decode_tok_s": {
+        "defaults": "137.0 / 136.9",
+        "adapt_async": "145.2 / 143.7",
+        "pipeline_windows_2": 136.7,
+        "combined_pipeline_async_and_related": 142.0
+      },
+      "prefill_tok_s": {
+        "defaults": 1798,
+        "pipeline_windows_2": 2097,
+        "combined_pipeline_async_and_related": 2302
+      },
+      "interpretation": "This is a target hypothesis of roughly 135-145 decode tok/s and 1.8K-2.3K prefill tok/s on a close but unequal 2x3090 rig, not a B550 claim. B550 has different CPU/RAM, asymmetric PCIe generations, and resident embedding services."
+    }
+  },
+  "non_claims": [
+    "No Qwen or DeepSeek model was loaded or run for this audit.",
+    "No Strata multi-GPU performance number is claimed for B550 yet.",
+    "The community 2x3090 figures are prior evidence and hypotheses, not measurements from this host.",
+    "No K-Transformers code was ported, executed, or claimed to run either model end to end.",
+    "The source checkpoint finishing does not by itself create a runnable Strata GGUF pack.",
+    "No transfer, GPU service, tmux session, or storage configuration was changed."
+  ]
+}

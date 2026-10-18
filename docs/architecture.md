@@ -743,3 +743,28 @@ scratch target is the already-mounted root NVMe; the smaller drive must not be
 formatted without a separate identity and data decision. Full measurements,
 conditions, and non-claims are in
 [Qwen B550 storage evidence](../evidence/qwen-b550-storage-read-baseline.json).
+
+### Qwen B550 one-versus-two-GPU optimization plan, 2026-10-18
+
+B550's two RTX 3090 Ti cards have no NVLink and report a `PHB` topology; GPU 0
+has a Gen3 x16 maximum and GPU 1 a Gen4 x16 maximum, while both embedding
+replicas remain resident. This makes Strata's native layer split, helper expert
+cache, adaptive CPU/GPU expert tier, PCIe share, and pipeline windows more
+relevant than a K-Transformers-style tensor-parallel port. The local
+K-Transformers checkout at `c6a9ee3` contributes only Qwen/DeepSeek registry
+entries on top of upstream; no K-Transformers code is imported by Strata. Its
+useful concepts, hotness-aware GPU experts and a CPU/GPU MoE split, already
+have native Strata counterparts.
+
+The source checkpoint is not itself runnable. When the transfer and artifact
+gate complete, the first benchmark must use identical hashes, prompts, context,
+KV mode, speculative depth, expert profile, NVMe staging path, and engine
+binary. Measure each single GPU separately, then layer-split auto in both card
+orders and a bounded manual split sweep, then the helper-expert alternative.
+Only after choosing the best placements should `--adapt-async`, pipeline
+windows, fused prefill, short-prompt helper sharing, and batch groups be added
+and compared separately. A close community 2x3090 Qwen IQ3_S report suggests a
+hypothesis around 135-145 decode tok/s and 1.8K-2.3K prefill tok/s, but it is
+not a B550 measurement. The complete protocol, topology, K-Transformers audit,
+and non-claims are in
+[Qwen B550 multi-GPU plan](../evidence/qwen-b550-multigpu-optimization-plan.json).
