@@ -11,6 +11,7 @@
 | Common verification | `just quality` runs on this macOS host; it does not claim a CUDA, HIP, or SYCL build |
 | Strix hardware evidence | An 8 GB RTX 5070 engine build launched; the Intel NPU also passed an external, opt-in one-token router probe through the new plugin ABI. Neither is a Strata model-run or speed claim. See [accelerator evidence](evidence/accelerator-plugin-router-probe.json) |
 | DeepSeek V4.1 port preparation | Exact 1017 checkpoint metadata taxonomy, model geometry, and deterministic CPU candidate selection are implemented and exercised host-side on both this machine and the B550 compute host. B550 also built the regular Qwen engine and passed its AVX2 parity targets; its DeepSeek-specific AVX2 ceiling is measured but no DeepSeek pack or backend exists. See [first host contracts](evidence/deepseek-v41-first-host-contracts.json), [B550 bring-up](evidence/deepseek-v41-b550-bringup.json), and [AVX2 ceiling](evidence/deepseek-v41-b550-avx2-ceiling.json) |
+| Qwen B550 storage placement | The HDD source store sustains 202 MiB/s sequential reads but only 106 MiB/s for Strata-sized random expert-slot misses; the root NVMe is 10.8x faster at queue depth 1 and 18.3x at depth 8. Stage runnable Qwen packs on NVMe scratch. See [storage baseline](evidence/qwen-b550-storage-read-baseline.json) |
 
 <p align="center"><b>Run a 125-billion-parameter AI model on your own gaming PC</b><br>
 NVIDIA or AMD graphics card (12 GB recommended) · Windows or Linux · free and open source</p>

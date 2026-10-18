@@ -1,0 +1,152 @@
+{
+  "recorded_at": "2026-10-18T17:16:02Z",
+  "agent": "Codex",
+  "source_revision": "2e876cb3656fa75b6895dc52c4261f0ee2475876",
+  "source_dirty": false,
+  "scope": "Measure bounded direct-read storage behavior on B550 while the Qwen3.8-Flash-Next transfer continued. Compare the 21.8-TB rotational /mnt/weights device with a same-sized NVMe scratch file, including one Strata-sized 1,382,400-byte expert-slot random-read pattern. This is a storage baseline, not a Strata model run or token-throughput measurement.",
+  "platform": {
+    "host_alias": "B550",
+    "address": "192.168.1.171",
+    "reported_hostname": "b550",
+    "kernel": "Linux 7.0.0-38-generic x86_64",
+    "cpu": "AMD Ryzen 9 5900XT, 16 cores / 32 threads",
+    "fio": "3.41",
+    "ioengine": "libaio",
+    "direct_io": true,
+    "scheduling": "ionice class 2 priority 7, under the active downloads and GPU jobs"
+  },
+  "devices": {
+    "hdd": {
+      "source": "/dev/sda1",
+      "rotational": true,
+      "filesystem": "ext4",
+      "mount": "/mnt/weights",
+      "free": "19.3 TiB"
+    },
+    "nvme_scratch": {
+      "source": "/dev/nvme0n1p2",
+      "rotational": false,
+      "filesystem": "ext4",
+      "mount": "/",
+      "free_before_benchmark": "2.1 TiB",
+      "temporary_file": "/home/kearm/strata-scratch/qwen-shard-00006.safetensors"
+    },
+    "unused_nvme": {
+      "source": "/dev/nvme1n1",
+      "size": "953.9 GB",
+      "state": "not mounted; FAT32 and NTFS partitions were present",
+      "action": "left untouched because its identity and prior contents were not established"
+    }
+  },
+  "input": {
+    "hdd_file": "/mnt/weights/hf-weights/Qwen_Qwen3.8-Flash-Next/model-00006-of-00131.safetensors",
+    "bytes": 3200016032,
+    "completed_shard": true,
+    "copy_to_nvme_seconds": 15.503,
+    "copy_to_nvme_rate": "196.85 MiB/s",
+    "copy_note": "An ordinary copy was used because GNU dd rejected direct input buffers above 512 bytes on this filesystem, while fio O_DIRECT worked. The benchmark itself used O_DIRECT."
+  },
+  "expert_slot_bytes": 1382400,
+  "expert_slot_mib": 1.318359375,
+  "cases": [
+    {
+      "device": "hdd",
+      "pattern": "sequential 1 MiB, queue depth 1",
+      "iops": 202.031979,
+      "bandwidth_kib_s": 206880,
+      "bandwidth_mib_s": 202.031979,
+      "latency_us_mean": 4947.35329596
+    },
+    {
+      "device": "hdd",
+      "pattern": "random 4 KiB, queue depth 1",
+      "iops": 204.118353,
+      "bandwidth_kib_s": 816,
+      "latency_us_mean": 4895.252194907
+    },
+    {
+      "device": "hdd",
+      "pattern": "random 64 KiB, queue depth 1",
+      "iops": 188.211788,
+      "bandwidth_kib_s": 12045,
+      "latency_us_mean": 5310.665469214
+    },
+    {
+      "device": "hdd",
+      "pattern": "random 1,382,400-byte expert slot, queue depth 1",
+      "iops": 80.774032,
+      "bandwidth_kib_s": 109044,
+      "latency_us_mean": 12373.71333694
+    },
+    {
+      "device": "hdd",
+      "pattern": "random 1,382,400-byte expert slot, queue depth 8",
+      "iops": 120.039683,
+      "bandwidth_kib_s": 162053,
+      "latency_us_mean": 66552.501938017
+    },
+    {
+      "device": "nvme_scratch",
+      "pattern": "sequential 1 MiB, queue depth 1",
+      "iops": 2480.253291,
+      "bandwidth_kib_s": 2539779,
+      "bandwidth_mib_s": 2480.780579,
+      "latency_us_mean": 401.881340701
+    },
+    {
+      "device": "nvme_scratch",
+      "pattern": "random 4 KiB, queue depth 1",
+      "iops": 14650.269946,
+      "bandwidth_kib_s": 58601,
+      "latency_us_mean": 67.473074782
+    },
+    {
+      "device": "nvme_scratch",
+      "pattern": "random 64 KiB, queue depth 1",
+      "iops": 7405.118976,
+      "bandwidth_kib_s": 473927,
+      "latency_us_mean": 134.093536285
+    },
+    {
+      "device": "nvme_scratch",
+      "pattern": "random 1,382,400-byte expert slot, queue depth 1",
+      "iops": 873.515811,
+      "bandwidth_kib_s": 1179246,
+      "latency_us_mean": 1143.045703248
+    },
+    {
+      "device": "nvme_scratch",
+      "pattern": "random 1,382,400-byte expert slot, queue depth 8",
+      "iops": 2197.001874,
+      "bandwidth_kib_s": 2965952,
+      "latency_us_mean": 3638.550170922
+    }
+  ],
+  "headline_comparison": {
+    "sequential_1m_qd1_nvme_over_hdd": "12.28x bandwidth",
+    "random_4k_qd1_nvme_over_hdd": "71.77x IOPS",
+    "random_64k_qd1_nvme_over_hdd": "39.34x IOPS",
+    "random_expert_qd1_nvme_over_hdd": "10.81x IOPS and 10.82x lower mean latency",
+    "random_expert_qd8_nvme_over_hdd": "18.30x IOPS and 18.29x lower mean latency"
+  },
+  "scratch_decision": {
+    "conclusion": "Use an NVMe scratch staging area for runnable Qwen GGUF packs; do not stage it on /mnt/weights if expert reads miss cache.",
+    "capacity": "A Strata Qwen pack at roughly 33-125 GiB fits comfortably in the 2.1-TiB free root NVMe. The separate 953.9-GB NVMe also has enough capacity, but it is unmounted and contains foreign FAT/NTFS partitions, so do not format or mount it without a separate identity/data decision.",
+    "staging_cost": "At the measured mixed copy rate, a 70-GiB pack would take about 6 minutes to stage after download; a 125-GiB pack about 11 minutes.",
+    "expected_effect": "The HDD is not a large problem for sequential loading, but random expert-slot misses would add about 11.23 ms per depth-1 read versus NVMe. Even with queue depth 8, the measured HDD mean latency was 66.55 ms and NVMe was 3.64 ms."
+  },
+  "post_condition": {
+    "utc": "2026-10-18T17:15:56Z",
+    "qwen_hfd_transfer": "still alive",
+    "latest_rate_line": "[DL:4.7MiB][#791061 2.8GiB/2.9GiB(94%)][#4e0dd1 2.1GiB/2.9GiB(70%)][#b30482 830MiB/2.9GiB(27%)][#fc457e 432MiB/2.9GiB(14%)]",
+    "temporary_scratch_file_removed": true
+  },
+  "non_claims": [
+    "No Qwen model, GGUF, PLE table, or Strata pack was loaded or run.",
+    "The safetensors shard is a real Qwen file used as a storage substrate, not a runnable model artifact; its tensor layout does not emulate Strata expert placement.",
+    "These are raw fio storage measurements under active transfers and GPU jobs, not same-day model token throughput or first-token latency measurements.",
+    "A warm expert cache can hide storage latency; the expert-slot case measures cold/random misses, which is the boundary the scratch decision must survive.",
+    "The unmounted 953.9-GB NVMe was not mounted, formatted, erased, benchmarked, or otherwise changed.",
+    "No active download, GPU process, tmux session, service, or storage configuration was changed by the benchmark."
+  ]
+}

@@ -720,3 +720,26 @@ scan rewrite. More importantly, no RESMP-owned DeepSeek pack layout exists yet,
 so there is no weight-row layout for an AVX2 expert kernel to target. Full
 commands, measurements, GPU occupancy, and non-claims are in
 [B550 AVX2 ceiling evidence](../evidence/deepseek-v41-b550-avx2-ceiling.json).
+
+### Qwen B550 HDD versus NVMe scratch decision, 2026-10-18
+
+B550's `/mnt/weights` is a 21.8-TB rotational ext4 device and the root is a
+3.6-TB NVMe with 2.1 TiB free. A completed 3,200,016,032-byte Qwen shard was
+used as the storage substrate for bounded fio O_DIRECT reads while the Qwen
+transfer remained active. Sequential HDD throughput was healthy at 202 MiB/s;
+NVMe was 2.48 GiB/s. The runtime-relevant pattern is different: a
+Strata-sized 1,382,400-byte expert-slot read averaged 12.37 ms on HDD versus
+1.14 ms on NVMe at queue depth 1, and 66.55 ms versus 3.64 ms at queue depth
+8. NVMe was 10.8x faster for the depth-1 expert pattern and 18.3x faster at
+depth 8.
+
+The decision is therefore split by path. The HDD remains appropriate for the
+long source-checkpoint transfer and could stream a mostly sequential preload
+without disaster. A runnable Qwen GGUF pack should be staged to NVMe scratch
+before decode: at the measured mixed copy rate, a 70-GiB pack costs about six
+minutes and a 125-GiB pack about eleven. A separate 953.9-GB NVMe exists but
+is unmounted and contains foreign FAT/NTFS partitions, so the safe current
+scratch target is the already-mounted root NVMe; the smaller drive must not be
+formatted without a separate identity and data decision. Full measurements,
+conditions, and non-claims are in
+[Qwen B550 storage evidence](../evidence/qwen-b550-storage-read-baseline.json).
