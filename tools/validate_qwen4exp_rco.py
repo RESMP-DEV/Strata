@@ -72,7 +72,7 @@ def tiny_config() -> Qwen4ExpTextConfig:
     )
 
 
-def run(root: Path, seed: int, as_json: bool) -> dict[str, object]:
+def run(root: Path, seed: int, device: str) -> dict[str, object]:
     import transformers
 
     version = str(transformers.__version__)
@@ -84,18 +84,21 @@ def run(root: Path, seed: int, as_json: bool) -> dict[str, object]:
 
     sys.path.insert(0, str(root / "src"))
     prune = load_rco_module(root, "src/search/prune.py", "strata_rco_prune_probe")
-    builder = load_rco_module(
-        root, "run_build_checkpoint.py", "strata_rco_build_checkpoint_probe"
-    )
+    builder = load_rco_module(root, "run_build_checkpoint.py", "strata_rco_build_checkpoint_probe")
 
     torch.manual_seed(seed)
     model = Qwen4ExpForCausalLM(tiny_config()).eval()
+    if device == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("--device cuda requested but torch.cuda.is_available() is false")
+        model = model.to("cuda")
+    input_device = torch.device(device)
     info = prune.get_moe_info(model)
     if info != (2, 4, 2):
         raise AssertionError(f"unexpected MoE geometry: {info}")
 
     layer = model.model.layers[0].mlp
-    router_values = layer.gate(torch.randn(3, 32))
+    router_values = layer.gate(torch.randn(3, 32, device=input_device))
     if len(router_values) != 3:
         raise AssertionError(f"unexpected router arity: {len(router_values)}")
 
@@ -103,7 +106,7 @@ def run(root: Path, seed: int, as_json: bool) -> dict[str, object]:
     wrappers = prune.install_wrappers(model, info[0], info[1], state)
     try:
         with torch.no_grad():
-            patched = layer(torch.randn(1, 3, 32))
+            patched = layer(torch.randn(1, 3, 32, device=input_device))
     finally:
         prune.remove_wrappers(wrappers)
     if patched.shape != (1, 3, 32) or not bool(torch.isfinite(patched).all()):
@@ -123,7 +126,7 @@ def run(root: Path, seed: int, as_json: bool) -> dict[str, object]:
     model.config.num_experts = 3
     model.config.original_num_experts = 4
     with torch.no_grad():
-        shrunk = model.model.layers[0].mlp(torch.randn(1, 3, 32))
+        shrunk = model.model.layers[0].mlp(torch.randn(1, 3, 32, device=input_device))
     if shrunk.shape != (1, 3, 32) or not bool(torch.isfinite(shrunk).all()):
         raise AssertionError(f"bad shrunk output: {shrunk.shape}")
 
@@ -133,6 +136,8 @@ def run(root: Path, seed: int, as_json: bool) -> dict[str, object]:
         "torch_version": torch.__version__,
         "rco_root": str(root),
         "seed": seed,
+        "device": device,
+        "cuda_device_name": torch.cuda.get_device_name(0) if device == "cuda" else None,
         "moe_info": list(info),
         "router_class": type(layer.gate).__name__,
         "experts_class": type(layer.experts).__name__,
@@ -149,13 +154,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--rco-root", type=Path, default=DEFAULT_RCO)
     parser.add_argument("--seed", type=int, default=73)
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    result = run(args.rco_root, args.seed, args.json)
+    result = run(args.rco_root, args.seed, args.device)
     if args.json:
         print(json.dumps(result, indent=2))
     else:

@@ -96,7 +96,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | DeepSeek V4.1 backend order | CUDA/CPU extraction on B550 is the initial implementation path; Lucebox HIP is reference-only | A HIP-first path is justified only if an AMD target becomes primary or an unmodified Lucebox oracle is required; either way, named AMD hardware and parity evidence are mandatory |
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
-| GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight and `tools/reap_mask_from_traces.py`, which can generate an exact trace-derived control mask once routing traces are captured. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
+| GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight, `tools/reap_mask_from_traces.py`, and the tiny Qwen4-Exp/RCO CPU plus Modal-L4 compatibility probes. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -1140,3 +1140,20 @@ real GPU model-load/calibration boundary, but it does not validate full-model KL
 calibration data, PLE-aware GSQ layer movement, quantization, packing, or output
 quality. Evidence is in
 [tiny Qwen4-Exp RCO probe](../evidence/qwen4exp-rco-tiny-probe.json).
+
+
+### Modal L4 Qwen4-Exp/RCO smoke, 2026-10-19
+
+`tools/modal_qwen4exp_rco_probe.py` runs the tiny validator on one Modal NVIDIA
+L4 with Python 3.12, Torch `2.14.1+cu130`, Transformers `5.20.2`, and RCO pinned
+at `9a1e09c`. The CUDA probe passed the same geometry, router triple, STE fused
+expert forward, finite output, physical expert shrink, and finite shrunk output
+contracts as the CPU probe. The observed Modal metered total moved from $21.38
+to $21.58 while billed cost remained $0.00; the $0.20 delta includes the initial
+git-less image-build failure and the successful retry. Result and log are retained
+under ignored `build/compression-cloud/`, with the durable record in
+[Modal L4 probe evidence](../evidence/qwen4exp-rco-modal-l4.json).
+
+This advances runtime compatibility only. It does not load Flash-Next weights,
+run RCO calibration or full-model KL, train a heal adapter, quantize, pack, or
+measure performance, and it does not size the eventual multi-GPU search.
