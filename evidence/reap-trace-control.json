@@ -45,5 +45,11 @@
     "This is a heuristic REAP-style control, not RCO's joint full-model KL optimization.",
     "Router-weight ranking may not equal output-quality preservation; the generated mask must compete against RCO on the same held-out acceptance set.",
     "No claim is made that 256 experts per layer is optimal for our workload."
-  ]
+  ],
+  "review_repair": {
+    "finding": "An out-of-range trace layer skipped 16*count payload bytes although the ids-plus-float32-weights payload is 8*count bytes, losing the following record.",
+    "fix": "Advance by 8*count for out-of-range layers.",
+    "regression": "tools.test_reap_mask_from_traces.test_out_of_range_layer_is_skipped_without_losing_next_record",
+    "validation": "Six focused tool tests and just quality pass."
+  }
 }

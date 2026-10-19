@@ -134,8 +134,8 @@ def validate_model(model: Path) -> list[Finding]:
             Finding(
                 "model.layer_types",
                 layer_types_ok,
-                f"linear_attention={counts['linear_attention']} "
-                f"full_attention={counts['full_attention']}",
+                f"linear_attention={counts.get('linear_attention', 0)} "
+                f"full_attention={counts.get('full_attention', 0)}",
             )
         )
 

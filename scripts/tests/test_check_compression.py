@@ -97,6 +97,17 @@ class CompressionPreflightTest(unittest.TestCase):
         by_name = {finding.name: finding for finding in check_compression.validate_model(self.root)}
         self.assertFalse(by_name["model.download_complete"].ok)
 
+    def test_unknown_layer_type_reports_instead_of_raising(self) -> None:
+        write_model(self.root)
+        path = self.root / "config.json"
+        config = json.loads(path.read_text(encoding="utf-8"))
+        config["text_config"]["layer_types"][0] = "unknown_attention"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        findings = check_compression.validate_model(self.root)
+        by_name = {finding.name: finding for finding in findings}
+        self.assertFalse(by_name["model.layer_types"].ok)
+        self.assertIn("linear_attention=35 full_attention=12", by_name["model.layer_types"].detail)
+
     def test_runtime_requires_qwen4_exp_support(self) -> None:
         old = check_compression.validate_runtime("5.7.0")
         new = check_compression.validate_runtime("5.20.2")

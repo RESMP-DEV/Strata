@@ -39,10 +39,13 @@ class ReapMaskTest(unittest.TestCase):
 
     def test_weighted_mask_exact_and_deterministic(self) -> None:
         path = self.root / "trace.bin"
-        trace(path, [
-            (0, [1, 2, 3], [0.1, 0.5, 0.5]),
-            (1, [4, 5], [0.2, 0.1]),
-        ])
+        trace(
+            path,
+            [
+                (0, [1, 2, 3], [0.1, 0.5, 0.5]),
+                (1, [4, 5], [0.2, 0.1]),
+            ],
+        )
         scores, records = MODULE.read_trace_scores([path], n_layers=2, n_expert=6, weighted=True)
         keep, fills, selected = MODULE.choose_mask(scores, 2, 6, 2)
         self.assertEqual(records, 2)
@@ -103,6 +106,22 @@ class ReapMaskTest(unittest.TestCase):
         self.assertEqual(len(ranked), 96)
         self.assertIn((0, 2), ranked)
         self.assertIn((1, 3), ranked)
+
+    def test_out_of_range_layer_is_skipped_without_losing_next_record(self) -> None:
+        path = self.root / "trace.bin"
+        trace(
+            path,
+            [
+                (99, [5], [9.0]),
+                (0, [1, 2], [0.1, 0.4]),
+            ],
+        )
+        scores, records = MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
+        self.assertEqual(records, 1)
+        self.assertEqual(records, 1)
+        self.assertEqual(set(scores), {(0, 1), (0, 2)})
+        self.assertAlmostEqual(scores[(0, 1)], 0.1, places=6)
+        self.assertAlmostEqual(scores[(0, 2)], 0.4, places=6)
 
     def test_truncated_trace_is_rejected(self) -> None:
         path = self.root / "bad.bin"

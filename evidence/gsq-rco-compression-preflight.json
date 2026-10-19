@@ -86,5 +86,11 @@
     "RCO's router hook and checkpoint materializer remain unvalidated against Qwen4ExpTextTopKRouter.",
     "GSQ's PLE-aware layer movement remains unvalidated; its Qwen3.5 wrapper is promising because Qwen4Exp inherits that architecture, but no Flash-Next wrapper was run.",
     "This check depends on a local source checkpoint and pinned clones; it is not a default install or quality gate."
-  ]
+  ],
+  "review_repair": {
+    "finding": "A 48-entry layer_types list with missing expected values could raise KeyError while formatting a failed finding.",
+    "fix": "Use Counter.get for both detail values.",
+    "regression": "scripts.tests.test_check_compression.test_unknown_layer_type_reports_instead_of_raising",
+    "validation": "Focused script tests and just quality pass."
+  }
 }

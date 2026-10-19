@@ -46,7 +46,7 @@ def read_trace_scores(
             if count < 0 or offset + 8 * count > len(blob):
                 raise ValueError(f"{path}: invalid routing count {count} at layer {layer}")
             if not 0 <= layer < n_layers:
-                offset += 16 * count
+                offset += 8 * count
                 continue
             ids = struct.unpack_from(f"<{count}i", blob, offset)
             weights = struct.unpack_from(f"<{count}f", blob, offset + 4 * count)
@@ -112,9 +112,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("traces", nargs="+", type=Path, help="--dump-routing files")
     parser.add_argument("--out", required=True, type=Path, help="JSON mask output")
-    parser.add_argument(
-        "--profile", type=Path, help="optional Strata expert profile output"
-    )
+    parser.add_argument("--profile", type=Path, help="optional Strata expert profile output")
     parser.add_argument(
         "--keep", type=int, default=256, help="experts kept per layer (default 256)"
     )
@@ -151,9 +149,7 @@ def main() -> int:
         "n_expert": args.n_expert,
         "keep_per_layer": args.keep,
         "trace_files": [str(path) for path in args.traces],
-        "trace_sha256": [
-            hashlib.sha256(path.read_bytes()).hexdigest() for path in args.traces
-        ],
+        "trace_sha256": [hashlib.sha256(path.read_bytes()).hexdigest() for path in args.traces],
         "trace_records": records,
         "distinct_observed_pairs": len(scores),
         "trace_supported_selected": trace_supported,
