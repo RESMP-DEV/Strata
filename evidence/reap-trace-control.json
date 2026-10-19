@@ -1,0 +1,49 @@
+{
+  "recorded_at": "2026-10-19",
+  "agent": "Codex",
+  "source_revision": "ad040e0f596bfc481d4436a1e048d798aad2d12e",
+  "source_dirty": true,
+  "dirty_scope": "GSQ/RCO architecture plan and preflight files from this task plus the new trace-derived REAP control tool, tests, quality-gate wiring, receipt, and architecture update.",
+  "scope": "Implement the deterministic REAP-style control arm for Qwen expert pruning from real --dump-routing traces. The tool parses the engine trace format, scores experts by router weight or activation count, keeps an exact per-layer budget, emits a hash-bound JSON mask and optional Strata profile, and reports trace coverage. It prepares for real trace capture; no real trace existed in this checkout and no pruning/model run ran.",
+  "tool": "tools/reap_mask_from_traces.py",
+  "trace_contract": {
+    "source": "src/program/generate.cpp drive_pool and drive_pool_multi",
+    "record": "int32 layer, int32 k, k int32 expert ids, k float32 router weights",
+    "serve_mode": "drive_pool_multi emits unit-frequency records with zero float weights; weighted mode therefore treats zero weights as one activation",
+    "one_shot_mode": "drive_pool emits true router weights"
+  },
+  "selection_contract": [
+    "Primary key: descending weighted score, or descending activation count with --unweighted",
+    "Tie key: ascending original expert id",
+    "Exact --keep experts per layer (default 256 of 512)",
+    "Sparse layers are filled by ascending expert id and fill IDs are reported separately",
+    "Output mask records every input path and SHA-256",
+    "Optional profile is written through tools/make_profile.py and read back in tests"
+  ],
+  "tests": "tools/test_reap_mask_from_traces.py (5 tests)",
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_reap_mask_from_traces -v",
+      "exit": 0,
+      "result": "5 tests passed: weighted deterministic selection, zero-weight serve records, exact sparse fills, CLI/profile round trip, truncated trace rejection"
+    },
+    {
+      "command": "ruff check tools/reap_mask_from_traces.py tools/test_reap_mask_from_traces.py",
+      "exit": 0,
+      "result": "all checks passed even though tools/ is excluded from the maintained-scripts gate"
+    },
+    {
+      "command": "python3 -m py_compile tools/reap_mask_from_traces.py tools/test_reap_mask_from_traces.py",
+      "exit": 0,
+      "result": "both compile"
+    }
+  ],
+  "quality_wiring": "scripts/strata.py now runs python3 -m unittest tools.test_reap_mask_from_traces as the compression-tools domain in just quality.",
+  "non_claims": [
+    "No routing trace file existed in this checkout, so no real mask was generated here.",
+    "No model was loaded and no RCO/GSQ/LoRA/pruning/quantization/inference ran.",
+    "This is a heuristic REAP-style control, not RCO's joint full-model KL optimization.",
+    "Router-weight ranking may not equal output-quality preservation; the generated mask must compete against RCO on the same held-out acceptance set.",
+    "No claim is made that 256 experts per layer is optimal for our workload."
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "recorded_at": "2026-10-19",
+  "agent": "Codex",
+  "source_revision": "ad040e0f596bfc481d4436a1e048d798aad2d12e",
+  "source_dirty": true,
+  "dirty_scope": "Existing GSQ/RCO architecture plan edits plus the new compression preflight checker, focused tests, and this receipt. No engine or installer runtime path changed.",
+  "scope": "Implement and exercise the first host-safe GSQ/RCO compression preflight gate against the local Qwen3.8-Flash-Next BF16 source checkpoint and the pinned GSQ/RCO clones. This checks metadata, filenames, pinned revisions, and a Transformers version capable of loading qwen4_exp. It does not open a safetensors payload, instantiate the model, prune experts, train, quantize, pack, or run inference.",
+  "implementation": {
+    "script": "scripts/check_compression.py",
+    "tests": "scripts/tests/test_check_compression.py",
+    "contract": [
+      "Qwen4ExpForConditionalGeneration / qwen4_exp / qwen4_exp_text identity",
+      "48 layers, hidden 2560, 512 routed experts, 10 active, 640 routed and shared intermediate size",
+      "36 raw linear_attention plus 12 raw full_attention layers",
+      "exactly 48 gate, 48 fused gate_up_proj, and 48 fused down_proj routed-expert tensors",
+      "exactly 128 PLE n-gram embedding shards and ple_layer_ids [2]",
+      "all index-referenced shard files exist with no .aria2/.incomplete markers",
+      "GSQ pinned to 03fc16484c369e3127225615d5e03e8d3a6043e3 with required entry files",
+      "RCO pinned to 9a1e09c07d468109cbe60a1b87d5036034a79d10 with required entry files",
+      "Transformers >= 5.16.0 for qwen4_exp support"
+    ]
+  },
+  "checkpoint": {
+    "path": "/Users/kearm/models/Qwen3.8-Flash-Next-BF16",
+    "complete": true,
+    "shard_files": 131,
+    "transfer_markers": 0,
+    "index_tensors": 1658,
+    "index_total_size": 359999963128,
+    "shard_bytes_on_disk": 360000192888,
+    "routed_expert_gate_tensors": 48,
+    "routed_expert_gate_up_tensors": 48,
+    "routed_expert_down_tensors": 48,
+    "ple_ngram_shards": 128
+  },
+  "runtime_finding": {
+    "transformers_5_7_0": {
+      "result": "FAIL",
+      "evidence": "AutoConfig.from_pretrained raises ValueError: model type qwen4_exp is not recognized.",
+      "implication": "RCO's checked-in requirements.txt pin transformers==5.7.0 cannot load this checkpoint."
+    },
+    "transformers_5_20_2": {
+      "result": "PASS",
+      "evidence": "AutoConfig loads Qwen4ExpConfig/Qwen4ExpTextConfig; installed module maps qwen4_exp_text to Qwen4ExpForCausalLM and contains Qwen4ExpTextModel, Qwen4ExpTextExperts, Qwen4ExpTextTopKRouter, Qwen4ExpTextNGramEmbedding, and Qwen4ExpTextPLELayer.",
+      "minimum_assumed": "5.16.0, the release family where upstream Qwen4-Exp support appeared; exact minimum was not bisected."
+    },
+    "architecture_relation": "Transformers' Qwen4Exp implementation inherits from Qwen3_5Moe classes, matching GSQ's existing Qwen3.5-MoE wrapper seam (conditional text_config, language_model layers, hybrid linear/full layers, shared expert, fused 3D experts).",
+    "gpu_environment_gate": "A GPU environment must override RCO's declared transformers==5.7.0 with >=5.16.0 (5.20.2 verified for config loading), then revalidate RCO's router forward hook against Qwen4ExpTextTopKRouter and its PLE modules with a real model instance."
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest scripts.tests.test_check_compression -v",
+      "exit": 0,
+      "result": "7 tests passed"
+    },
+    {
+      "command": "ruff check scripts/check_compression.py scripts/tests/test_check_compression.py",
+      "exit": 0,
+      "result": "all checks passed"
+    },
+    {
+      "command": "ruff format --check scripts/check_compression.py scripts/tests/test_check_compression.py",
+      "exit": 0,
+      "result": "both files already formatted"
+    },
+    {
+      "command": "uv run --with transformers==5.7.0 python (AutoConfig.from_pretrained local checkpoint)",
+      "exit": 1,
+      "result": "qwen4_exp unrecognized"
+    },
+    {
+      "command": "uv run --with transformers==5.20.2 python (AutoConfig.from_pretrained local checkpoint)",
+      "exit": 0,
+      "result": "loaded qwen4_exp/qwen4_exp_text with exact 48x512x10 geometry"
+    },
+    {
+      "command": "python3 scripts/check_compression.py --model ~/models/Qwen3.8-Flash-Next-BF16 --transformers-version 5.20.2 --json",
+      "exit": 0,
+      "result": "all 25 findings passed; receipt copied to build/compression-preflight.json"
+    }
+  ],
+  "non_claims": [
+    "No safetensors payload was opened and no model object was instantiated.",
+    "No GPU, CUDA environment, RCO search, GSQ quantization, LoRA heal, checkpoint build, Strata pack, or inference run was executed.",
+    "Transformers 5.16.0 is the documented support family used as the minimum; the earliest exact supporting patch release was not bisected.",
+    "RCO's router hook and checkpoint materializer remain unvalidated against Qwen4ExpTextTopKRouter.",
+    "GSQ's PLE-aware layer movement remains unvalidated; its Qwen3.5 wrapper is promising because Qwen4Exp inherits that architecture, but no Flash-Next wrapper was run.",
+    "This check depends on a local source checkpoint and pinned clones; it is not a default install or quality gate."
+  ]
+}

@@ -86,7 +86,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 
 | Topic | Current position | Decision gate |
 | --- | --- | --- |
-| Common quality mode | `just quality` checks host-safe structure, selected regressions, the plugin ABI, and dependency-free DeepSeek host contracts | Add a check only with a test and an explicit non-claim |
+| Common quality mode | `just quality` checks host-safe structure, selected regressions, the plugin ABI, dependency-free DeepSeek host contracts, and the trace-derived REAP control test | Add a check only with a test and an explicit non-claim |
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |
@@ -96,6 +96,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | DeepSeek V4.1 backend order | CUDA/CPU extraction on B550 is the initial implementation path; Lucebox HIP is reference-only | A HIP-first path is justified only if an AMD target becomes primary or an unmodified Lucebox oracle is required; either way, named AMD hardware and parity evidence are mandatory |
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
+| GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight and `tools/reap_mask_from_traces.py`, which can generate an exact trace-derived control mask once routing traces are captured. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -989,3 +990,134 @@ load median from 47.5 s to 40 s but left warm decode tied at ~217 tok/s with
 identical 71/72 acceptance, so `vm.nr_hugepages` stays 0 and page ownership
 remains an operator action. The Optane driver work is out of scope; no B550 or
 Strix GPU was probed, launched, or benchmarked this turn.
+
+### GSQ/RCO pruned Qwen variant and prune-heal-quantize-verify order, 2026-10-19
+
+The IST-DASLab Coder release was inspected live and pins the method this track would
+reproduce: 512 routed experts per layer across 48 layers with 10 active per token, 256
+of 512 retained (12,288 of 24,576), retained weights at 3.5 bpw for an effective
+1.89 bpw over the original 176.9B parameters. Shard 1 is 29.6 GB and must be resident;
+shard 2 is the 28.8 GB per-layer n-gram table at IQ4_NL, neither pruned nor searched,
+and may be served from disk. The vendor's own framing is that the resident working set
+of a 176.9B-parameter model fits a single 32 GB accelerator, which makes one V100 SXM2
+the natural first runtime target and two P100 16 GB cards the layer-split control.
+SWE-bench Verified 79.20 against a BF16 base of 82.80 (95.7% retained) and LiveCodeBench
+v6 87.43 unchanged are vendor numbers at xhigh reasoning effort, not reproduced here.
+
+Two Apache-2.0 tools implement the method. GSQ (arXiv 2604.18556) is post-training scalar
+quantization: GPTQ second-order initialization, then Gumbel-Softmax refinement of
+per-coordinate grid assignments and per-group scales under Lion with a cosine schedule,
+per-layer shards offloaded to a meta device so models larger than VRAM quantize, and a
+reassembled HF checkpoint. It stays in a symmetric group-wise scalar format compatible
+with GGUF K-Quant deployment. RCO (arXiv 2605.00649) does the selection: it optimizes the
+KL divergence of the whole pruned model jointly across layers on a Riemannian budget
+manifold, with tangent projection, retraction by binary search on a monotone cost map, and
+vector transport, so the budget holds to floating-point noise. `rco_search_prune.py` emits
+`mask.pt`, `run_build_checkpoint.py` materializes the pruned checkpoint, and `src/unfuse.py`
+splits fused 3D MoE experts. GSQ's listed wrappers cover Qwen3.5/3.6-MoE but not
+Qwen3.8-Flash-Next, so wrapper support for its hybrid QSA/GDN/PLE layers is unconfirmed and
+is the first gate.
+
+On RCO versus a REAP-style heuristic: with compute available RCO is the stronger selection
+method, because a top-k importance ranking is a per-layer proxy with no joint search while
+RCO optimizes the full-model KL under exact per-layer budgets, and the authors report it
+matching or exceeding EvoPress/EvoESAP at 3-16x lower wall-clock. Two qualifications keep
+this from being unconditional. GGUF stores one expert count for the whole model, so a global
+budget cannot exploit per-layer sensitivity anyway; RCO still wins on joint loss, but the
+margin over a good per-layer heuristic is a measurement, not a certainty. More importantly,
+method and calibration are independent axes, and calibration is our real lever: the vendor
+calibrated on a generic code, agentic, vision, and spatial mixture and explicitly invited
+feedback on capabilities absent from it, while we already record activated experts per layer
+and position on our own agent traffic through `--dump-routing`. The decision is therefore to
+run RCO as the primary arm and a REAP-style top-k-from-trace selection as a nearly free
+control, and to accept RCO only if it beats that control on our held-out acceptance rather
+than on vendor scores.
+
+The stage order is prune in BF16, heal in BF16, quantize once at the end, then verify
+bit-exactly. Healing a quantized artifact and re-quantizing discards most of the adaptation,
+because the re-rounding removes what the heal moved. QLoRA CPT restores nothing that pruning
+deleted; those parameter blocks are gone, and attempting to recover them would be
+antithetical to the release's premise. What a short heal run adapts is the router
+redistributing load across a 256-expert pool and the retained and shared weights compensating
+for lost specialization, which is plausibly what lies behind the vendor's 2026-10-17 update
+raising SWE-bench Verified from 75.60 to 79.20 with looping reduced, though they do not
+attribute it to a healing run. The n-gram table stays frozen throughout, as it is a lookup
+rather than a matmul weight and the vendor excludes it from both search and quantization.
+
+Local position: we hold the RESMP-owned source at `~/models/Qwen3.8-Flash-Next-BF16`
+(335 GiB, 131 shards), which is the base any re-pruning or re-quantization starts from, so
+the own-artifact contract is satisfiable without depending on a borrowed quantized file. The
+deployment half is already owned and is the correctness-critical half: `tools/strata_pack.py`
+builds and verifies under the rule that `decode(pack) == dequant_ggml(source)` bit for bit,
+canonicalized over 757,139,840 blocks; `tools/iq_pack.py`, `tools/quantscope.py`,
+`tools/standard_imatrix.py` with its pinned `256x2048` calibration corpus,
+`tools/make_profile.py` with `--n-expert 256`, and `tools/bench_eviction.py` complete the
+pack, profile, and policy-replay machinery. The LoRA infrastructure exists but targets
+Qwen3.8-27B (hidden 5120, 64 layers) rather than Flash-Next (hidden 2560, 48 hybrid layers),
+and the existing MXFP4 QAT fake-quant path with straight-through gradients measured about
+11x the BF16 full-replay cost, so QAT stays a winner-only step and is justified only if the
+GSQ BF16 candidate loses exact parity or paired live acceptance. GSQ, RCO, peft, and unsloth
+are not cloned locally.
+
+Sequencing is Qwen first, then DeepSeek. Qwen is executable against artifacts we already
+hold and validates the methodology on one 32 GB card. DeepSeek V4.1 Flash remains
+contracts-only in Strata, with manifest, geometry, and candidate-selection references but no
+runnable pack, quantizer, or CUDA backend, and its 763B scale with 189.13 GiB of Engram
+tables in mixed FP8 and packed MXFP4 storage makes it a distinct and larger undertaking
+rather than a parallel one. The same prune, heal, quantize, verify shape transfers once a
+backend exists.
+
+No component was built, no repo cloned, no model downloaded, pruned, healed, quantized,
+packed, or run this turn. GSQ's Flash-Next wrapper support is unconfirmed, and the stage
+costs are not estimated beyond the vendor's RCO efficiency claim. Full pinned facts, the
+local inventory, the stage gates, and the non-claims are in
+[GSQ/RCO prune-heal-quantize plan](../evidence/gsq-rco-prune-heal-quantize-plan.json).
+
+
+### GSQ/RCO compression preflight, 2026-10-19
+
+The first implemented slice is metadata-only: `scripts/check_compression.py` validates
+the local Flash-Next BF16 source, its exact 48-layer/512-expert/10-active geometry,
+the 48 gate plus 48 fused gate-up plus 48 fused-down expert tensors, the 128 PLE
+n-gram shards, shard completeness, the pinned GSQ/RCO clones, and a Transformers
+runtime new enough for `qwen4_exp`. Focused tests cover checkpoint mutations, the
+runtime boundary, and tool revision/entrypoint checks. The check never opens a
+safetensors payload, downloads a model, imports torch, or claims a compression run.
+
+The live preflight passed against the complete local source at
+`~/models/Qwen3.8-Flash-Next-BF16` (131 shards, 1,658 index tensors, no transfer
+markers). It also pinned an important runtime boundary: Transformers 5.7.0, the
+version declared by RCO, rejects `qwen4_exp`, while 5.20.2 loads
+`Qwen4ExpConfig` and `Qwen4ExpTextConfig` and maps `qwen4_exp_text` to
+`Qwen4ExpForCausalLM`. Transformers' Qwen4-Exp implementation inherits from the
+Qwen3.5-MoE classes that GSQ already wraps, including the conditional
+`text_config`, language-model layer prefix, hybrid linear/full layers, shared
+expert, and fused 3D routed experts. A GPU environment must therefore override
+RCO's declared 5.7 pin with at least the 5.16 support family (5.20.2 verified for
+config loading), then revalidate its router hook against `Qwen4ExpTextTopKRouter`
+and its checkpoint materializer against the fused expert layout. GSQ's PLE-aware
+layer movement remains equally unvalidated.
+
+Full commands, exact counts, the 5.7-versus-5.20 result, and non-claims are in
+[compression preflight evidence](../evidence/gsq-rco-compression-preflight.json).
+No model object, RCO search, GSQ run, heal, quantization, pack, or inference was
+executed in this slice.
+
+
+### Trace-derived REAP pruning control, 2026-10-19
+
+The cheap control arm for the GSQ/RCO track is implemented. `tools/reap_mask_from_traces.py`
+consumes the engine's exact `--dump-routing` record format (`int32 layer`, `int32 k`,
+`int32 expert ids`, `float32 router weights`), ranks each layer by true router weight or
+activation count, resolves ties by ascending original expert ID, and keeps an exact budget
+(default 256 of 512). Sparse layers are filled deterministically and fill IDs are reported
+separately. The JSON mask records every trace path and SHA-256; an optional Strata profile
+is written through the existing profile format and read back in tests. Serve-mode records,
+whose multi-token dispatcher emits zero weights as unit activations, are handled explicitly.
+
+Five focused tests cover weighted tie behavior, zero-weight serve records, exact sparse fills,
+CLI/profile round trip, and malformed-trace rejection. The test is wired into `just quality`
+as the `compression-tools` domain. No routing trace currently exists in this checkout, so no
+real mask was generated; the tool prepares for trace capture and is a heuristic control, not
+RCO's joint full-model KL search. Full contract, checks, and non-claims are in
+[REAP trace-control evidence](../evidence/reap-trace-control.json).
