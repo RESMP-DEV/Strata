@@ -808,3 +808,40 @@ hashes. The complete benchmark input now lives under
 still free. No model has been loaded or benchmarked yet. Full transfer and hash
 evidence is in
 [direct staging completion evidence](../evidence/b550-iq2xs-direct-staging-complete.json).
+
+### Qwen B550 split-pack, MTP, and first one-versus-two-GPU run, 2026-10-19
+
+The staged prepared pack was valid for the original unsharded GGUF but not for
+the published split files: its expert offsets were absolute offsets in the
+unsplit tensor stream, and the PLE table lives in shard 1. A new
+`pack-split/` was generated without changing expert bytes. The generator
+emitted native-expert table v4, including layer 13's per-role cross-shard
+columns; `dense.bin` and every tokenizer file stayed byte-identical. The
+original pack remains untouched as provenance.
+
+The verbless one-shot engine then loaded 32.23 GiB of experts and executed on
+both physical cards. With the same prompt, profile, 2,233 slots, and greedy
+sampling, B550 produced different one-token argmaxes across runs (157, 487,
+and 220), so a one-token match is no longer treated as cross-host correctness
+parity. A PLE-shard check, the 2.9 GB/s chipset-link probe, and the 25.0 GB/s
+CPU-root-link probe identify the physical cards despite the engine's remapped
+`CUDA0` label.
+
+The missing Qwen MTP runtime was reconstructed from the pinned BF16 checkpoint
+using only its 31 range-requested tensors (5.214 GB), with all pinned
+SHA-256 checks passing. The Q2_0 GGUF and runtime layout are now local NVMe
+artifacts. On a 25-token prompt and 94-token completion, two-GPU auto split
+with MTP held 22,207 experts and observed warm decode rates of 200.6 and
+208.7 tok/s. GPU 0 alone held 11,360 experts at 82.1 and 92.9 tok/s; GPU 1
+alone held 9,934 at 98.5 and 116.7 tok/s. GPU 1's Gen4 x16 link outweighs its
+smaller cache. Adding pipeline windows 2 traded 234 resident experts for warm
+runs of 219.1 and 214.2 tok/s, a directional gain that needs repeated
+interleaving before promotion.
+
+These are first bring-up and optimization observations, not release claims.
+The one-token result does not prove generation quality, and the short warm
+coding prompt does not establish long-context or multi-client performance.
+All task-owned model services were stopped; the unrelated embedding replicas
+remain resident and untouched. Full commands, hashes, occupancy, timings, and
+non-claims are in
+[Qwen B550 baseline](../evidence/qwen-b550-iq2xs-bringup-and-mtp-baseline.json).

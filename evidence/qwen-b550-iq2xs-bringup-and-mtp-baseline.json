@@ -1,0 +1,197 @@
+{
+  "recorded_at": "2026-10-19T13:50:00Z",
+  "agent": "Codex",
+  "source_revision": "ff7d6f0bf12b2602b848988802be4a1a7e29dd92",
+  "source_dirty": false,
+  "scope": "Bring up the RESMP calibrated Qwen IQ2_XS/Q2_0 artifact on B550, repair the split-GGUF pack metadata, build the missing Q2_0 MTP drafter, and collect first single- versus two-GPU execution and warm short-generation observations.",
+  "remote_state": {
+    "host": "B550 alias at 192.168.1.171",
+    "hostname_at_run": "b550",
+    "checkout": "/home/kearm/strata-main at 83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
+    "gpu_occupancy": {
+      "before": "2026-10-19T13:12:37Z: both GPUs 0 percent compute; only two cuda_embed_server replicas resident (GPU0 2160 MiB, GPU1 5120 MiB).",
+      "during_first_gpu0_run": "A transient unrelated embedding burst took both GPUs to 92 and 100 percent; that timing observation is excluded as a control.",
+      "after": "2026-10-19 after model shutdown: both GPUs idle; only the same embedding replicas remain resident (GPU0 3210 MiB, GPU1 5120 MiB). No service was stopped or restarted."
+    }
+  },
+  "split_pack_repair": {
+    "problem_1": "The direct one-shot command used the historical generate subcommand, but this pinned engine uses a verbless direct CLI.",
+    "problem_2": "The published unsharded pack offsets do not match the split GGUF: layer 0 gate experts differ by exactly 56000 bytes.",
+    "problem_3": "The PLE tensor is in shard 1, not shard 2.",
+    "command": "STRATA_GGUF_PY=/home/kearm/strata-llamacpp-3cf0325/gguf-py uv run --with numpy --with pyyaml --with regex python tools/iq_pack.py --gguf <shard1> --out pack-split --compat-bf16",
+    "exit": 0,
+    "wall_seconds": 21.87,
+    "output": "native_experts v4; layer 13 gate/up/down use per-role shard fields; dense.bin and all tokenizer files byte-identical to the original pack",
+    "pack_path": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/pack-split",
+    "key_hashes": {
+      "dense_bin": "1fab0d62440d5ffeaf3cdbf0aa2a3f64961b77ebcea62f6915096cba4765d01a",
+      "index_txt": "dcfd110970ea49b376bae9a4eb038da122e04775c8d9f85592e23ff5bfbe165f",
+      "native_experts_txt_sha256_available_on_host": true
+    }
+  },
+  "one_shot_execution": {
+    "gpu0_first": {
+      "exit": 0,
+      "output_token": 157,
+      "expert_gib_loaded": 32.23,
+      "load_gib_per_second": 1.21,
+      "expert_cache_slots": 2233,
+      "decode_tok_s": 12.76,
+      "prefill_tok_s": 2.81,
+      "nonclaim": "Overlapped an unrelated 92/100 percent embedding burst; execution proof only, not a clean timing control."
+    },
+    "gpu0_rerun": {
+      "exit": 0,
+      "output_token": 487,
+      "decode_tok_s": 23.27,
+      "prefill_tok_s": 4.96,
+      "expert_cache_slots": 2233
+    },
+    "gpu1": {
+      "exit": 0,
+      "output_token": 220,
+      "decode_tok_s": 22.23,
+      "prefill_tok_s": 5.99,
+      "expert_cache_slots": 2233,
+      "identity": "The 25.0 GB/s PCIe probe confirms physical GPU1/0000:08:00.0; engine logs call the remapped device CUDA0."
+    },
+    "nondeterminism": "With fixed prompt, engine, profile, cache slots, and greedy sampling, B550 produced tokens 157, 487, and 220 across these runs. One-token agreement with Strix token 157 is therefore not a cross-host correctness gate."
+  },
+  "mtp_construction": {
+    "source_revision": "Qwen/Qwen3.8-Flash-Next pinned de4b8e4d43b917e7706784d8bb445c9af86a3540",
+    "fetch_command": "tools/mtp_fetch.py fetch + verify",
+    "tensors": 31,
+    "source_bytes": "5.214 GB in 28 shard ranges",
+    "fetch_wall_seconds": 571.31,
+    "verify_exit": 0,
+    "pack_command": "tools/mtp_pack.py --experts q2_0",
+    "pack_wall_seconds": 113.10,
+    "gguf_bytes": "0.889 GB tensor data",
+    "gguf_sha256": "a22206a4d74eafbf31063a84610292535fb3b49af9a339963817fd04aed81e4d",
+    "runtime": {
+      "experts_bytes": 707788800,
+      "experts_sha256": "09398406be61f1f54c93861f449e48b8df0bfccbc9ec9b2b7636775a6ea9244f",
+      "dense_bytes": 116099072,
+      "dense_sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a",
+      "dense_txt_sha256": "991456cf4eb266eb8a888c349e548d11bc640f5dbd9149439aa9786af0f732fd"
+    }
+  },
+  "server_benchmarks": {
+    "workload": "Three identical local OpenAI chat requests; prompt 25 tokens, max 128, greedy, reasoning effort none; first request discarded as warm-up.",
+    "two_gpu_auto_mtp": {
+      "resident_experts": 22207,
+      "split": 24,
+      "warm_decode_tok_s": [
+        200.6,
+        208.7
+      ],
+      "warm_prompt_tok_s": [
+        131.3,
+        133.8
+      ],
+      "warm_drafts_accepted": [
+        69,
+        71
+      ],
+      "drafts_offered": [
+        71,
+        72
+      ]
+    },
+    "two_gpu_auto_mtp_pipeline_windows_2": {
+      "resident_experts": 21973,
+      "warm_decode_tok_s": [
+        219.1,
+        214.2
+      ],
+      "warm_prompt_tok_s": [
+        141.4,
+        141.4
+      ],
+      "warm_drafts_accepted": [
+        68,
+        67
+      ],
+      "drafts_offered": [
+        77,
+        80
+      ],
+      "observation": "Directionally about 6 percent faster warm decode but fewer resident experts and lower acceptance; only two measured runs per arm."
+    },
+    "gpu0_alone_mtp": {
+      "resident_experts": 11360,
+      "warm_decode_tok_s": [
+        82.1,
+        92.9
+      ],
+      "warm_prompt_tok_s": [
+        82.8,
+        89.9
+      ],
+      "warm_drafts_accepted": [
+        69,
+        71
+      ]
+    },
+    "gpu1_alone_mtp": {
+      "resident_experts": 9934,
+      "warm_decode_tok_s": [
+        98.5,
+        116.7
+      ],
+      "warm_prompt_tok_s": [
+        123.9,
+        139.4
+      ],
+      "warm_drafts_accepted": [
+        71,
+        71
+      ]
+    },
+    "comparison": "Two-GPU warm decode is about 1.9x GPU1 alone and 2.4x GPU0 alone on this workload. GPU1 is the better single card despite fewer slots because its CPU-root Gen4 x16 link reduces miss cost."
+  },
+  "checks": [
+    {
+      "name": "split-pack-generation",
+      "command": "tools/iq_pack.py against both shards with STRATA_GGUF_PY pinned",
+      "exit": 0
+    },
+    {
+      "name": "one-shot-load-and-execution",
+      "command": "verbless direct engine command on GPU0 and GPU1",
+      "exit": 0
+    },
+    {
+      "name": "two-gpu-server",
+      "command": "localhost systemd server plus OpenAI request",
+      "exit": 0
+    },
+    {
+      "name": "mtp-fetch-verify-pack-rt",
+      "command": "tools/mtp_fetch.py, mtp_pack.py, mtp_rt.py",
+      "exit": 0
+    },
+    {
+      "name": "model-services-shutdown",
+      "command": "systemctl --user stop on every task-owned Strata service; GPUs returned to embedding-only state",
+      "exit": 0
+    }
+  ],
+  "non_claims": [
+    "These are short warm-generation observations, not medians from the required five or more interleaved runs per arm.",
+    "The first no-MTP two-GPU one-token 38.5 tok/s probe is a load probe, not a matched throughput baseline.",
+    "One-token argmax changes across B550 runs, so one-token parity does not prove correctness or quality.",
+    "No long-prompt, 128K-context, multi-client, batch, helper-expert, manual split, adapt-async, fused-prefill, or acceptance-quality benchmark is claimed.",
+    "The MTP Q2_0 drafter is exercised on one short coding prompt only; acceptance on other domains and longer generations is unmeasured.",
+    "The task-owned servers were stopped; the two unrelated cuda_embed_server replicas remain resident and untouched."
+  ],
+  "raw_evidence_roots": {
+    "remote": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/logs",
+    "two_gpu_baseline": "mtp-layer-128-20261019T134211Z",
+    "two_gpu_pw2": "mtp-layer-pw2-128-20261019T134326Z",
+    "gpu0": "mtp-gpu0-128-20261019T134452Z",
+    "gpu1": "mtp-gpu1-128-20261019T134609Z"
+  }
+}
