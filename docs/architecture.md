@@ -989,3 +989,25 @@ load median from 47.5 s to 40 s but left warm decode tied at ~217 tok/s with
 identical 71/72 acceptance, so `vm.nr_hugepages` stays 0 and page ownership
 remains an operator action. The Optane driver work is out of scope; no B550 or
 Strix GPU was probed, launched, or benchmarked this turn.
+
+### DSpark2-Qwen GPU provider selection, 2026-10-19
+
+The full-logit lane stays on Prime Intellect, with one RTX 6000 Ada 48 GB as
+the preferred card when stocked. A real Prime A100 80 GB control ran the same
+DFlash2 G3 model, immutable teacher-logit capture, trainer revision, rank, and
+hybrid CE/TV objective. It completed 99 steps in 11.459 s
+(`0.115748 s/step`) and peaked at 9.428 GiB allocated. The authoritative
+17,500-cycle Ada receipt is 16,587 steps in 1252.894 s (`0.075535 s/step`)
+with 9.670 GiB peak allocation. At the observed prices, A100 is 1.53x slower
+per step and 2.51x more expensive per step. Memory is not the constraint:
+both runs fit below 10 GiB, so 80 GB and multi-GPU bandwidth do not help this
+sequential batch-1 workload.
+
+Prime also remains the best provider lane after account probing: Modal has no
+remaining credit headroom and higher comparable-GPU rates, RunPod has a zero
+balance, GMI is inference-oriented, Vast requires elevated 2FA, and Lambda has
+no token. The task-owned A100 pod was terminated after receipt harvest and
+billed $0.5393. A later inventory query listed no Ada; inventory is transient,
+so an unmeasured H100, H200, or RTX 5090 substitute is not authorized by this
+decision. Full measurements and non-claims are in
+[GPU provider selection](../evidence/dspark2-gpu-provider-selection.json).
