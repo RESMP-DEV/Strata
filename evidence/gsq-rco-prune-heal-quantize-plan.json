@@ -1,0 +1,176 @@
+{
+  "recorded_at": "2026-10-19",
+  "agent": "Codex",
+  "source_revision": "ad040e0f596bfc481d4436a1e048d798aad2d12e",
+  "source_dirty": false,
+  "scope": "Architecture and capability-gap inventory for a Strata-owned prune-then-heal-then-quantize-then-verify pipeline for Qwen3.8-Flash-Next, with DeepSeek V4.1 Flash as a later validation target. This receipt records pinned external facts, a local tooling inventory, the proposed stage order, and acceptance gates. It does not claim any built component, model download, pruning run, quantization run, LoRA run, or benchmark.",
+  "external_facts": {
+    "release": {
+      "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF",
+      "last_modified": "2026-10-19T17:48:41Z",
+      "license": "apache-2.0",
+      "base_model": "Qwen/Qwen3.8-Flash-Next",
+      "pinned_revision_in_setup_py": "5348543e0147355ac9cbcb031184a3546350988e",
+      "setup_revision_date": "2026-09-29",
+      "architecture": "512 routed experts per layer across 48 layers, 10 active per token",
+      "pruning": "256 of 512 experts retained per layer; 12,288 of 24,576 total",
+      "retained_precision": "3.5 bpw",
+      "effective_bpw_over_original": "1.89",
+      "shard_1_transformer_bytes": 29608446496,
+      "shard_1_must_be_resident": true,
+      "shard_2_ngram_bytes": 28800138432,
+      "shard_2_must_be_resident": false,
+      "shard_2_note": "per-layer n-gram table, IQ4_NL at 4.5 bpw, neither pruned nor searched, may be served from disk",
+      "total_bytes": 58408584928,
+      "vendor_benchmarks": {
+        "swe_bench_verified": {
+          "bf16_base": 82.8,
+          "pruned": 79.2,
+          "retained_pct": 95.7
+        },
+        "livecodebench_v6": {
+          "bf16_base": 87.43,
+          "pruned": 87.43,
+          "retained_pct": 100.0
+        },
+        "reasoning_effort": "xhigh",
+        "oct17_update": "SWE-bench Verified rose 75.60 to 79.20 and LiveCodeBench v6 86.28 to 87.43; only shard 1 changed",
+        "provenance": "vendor-reported; not reproduced by us"
+      }
+    },
+    "gsq": {
+      "repo": "IST-DASLab/GSQ",
+      "license": "Apache-2.0",
+      "arxiv": "2604.18556",
+      "method": "post-training scalar quantization; GPTQ second-order init then Gumbel-Softmax refinement of per-coordinate grid assignments and per-group scales; Lion optimizer with cosine schedule; per-layer shards offloaded to meta device so models larger than VRAM can be quantized; save_model.py reassembles an HF checkpoint",
+      "format_property": "stays a symmetric group-wise scalar format, directly compatible with INT kernels and GGUF K-Quant deployment",
+      "config_key": "quantization.gsq_bits (2, >2, or ternary)",
+      "listed_wrappers": "LLaMA, Qwen3, Qwen3-MoE, Qwen3.5/3.6, Qwen3.5/3.6-MoE (hybrid attention, shared experts), Gemma-4, Kimi K2/K2.5",
+      "flash_next_wrapper_support": "NOT listed; Qwen3.8-Flash-Next with hybrid QSA/GDN/PLE layers is unverified against these wrappers"
+    },
+    "rco": {
+      "repo": "IST-DASLab/RCO",
+      "license": "Apache-2.0",
+      "arxiv": "2605.00649",
+      "method": "budget-constrained optimization of a non-decomposable objective on a Riemannian manifold; softmax relaxation with tangent projection, retraction by binary search on a monotone cost map, and vector transport; discrete forward via Gumbel-STE with an exact multiple-choice knapsack solver; budget held to floating-point noise throughout",
+      "pruning_entry": "rco_search_prune.py -> mask.pt (per-layer expert keep/prune); groups are experts, options {keep, prune}, costs (0,1); routing weights scaled by STE survival masks",
+      "materialize_entry": "run_build_checkpoint.py -> pruned HF checkpoint (bf16, packed, or pruned)",
+      "quant_entry": "run_quantize.py builds a multi-bitwidth GPTQ database; rco_search_quant.py -> assignment.json per-layer bitwidth",
+      "per_layer_budget_rationale": "GGUF stores one expert count for the whole model, so every layer must retain the same count; RCO admits multiple simultaneous independent budgets, expressing the format constraint directly while keeping the KL loss joint across layers",
+      "calibration_loaders": "plain text wikitext2, c4, fineweb_edu; chat evol_codealpaca (code), tulu_math (math), answer-only masking; '+'-joined equal-count mixtures",
+      "unfuse": "src/unfuse.py splits fused 3D MoE experts into per-expert modules",
+      "reported_efficiency": "matches or exceeds EvoPress/EvoESAP evolutionary baselines at 3-16x lower wall-clock"
+    }
+  },
+  "local_inventory": {
+    "flash_next_bf16_base": {
+      "path": "~/models/Qwen3.8-Flash-Next-BF16",
+      "size": "335 GiB on disk, 131 safetensors shards",
+      "role": "the RESMP-owned source checkpoint for any re-pruning or re-quantization; present and prunable"
+    },
+    "owned_deployment_chain": {
+      "tools/strata_pack.py": "pack build + verify under the rule decode(pack) == dequant_ggml(source) bit for bit, canonicalized over 757,139,840 blocks; the spec of record; satisfies the own-quantizer contract",
+      "tools/iq_pack.py": "native mixed i-quant block preservation",
+      "tools/quantscope.py": "GGUF type identification incl. IQ/MXFP4/NVFP4",
+      "tools/standard_imatrix.py": "pinned RESMP-DEV calibration corpus 256x2048 with fixed dataset repo, revision, SHA-256",
+      "tools/make_profile.py": "expert-profile ranking from --dump-routing traces; already supports --n-expert 256 for the pruned Coder",
+      "tools/bench_eviction.py": "offline trace replay vs fill-only/LRU/LFU-decay/oracle eviction"
+    },
+    "prune_trace_signal": {
+      "engine_flag": "--dump-routing FILE records routed expert ids per layer and position for real workloads",
+      "significance": "we already capture activated experts on our own agent traffic; this is the calibration signal a REAP-style or RCO search needs, and it is workload-specific rather than the vendor's generic code+agentic+vision+spatial mixture"
+    },
+    "lora_training_infrastructure": {
+      "present_on": "Qwen3.8-27B (hidden 5120, 64 layers), not Flash-Next (hidden 2560, 48 hybrid QSA/GDN/PLE layers)",
+      "artifacts": "dozens of z-lab-Qwen3.8-27B-DFlash2-LoRA-r16 checkpoints plus a working CUDA trainer on the Prime cloud lane",
+      "qat_path": "MXFP4 QAT fake-quant with straight-through gradients already exists in the DSpark2 trainer branch (5f47153); measured ~11x BF16 full-replay cost, so QAT is a winner-only step not a sweep default",
+      "gap": "trainer targets 27B architecture; adaptation to Flash-Next's 48 hybrid layers with the PLE n-gram frozen is required",
+      "absent_locally": "peft, unsloth, GSQ, RCO not cloned"
+    },
+    "consumability": "GSQ and RCO are Apache-2.0 and may be cloned and used as tools; the no-upstream policy forbids contributing to upstream, not using it. The own-artifact contract is satisfied because the runnable pack comes from our own BF16 base through our own bit-exact strata_pack.py with recorded source hash."
+  },
+  "decision_rco_vs_reap": {
+    "question": "Is RCO nearly strictly better for our specific workloads, given we have compute?",
+    "answer": "Largely yes for the expert-selection stage, with two qualifications; not unconditionally, and the choice is workload-calibration-driven, not method-brand-driven.",
+    "why_rco_is_stronger": "REAP-style pruning ranks experts by a heuristic activation/importance score and keeps top-k per layer with no joint search. RCO optimizes the KL divergence of the FULL pruned model jointly across all layers under exact per-layer budgets, so it accounts for how removing an expert in one layer changes every other layer. The vendor reports it matches or exceeds evolutionary baselines (EvoPress/EvoESAP) at 3-16x lower wall-clock. With compute available, RCO is the better selection method.",
+    "qualification_1_budget_shape": "RCO's headline advantage over a global-budget heuristic is largest when per-layer sensitivity varies. GGUF forces one expert count per layer, so a global budget cannot exploit that variation anyway; RCO still wins because its loss is joint, but the margin over a good per-layer REAP heuristic is a measurement question, not a certainty.",
+    "qualification_2_calibration_is_the_real_lever": "Both methods are only as good as their calibration distribution. IST-DASLab calibrated on a generic code+agentic+vision+spatial mixture and explicitly invited feedback on capabilities absent from it. Our differentiation is not RCO-vs-REAP; it is calibrating either method on OUR --dump-routing agent traces. A REAP search on our traces can beat an RCO search on the vendor's generic mixture for our workload. Method and calibration are independent axes.",
+    "recommendation": "Use RCO (rco_search_prune.py) as the primary selection method once a Flash-Next wrapper is confirmed, calibrated on a mixture built from our own agent routing traces plus evol_codealpaca. Keep a cheap REAP-style top-k-from-trace baseline as the control arm: it is nearly free from traces we already record, and it bounds what the expensive RCO search buys. Accept RCO only if it beats the REAP control on our held-out acceptance, not on the vendor's numbers."
+  },
+  "stage_order": {
+    "principle": "prune in BF16, heal in BF16, quantize once at the end, verify bit-exactly. Healing a quantized artifact then re-quantizing loses most of the heal because re-rounding discards the adaptation. QLoRA restores nothing that pruning removed; it adapts the router and retained/shared weights to the smaller expert pool.",
+    "stages": [
+      {
+        "n": 1,
+        "name": "calibration corpus build",
+        "input": "our --dump-routing agent traces + evol_codealpaca (code) + optional tulu_math",
+        "output": "trace-derived expert-importance signal and a calibration set for the search",
+        "owned": true
+      },
+      {
+        "n": 2,
+        "name": "expert pruning",
+        "input": "~/models/Qwen3.8-Flash-Next-BF16 (512 experts/layer)",
+        "method": "RCO rco_search_prune.py -> mask.pt (256/layer exact budget) with REAP top-k-from-trace as control",
+        "output": "pruned BF16 checkpoint",
+        "gate": "exact 256 experts per layer; KL to unpruned on held-out calibration below threshold"
+      },
+      {
+        "n": 3,
+        "name": "QLoRA heal (CPT)",
+        "input": "pruned BF16",
+        "method": "rank-8/alpha-16 LoRA short CPT, PLE n-gram frozen, Flash-Next hybrid-layer adaptation of the 27B trainer",
+        "output": "healed pruned BF16",
+        "gate": "router-loss and retained-weight recovery vs unhealed pruned on the same held-out set; no regression on the frozen n-gram path"
+      },
+      {
+        "n": 4,
+        "name": "quantization",
+        "input": "healed pruned BF16",
+        "method": "GSQ Gumbel-Softmax scalar PTQ to a GGUF K-Quant-compatible grid (target ~3.5 bpw retained, matching the vendor), or RCO mixed-precision assignment.json",
+        "output": "quantized weights",
+        "gate": "GSQ must confirm a Flash-Next wrapper or we write one; per-tensor type allocation recorded like the vendor rco-allocation.txt"
+      },
+      {
+        "n": 5,
+        "name": "pack + verify",
+        "input": "quantized checkpoint",
+        "method": "our tools/strata_pack.py / iq_pack.py",
+        "output": "runnable Strata pack",
+        "gate": "decode(pack) == dequant_ggml(source) bit for bit (verify is not optional); recorded source hash"
+      },
+      {
+        "n": 6,
+        "name": "runtime validation",
+        "input": "packed model",
+        "method": "Strata engine on a single 32 GB accelerator (V100 SXM2) with the 28.8 GB n-gram streamed from Optane/NVMe; then the two-P100 layer split",
+        "output": "throughput, quality, and placement evidence",
+        "gate": "same-day control vs the vendor Coder IQ1_M at matched context; needle recall; a coding acceptance set; energy per token by tier"
+      }
+    ],
+    "optional_qat": "A true fake-quant/straight-through QAT step is justified ONLY if the stage-4 GSQ BF16 candidate loses exact parity or paired live acceptance, per the existing architecture rule. The MXFP4 QAT path already exists in the DSpark2 trainer and is a winner-only step (~11x BF16 cost)."
+  },
+  "sequencing_qwen_first_then_deepseek": {
+    "qwen_first": "Executable now: we hold the BF16 base, the deployment chain, the routing-trace signal, and setup.py already registers the Coder family with --n-expert 256. The resident working set is 29.6 GB, testable on one 32 GB card.",
+    "deepseek_later": "DeepSeek V4.1 Flash remains contracts-only in Strata (manifest, geometry, candidate selection; no runnable pack, quantizer, or CUDA backend). The same prune-heal-quantize-verify shape applies once a backend exists, but its 763B scale, 189.13 GiB Engram tables, and MXFP4/FP8 mixed storage make it a distinct, larger undertaking. Qwen validates the methodology; DeepSeek is the second target, not a parallel one.",
+    "engram_interaction": "The n-gram/Engram table is excluded from pruning and from the quantization search in the vendor release and should stay frozen in ours; it is a lookup served from disk, and healing or re-quantizing it is out of scope for this pipeline."
+  },
+  "acceptance_gates": [
+    "Each stage produces a durable receipt with revision, dirty state, command, exit, calibration identity, and non-claims.",
+    "Pruning: exact 256 experts/layer, held-out KL below a pre-registered threshold, REAP control recorded alongside.",
+    "Heal: measured improvement over unhealed pruned on the same held-out set; frozen n-gram path unchanged.",
+    "Quantize: GSQ/RCO output must map to a GGUF K-Quant type Strata's kernels execute; per-tensor allocation recorded.",
+    "Pack: strata-pack verify bit-exact or the artifact does not exist.",
+    "Runtime: same-day matched control against the vendor artifact, named hardware, exact workload, and energy-per-token by tier; ordinary KL, offline replay, or throughput alone is not acceptance.",
+    "No default path changes: every stage is opt-in and preserves upstream defaults byte-identically until a measured decision changes them."
+  ],
+  "non_claims": [
+    "No GSQ or RCO repo was cloned, run, or benchmarked; both are described from live-fetched README metadata only.",
+    "No pruning, heal, quantization, packing, or model run was executed this turn.",
+    "The SWE-bench Verified and LiveCodeBench figures are vendor-reported at xhigh reasoning and were not reproduced.",
+    "GSQ's Flash-Next (hybrid QSA/GDN/PLE) wrapper support is unconfirmed; the listed wrappers cover Qwen3.5/3.6-MoE, not Qwen3.8-Flash-Next.",
+    "The local LoRA trainer targets Qwen3.8-27B, not Flash-Next; no Flash-Next fine-tuning ran.",
+    "Compute cost, wall-clock, and VRAM for each stage are not estimated here beyond the vendor's 3-16x efficiency claim for RCO.",
+    "This is an architecture and gap inventory, not built work; the stage order is a proposal with gates, not a completed pipeline."
+  ]
+}
