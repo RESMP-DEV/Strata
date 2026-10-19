@@ -1179,6 +1179,13 @@ as a fallback and is online with an idle RTX 5070 and accessible NPU device
 node. Full state and non-claims are in
 [full-VRAM clean control](../evidence/qwen-b550-full-vram-clean-control.json).
 
+The stopped embedding units were restored immediately after the first
+post-merge `sindexer update` exposed the dependency with nginx 502 responses.
+Both replicas returned the expected Jina model on ports 1236 and 1237, the Mac
+tunnel route recovered, and the index-update retry completed with 337 chunks
+created across 4 files. The transient initial 502s were not diagnosed beyond
+that restore-and-success boundary.
+
 ### DSpark2-Qwen GPU provider selection, 2026-10-19
 
 The full-logit lane stays on Prime Intellect, with one RTX 6000 Ada 48 GB as
