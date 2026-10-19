@@ -941,4 +941,9 @@ resource, and non-claim details are in
 	Revisit explicit pages for a startup-sensitive resident service or after a
 	measured host-expert/cache-miss-heavy workload wins. Full protocol, cleanup,
 	and non-claims are in
-	[Qwen B550 hugepage A/B](../evidence/qwen-b550-iq2xs-hugepage-ab.json).
+[Qwen B550 hugepage A/B](../evidence/qwen-b550-iq2xs-hugepage-ab.json).
+	The operator procedure for temporary allocation, boot-time persistence, and
+	deliberate un-persistence lives in
+	[troubleshooting](TROUBLESHOOTING.md#linux-allocate-explicit-2-mi-huge-pages-only-after-a-measured-reason).
+	It deliberately keeps server shutdown from releasing the pool: page ownership
+	is a host decision, not a model-lifecycle side effect.

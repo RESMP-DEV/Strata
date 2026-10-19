@@ -63,7 +63,46 @@ Scheduler, it can be 24x slower: see [Running it at startup](DETAILS.md#running-
 On Linux the engine now asks the kernel to read the model files ahead (a cold start went from ~920 s to 70 s on one
 PC); `STRATA_READ_AHEAD=0` turns that off. On Linux with transparent huge pages on `always`, the arena no longer asks
 for `MADV_HUGEPAGE` on top (a fragmented machine spent minutes compacting memory, #771); `STRATA_NO_ARENA_THP=1` skips
-that request on any setting.
+  that request on any setting.
+
+**Linux: allocate explicit 2 MiB huge pages only after a measured reason.**
+The engine tries `MAP_HUGETLB` first and prints exactly what it needs, for example
+`MAP_HUGETLB unavailable (needed 16501 2 MiB pages, vm.nr_hugepages=0)`. Allocate a little more than that printed
+count, verify the allocation, and require the later startup line `expert arena: ... hugetlb 2 MB pages`; without that
+line Strata fell back to 4 KiB pages or transparent huge pages. `STRATA_NO_LARGEPAGES=1` is the explicit 4 KiB control
+for a same-boot A/B measurement.
+
+For a temporary test, stop other large allocations, allocate the pool, run Strata, then stop Strata before releasing it:
+
+    sudo sysctl -w vm.nr_hugepages=16512
+    cat /proc/sys/vm/nr_hugepages
+    grep -E 'HugePages_(Total|Free|Rsvd)' /proc/meminfo
+    # start Strata and require "hugetlb 2 MB pages"
+    # stop Strata; stopping it does not and should not release the pool
+    sudo sysctl -w vm.nr_hugepages=0
+
+A real release or shrink is an operator action, never a server `ExecStop`/`ExecStopPost`. First stop the engine and
+check `HugePages_Rsvd`; if pages remain reserved, another process still owns the pool. Check `HugePages_Total` after
+writing the sysctl, because a fragmented or memory-pressured host may not deliver every requested page.
+
+To persist the pool, choose exactly one boot-time authority. The simple form is a host-specific sysctl file:
+
+    printf 'vm.nr_hugepages = 16512\n' | sudo tee /etc/sysctl.d/99-strata-hugepages.conf
+    sudo sysctl -p /etc/sysctl.d/99-strata-hugepages.conf
+    grep -E 'HugePages_(Total|Free|Rsvd)' /proc/meminfo
+
+That file reasserts the pool on every boot and remains active when Strata stops or restarts. Do not also allocate from
+a Strata service unit. To stop persisting it, first remove or rename that exact sysctl file, then release the current
+runtime pool and verify zero:
+
+    sudo rm /etc/sysctl.d/99-strata-hugepages.conf
+    sudo sysctl -w vm.nr_hugepages=0
+    cat /proc/sys/vm/nr_hugepages
+
+Writing zero without removing the file is only a temporary release: the next boot re-creates the pool. The page count is
+artifact-specific, not a universal Strata setting. On the measured B550 IQ2_XS/Q2_0 workload, explicit pages improved
+loading but not warm decode, so B550 intentionally keeps `vm.nr_hugepages=0` unless a new startup-sensitive or
+host-expert-heavy workload wins a recorded A/B.
 
 **Setup says the engine does not match GitHub's checksum.**
 Setup checks the downloaded ready-made engine against the SHA-256 GitHub publishes. On a mismatch the file is corrupt or was changed on the way, so setup deletes it and stops; run setup again to download it afresh. If GitHub gives no checksum (offline, rate limited, your own mirror), setup warns and installs anyway. `STRATA_SKIP_SHA256=1` skips the check, only if you insist.
