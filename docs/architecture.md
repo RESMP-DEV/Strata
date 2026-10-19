@@ -882,3 +882,40 @@ exact target-controlled parity, paired held-out and corpus acceptance, and a
 same-day throughput/occupancy receipt. Full sources, local DFlash2 limits,
 and non-claims are in
 [speculative-head research](../evidence/qwen-dspark-mtp-qat-target-research.json).
+
+### DSpark2 Qwen3.8-27B training parameters, 2026-10-19
+
+The local Qwen3.8-27B environment is the correct place to develop DSpark2
+before attempting a Flash-Next target adapter. It already has the promoted
+generation-3 DFlash2 head, a 127-prompt / 11,273-cycle combined corpus, the
+excluded 25-prompt Fable live gate, and a working CUDA trainer. This is a
+training prototype, not a Flash-Next drop-in: the 27B target has 64 layers and
+hidden size 5,120, while Flash-Next has 48 hybrid QSA/GDN/PLE layers and
+hidden size 2,560.
+
+The existing captures cannot train official DSpark unchanged. They preserve
+target top-64 IDs/values and the greedy token, while DeepSpec's TV/L1 and
+confidence objectives require aligned full-vocabulary target logits. A block-7
+full-logit re-capture over the current combined corpus is projected at about
+41 GiB, comfortably within B550 NVMe capacity. The existing corpus is highly
+skewed to four- and five-position blocks, so block-7 data must be captured
+rather than padded.
+
+The staged parameters are: retain the promoted G3 five-layer head and target
+layers 5/19/33/47/61; add Markov rank 256 and a scalar confidence head; use
+block size 7; train new heads first for three epochs at about 3e-5 with
+official loss weights CE 0.1, TV/L1 0.9, confidence BCE 1.0, and position decay
+gamma 4; then jointly train rank-8/alpha-16 LoRA at about 1e-6 for two epochs.
+The new heads use zero weight decay and 4 percent warmup; the joint stage uses
+the measured G3 weight decay around 1e-4. A one-epoch EAL/LK or on-policy
+error-replay arm follows only after a supervised winner. Official DeepSpec's
+from-scratch 6e-4, batch-512, ten-epoch recipe is a reference, not a local
+default: its corpus is much larger and prior local proxy metrics repeatedly
+failed to predict live acceptance.
+
+A bounded live smoke on free GPU 0 validated the current trainer: 512
+stratified cycles, rank 8, LR 1e-6, 488 steps, 11.66 seconds training time,
+11,041 MiB peak GPU memory, and exit 0. Full DSpark TV/full-logit training is
+not included in that timing. Full corpus, prior-search, official-config,
+resource, and non-claim details are in
+[DSpark2 parameter evidence](../evidence/dspark2-qwen27b-training-parameters.json).

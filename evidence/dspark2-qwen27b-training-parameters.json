@@ -1,0 +1,360 @@
+{
+  "recorded_at": "2026-10-19T15:56:00Z",
+  "agent": "Codex",
+  "source_revision": "2dd027967b0b1bdf85bcef5fddf1a2ff558bfce2",
+  "source_dirty": false,
+  "scope": "Inventory the local Qwen3.8-27B DFlash2 training environment and derive a staged DSpark2 parameter plan from the actual corpus, prior measured searches, official DeepSpec defaults, and a bounded live B550 smoke run. No DSpark2 model or QAT artifact was trained or claimed.",
+  "live_environment": {
+    "host": "B550 alias at 192.168.1.171",
+    "training_root": "/home/kearm/dflash2-distill",
+    "python": "/home/kearm/mlx-dynamic-mxfp4/.venv/bin/python (Python 3.12)",
+    "local_package": "/home/kearm/dflash2-distill/dflash-pytorch plus /home/kearm/dflash2-distill/mlx_gptq",
+    "initial_probe": "2026-10-19T15:36:05Z: GPU0 idle with 4 MiB resident; GPU1 idle with the unrelated 5078 MiB embedding replica.",
+    "final_probe": "2026-10-19T15:54:46Z: both GPUs compute-idle; the embedding service had restarted a 1446 MiB replica on GPU0 and retained 5078 MiB on GPU1. No embedding service was stopped or restarted by this task.",
+    "disk_free": "1.8 TiB on root NVMe"
+  },
+  "corpus_inventory": {
+    "legacy": {
+      "path": "/home/kearm/dflash2-distill/capture",
+      "cycles": 1981,
+      "prompts": 24,
+      "max_tokens": 256,
+      "target_topk": 64,
+      "block_len_counts": {
+        "5": 443,
+        "4": 1520,
+        "3": 9,
+        "2": 9
+      },
+      "context_length": {
+        "min": 1,
+        "p50": 3,
+        "p90": 5,
+        "p99": 202.72,
+        "max": 1695,
+        "mean": 9.5785
+      }
+    },
+    "fable": {
+      "path": "/home/kearm/dflash2-distill/fable128-capture",
+      "cycles": 11540,
+      "prompts": 128,
+      "max_tokens": 256,
+      "target_topk": 64,
+      "block_len_counts": {
+        "5": 1674,
+        "4": 9780,
+        "3": 40,
+        "2": 46
+      },
+      "context_length": {
+        "min": 1,
+        "p50": 3,
+        "p90": 4,
+        "p99": 280.9,
+        "max": 2299,
+        "mean": 13.4443
+      }
+    },
+    "combined_training_corpus": {
+      "path": "/home/kearm/dflash2-distill/combined-incumbent-capture",
+      "cycles": 11273,
+      "prompt_groups": 127,
+      "included": "legacy 24 prompts plus 103 Fable prompts; the 25-prompt Fable live gate is excluded",
+      "block_len_counts": {
+        "5": 1784,
+        "4": 9402,
+        "3": 39,
+        "2": 48
+      },
+      "context_length": {
+        "min": 1,
+        "p50": 3,
+        "p90": 4,
+        "p99": 244.82,
+        "max": 2299,
+        "mean": 12.7192
+      }
+    },
+    "capture_fields": [
+      "anchor",
+      "context",
+      "raw_context",
+      "selector_hidden (Fable capture)",
+      "noise_embedding",
+      "drafted",
+      "verify_ids",
+      "target_top_ids",
+      "target_top_values",
+      "target_greedy"
+    ],
+    "critical_gap": "The captures store target top-64 IDs/values and the greedy token, not full-vocabulary target logits. DeepSpec DSpark requires aligned full-vocab target logits for its TV/L1 term and confidence target, so existing data cannot train the official DSpark loss unchanged."
+  },
+  "capture_cost_projection": {
+    "existing_variable_blocks_with_full_bf16_logits_gib": 29.62,
+    "logits_and_dspark_inputs_only_gib": 27.71,
+    "fixed_block7_all_cycles_estimated_gib": 41.0,
+    "basis": "248320 vocabulary, BF16 logits, seven positions, current context-length distribution, and retained target context/noise tensors.",
+    "boundary": "A projection from capture headers and index shapes; no block-7 full-logit capture has run."
+  },
+  "official_deepspec_reference": {
+    "configs_checked": [
+      "dspark_qwen3_4b.py",
+      "dspark_qwen3_8b.py",
+      "dspark_qwen3_14b.py"
+    ],
+    "consistent_parameters": {
+      "block_size": 7,
+      "num_draft_layers": 5,
+      "markov_rank": 256,
+      "markov_head": "vanilla",
+      "confidence_head_alpha": 1.0,
+      "confidence_head_with_markov": true,
+      "loss_decay_gamma": 4.0,
+      "ce_loss_alpha": 0.1,
+      "l1_loss_alpha": 0.9,
+      "lr": 0.0006,
+      "warmup_ratio": 0.04,
+      "weight_decay": 0.0,
+      "precision": "bf16",
+      "local_batch_size": 1,
+      "global_batch_size": 512,
+      "num_train_epochs": 10,
+      "max_grad_norm": 1.0,
+      "max_length": 4096,
+      "num_workers": 4,
+      "seed": 42
+    },
+    "target_layers": {
+      "qwen3_4b_and_8b": [
+        1,
+        9,
+        17,
+        25,
+        33
+      ],
+      "qwen3_14b": [
+        1,
+        10,
+        19,
+        28,
+        37
+      ]
+    },
+    "boundary": "Official from-scratch training on a much larger generated corpus; these values must not be copied wholesale to the 11,273-cycle local corpus."
+  },
+  "prior_local_parameter_evidence": {
+    "generation2_fable": {
+      "best_gpu0": {
+        "rank": 16,
+        "alpha_ratio": 2.0,
+        "predecessor": "predicted",
+        "lr": 0.0000080,
+        "weight_decay": 0.01,
+        "epochs": 2,
+        "validation_prefix_error": 0.206140
+      },
+      "best_gpu1": {
+        "rank": 16,
+        "alpha_ratio": 2.0,
+        "predecessor": "predicted",
+        "lr": 0.000007510999,
+        "weight_decay": 0.029687,
+        "epochs": 1,
+        "validation_prefix_error": 0.205514
+      }
+    },
+    "generation3_combined": {
+      "best_eager": {
+        "rank": 8,
+        "alpha_ratio": 2.0,
+        "predecessor": "predicted",
+        "lr": 0.000001031001,
+        "weight_decay": 0.00012417,
+        "epochs": 2,
+        "validation_prefix_error": 0.209551
+      },
+      "best_triton": {
+        "rank": 8,
+        "alpha_ratio": 1.0,
+        "predecessor": "teacher",
+        "lr": 0.000001117447,
+        "weight_decay": 0.00002869,
+        "epochs": 2,
+        "validation_prefix_error": 0.209780
+      }
+    },
+    "full_g3_run": {
+      "best_heldout_prefix_accuracy": 0.793221,
+      "top1_accuracy": 0.871488,
+      "steps": 18204,
+      "note": "Directionally strong offline metrics, but offline prefix accuracy remains a proxy and is not live acceptance."
+    },
+    "promoted_g3": {
+      "legacy_acceptance": 0.671875,
+      "control": 0.6471875,
+      "fable_heldout_acceptance": 0.64921875,
+      "exact_256_token_parity": true,
+      "sha256": "c90e0fc65dddbe4107b1b417d771c3be188c87197e89cf4b14415f56abc866f0"
+    }
+  },
+  "bounded_live_smoke": {
+    "first_attempt": {
+      "limit": 64,
+      "stratified": true,
+      "exit": 1,
+      "reason": "127 prompt groups require at least one cycle per group; stratified quota could not satisfy a 64-cycle limit."
+    },
+    "successful_run": {
+      "output": "/home/kearm/dflash2-distill/dspark2-param-smoke-20261019T155026Z",
+      "cycles": 256,
+      "training_steps": 244,
+      "training_elapsed_seconds": 10.242896,
+      "wall_seconds": 16.00,
+      "mode": "BF16 LoRA",
+      "rank": 8,
+      "alpha": 16,
+      "lr": 0.0000010,
+      "weight_decay": 0.0001,
+      "seed": 43,
+      "trainable_parameters": 6000640,
+      "host_peak_rss_kib": 5717664,
+      "exit": 0
+    },
+    "memory_profile": {
+      "output": "/home/kearm/dflash2-distill/dspark2-param-memory2-20261019T155210Z",
+      "cycles": 512,
+      "training_steps": 488,
+      "training_elapsed_seconds": 11.662665,
+      "gpu_peak_mib": 11041,
+      "gpu_peak_utilization_percent": 99,
+      "exit": 0
+    },
+    "projected_full_corpus_epoch_seconds_before_dspark_tv": "about 256 seconds from the measured 512-cycle path",
+    "boundary": "The DSpark full-vocabulary TV term and block-7 forward are not included in this timing."
+  },
+  "parameter_plan": {
+    "model_boundary": "Qwen3.8-27B is the local training prototype. It is not directly compatible with Qwen3.8-Flash-Next hidden-state extraction: 27B is hidden 5120/64 layers, while Flash-Next is hidden 2560/48 hybrid QSA-GDN-PLE layers.",
+    "student_initialization": "Promoted DFlash2 generation-3 full head, not the selector-only rejected lineage.",
+    "architecture": {
+      "block_size": 7,
+      "draft_layers": 5,
+      "retain_target_layer_ids": [
+        5,
+        19,
+        33,
+        47,
+        61
+      ],
+      "markov_rank": 256,
+      "markov_head": "vanilla low-rank token-transition correction",
+      "confidence_head": "scalar sigmoid survival head using hidden plus Markov feature",
+      "draft_hidden_size": 5120,
+      "vocabulary": 248320
+    },
+    "capture": {
+      "teacher": "Frozen exact Qwen3.8-27B production verifier used by the live gate (calibrated MXFP4 incumbent), with an optional small BF16 quality-control capture kept separate.",
+      "corpus": "Re-capture the existing 127-prompt combined training split and excluded 25-prompt Fable live gate at block size 7; do not reuse top-64 captures for the TV/confidence objective.",
+      "store": "Full-vocabulary BF16 target logits, target greedy IDs, target hidden context, draft context/noise inputs, eval masks, prompt IDs, and verifier revisions.",
+      "estimated_storage_gib": 41.0
+    },
+    "stage_a_new_heads_only": {
+      "frozen": "DFlash2 G3 backbone and existing selector",
+      "trained": "Markov rank-256 head and scalar confidence head",
+      "loss": {
+        "ce": 0.1,
+        "tv_or_l1": 0.9,
+        "confidence_bce": 1.0,
+        "position_decay_gamma": 4.0
+      },
+      "epochs": 3,
+      "initial_lr": 0.000030,
+      "lr_search": [
+        0.000020,
+        0.000030,
+        0.000060
+      ],
+      "weight_decay": 0.0,
+      "warmup_ratio": 0.04,
+      "max_grad_norm": 1.0,
+      "precision": "bf16",
+      "seed": 42,
+      "batching": "local batch 1; use effective batch 32 if accumulation is implemented, and scale the LR search rather than copying official batch-512 6e-4 directly"
+    },
+    "stage_b_joint_finetune": {
+      "backbone": "LoRA over the promoted G3 full head",
+      "rank": 8,
+      "alpha": 16,
+      "backbone_lr": 0.0000010,
+      "backbone_lr_search": [
+        5.0E-7,
+        0.0000010,
+        0.0000020
+      ],
+      "new_head_lr": 0.000010,
+      "weight_decay": 0.0001,
+      "epochs": 2,
+      "max_grad_norm": 1.0,
+      "seed": 42,
+      "predecessor": "teacher-forced during training; sampled/predicted during inference",
+      "triton_dynamic_conv": true
+    },
+    "stage_c_objective_and_on_policy": {
+      "arms": [
+        "official DSpark TV control",
+        "EAL/LK acceptance-directed variant",
+        "one low-LR on-policy error-replay pass after a supervised winner"
+      ],
+      "epochs": 1,
+      "lr_fraction_of_stage_b": 0.5,
+      "gate": "Only exact parity plus paired live acceptance can promote an arm."
+    },
+    "qat_order": {
+      "first": "Select and live-gate a BF16 DSpark2 candidate, then apply the existing deployment PTQ and repeat every gate.",
+      "true_qat": "Only if PTQ loses parity or acceptance, add fake-quant/STE training for deployment-quantized draft linears. Keep norms, target-hidden fusion, Markov codebooks, and confidence head high precision initially.",
+      "lr_guidance": "Begin QAT at 10-20 percent of the winning Stage B LR for one epoch."
+    },
+    "promotion_gates": [
+      "exact 256-token target parity",
+      "paired smoke acceptance",
+      "25-prompt Fable held-out live gate",
+      "legacy 24-prompt paired corpus",
+      "same-day throughput, GPU memory, and occupancy receipt"
+    ]
+  },
+  "checks": [
+    {
+      "name": "capture-and-corpus-inventory",
+      "command": "remote JSON/header reads under /home/kearm/dflash2-distill",
+      "exit": 0
+    },
+    {
+      "name": "prior-search-summary",
+      "command": "parse studies/*/summary.json",
+      "exit": 0
+    },
+    {
+      "name": "trainer-smoke",
+      "command": "dflash2_distill LoRA rank 8, 256 stratified cycles",
+      "exit": 0
+    },
+    {
+      "name": "memory-profile",
+      "command": "512 stratified cycles with 200 ms GPU sampling",
+      "exit": 0
+    },
+    {
+      "name": "official-config-review",
+      "command": "fetch and compare three DeepSpec Qwen3 DSpark configs",
+      "exit": 0
+    }
+  ],
+  "non_claims": [
+    "No DSpark2 architecture, full-logit capture, QAT trainer, or candidate artifact now exists.",
+    "The smoke run still uses the selector objective and existing DFlash2 model; it proves the environment and resource envelope only.",
+    "Projected epoch time and block-7 storage are estimates, not measurements.",
+    "Official DSpark performance claims are not B550 measurements.",
+    "The 25-prompt Fable set remains a live gate, not an out-of-domain generalization test.",
+    "Qwen3.8-27B results do not establish Qwen3.8-Flash-Next compatibility."
+  ]
+}
