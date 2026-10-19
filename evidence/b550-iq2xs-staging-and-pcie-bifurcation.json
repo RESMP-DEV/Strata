@@ -1,0 +1,118 @@
+{
+  "recorded_at": "2026-10-19T11:37:43Z",
+  "agent": "Codex",
+  "source_revision": "99f5744de519dea93b2f1a9f6465964aa8a14d69",
+  "source_dirty": false,
+  "scope": "Stage the RESMP-owned calibrated Qwen IQ2_XS/Q2_0 GGUF release on B550 NVMe scratch and determine whether ASUS TUF GAMING B550-PLUS WIFI II exposes a two-GPU x8/x8 BIOS bifurcation mode. The GGUF staging job is running detached at the time of this receipt; BIOS settings were not changed.",
+  "staging": {
+    "destination": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/hf-shards",
+    "repository": "RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-GGUF",
+    "revision": "d80233332687dd87fe3a41292b7d500c966dbb63",
+    "expected_files": [
+      {
+        "path": "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf",
+        "bytes": 39969168288,
+        "sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915"
+      },
+      {
+        "path": "Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00002-of-00002.gguf",
+        "bytes": 26680767616,
+        "sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036"
+      }
+    ],
+    "preferred_source": {
+      "host": "strix",
+      "source_path": "/home/kearm/models/qwen-flash-next/standard-iq2xs-deterministic/hf-shards",
+      "status": "unreachable on LAN 192.168.1.182, ZeroTier 10.243.112.172, mDNS, and the local :2223 relay"
+    },
+    "wake_attempt": {
+      "mac": "bc:fc:e7:e4:ef:ab",
+      "method": "five UDP magic packets broadcast from B550 wired LAN address 192.168.1.171",
+      "result": "SSH remained down after 120 seconds; no transfer was started from Strix"
+    },
+    "fallback": "The maintained B550 HFD CLI was launched from the exact public RESMP-DEV revision with aria2 x4, one concurrent file, size verification, followed by an automatic full verification command.",
+    "job": {
+      "tmux_session": "qwen-iq2xs-b550-staging",
+      "status_file": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/status.txt",
+      "download_log": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/logs/hfd-download.json",
+      "verify_log": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/logs/hfd-verify.json",
+      "started_at": "2026-10-19T11:31:58Z",
+      "observed_at_11:35:10Z": "30,268,201,656 bytes allocated for the first shard; marker present; HFD process alive",
+      "completion_gate": "status.txt must contain complete, hfd-verify.json must report status verified with zero failures, and both SHA-256 digests must match expected_files"
+    }
+  },
+  "pcie_bifurcation": {
+    "motherboard": {
+      "vendor": "ASUSTeK COMPUTER INC.",
+      "model": "TUF GAMING B550-PLUS WIFI II",
+      "revision": "Rev X.0x",
+      "bios_vendor": "American Megatrends Inc.",
+      "bios_version": "3636",
+      "bios_release_date": "2026-01-04",
+      "bios_revision": "5.17"
+    },
+    "live_paths": [
+      {
+        "gpu": 0,
+        "pci": "0000:04:00.0",
+        "wiring": "CPU 0000:00:01.2 -> B550 chipset upstream 0000:02:00.2 -> downstream switch -> GPU",
+        "effective_mode": "PCIe Gen3 x4"
+      },
+      {
+        "gpu": 1,
+        "pci": "0000:08:00.0",
+        "wiring": "CPU root port 0000:00:03.1 -> GPU",
+        "effective_mode": "PCIe Gen4 x16"
+      }
+    ],
+    "asus_documentation": {
+      "tech_spec": "AMD B550 chipset provides one PCIe 3.0 x16 slot supporting x4 mode; the CPU provides one PCIe 4.0 x16 slot supporting x16 mode.",
+      "manual_slot_table": "PCIEX16_2 plus unoccupied PCIEX1_1/_2/_3 runs x4; if any of those x1 slots is occupied, PCIEX16_2 drops to x1.",
+      "bios_options": [
+        "PCIEX16_1 Mode: Auto, Gen 1, Gen 2, Gen 3, Gen 4",
+        "PCIEX16_1 Bandwidth: Auto Mode or PCIe RAID Mode",
+        "PCIEX16_2 4X-1X Switch: Auto, 1X, or 4X",
+        "SB Link Mode: Auto, Gen 1, Gen 2, Gen 3",
+        "PCIEX1 Mode: Auto, Gen 1, Gen 2, Gen 3"
+      ],
+      "bifurcation_meaning": "PCIEX16_1 PCIe RAID Mode supports a Hyper M.2 x16 RAID card, not a second physical GPU slot and not an x8/x8 two-GPU split.",
+      "sources": [
+        "https://www.asus.com/motherboards-components/motherboards/tuf-gaming/tuf-gaming-b550-plus-wifi-ii/techspec/",
+        "https://dlcdnets.asus.com/pub/ASUS/mb/SocketAM4/TUF_GAMING_B550-PLUS_WIFI_II/E22526_TUF_GAMING_B550-PLUS_WI-FI_II_V2_WEB.pdf",
+        "https://dlcdnets.asus.com/pub/ASUS/misc/Manual/PRIME_TUF_GAMING_B550_Series_BIOS_EM_WEB_EN.pdf"
+      ]
+    },
+    "conclusion": "No BIOS setting can provide Gen4 x8 plus Gen3 x8 for the two installed GPUs. The second physical x16 slot is physically routed to the B550 chipset and has only x4/x1 modes. The CPU slot can be set to a RAID bifurcation mode for M.2 cards, but it is not wired to PCIEX16_2 and cannot lend its lanes to the chipset slot. A real x8/x8 two-GPU topology requires a different motherboard/platform with two CPU-attached x8 slot wiring.",
+    "benchmark_effect": "Keep GPU 1 as the high-bandwidth CPU-attached card and benchmark both Strata card orders. GPU 0 remains useful for expert placement/compute, but its host link is constrained to Gen3 x4."
+  },
+  "checks": [
+    {
+      "command": "ssh B550 'dmidecode -t bios; udevadm info -q path -p /sys/bus/pci/devices/0000:04:00.0; udevadm info -q path -p /sys/bus/pci/devices/0000:08:00.0'",
+      "exit": 0,
+      "result": "Identified BIOS 3636 and the chipset/CPU PCI paths shown above."
+    },
+    {
+      "command": "curl https://huggingface.co/api/models/RESMP-DEV/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-GGUF/tree/main",
+      "exit": 0,
+      "result": "The Hub reports both expected file sizes and SHA-256 LFS OIDs."
+    },
+    {
+      "command": "tmux new-session -d -s qwen-iq2xs-b550-staging <bounded HFD download/full verify launcher>",
+      "exit": 0,
+      "result": "Staging job is alive and resumable; completion is not claimed in this receipt."
+    },
+    {
+      "command": "exq search/fetch ASUS TUF GAMING B550-PLUS WIFI II tech specification, user manual, and BIOS manual",
+      "exit": 0,
+      "result": "Extracted the exact expansion-slot table and all documented PCIe BIOS modes."
+    }
+  ],
+  "non_claims": [
+    "The GGUF staging and full verification are not complete at this receipt timestamp; no runnable-model claim is made.",
+    "No BIOS setting, slot configuration, PCIe link policy, or boot order was changed.",
+    "No reboot was performed, so the live BIOS setup menus were not visually inspected; the conclusion is grounded in the live PCI topology plus ASUS documentation for BIOS 3636-era B550 boards.",
+    "The main machine's old expert-iq2xs pack remnant was not staged because only dense.bin matched the deterministic artifact pack; index and conversion hashes differed.",
+    "The prepared pack must be copied from Strix after it becomes reachable or regenerated from the verified GGUF with tools/iq_pack.py --compat-bf16 before engine execution.",
+    "No model was loaded or benchmarked."
+  ]
+}

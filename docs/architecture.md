@@ -773,3 +773,22 @@ hypothesis around 135-145 decode tok/s and 1.8K-2.3K prefill tok/s, but it is
 not a B550 measurement. The complete protocol, topology, K-Transformers audit,
 and non-claims are in
 [Qwen B550 multi-GPU plan](../evidence/qwen-b550-multigpu-optimization-plan.json).
+
+### Calibrated IQ2_XS staging and fixed B550 slot topology, 2026-10-19
+
+Strix holds the verified calibrated artifact but was unreachable over LAN,
+ZeroTier, mDNS, and the local relay; five Wake-on-LAN packets to its pinned
+wired MAC did not restore SSH. The exact public RESMP-DEV revision
+`d80233332687dd87fe3a41292b7d500c966dbb63` is therefore being staged directly
+on B550 by the maintained HFD CLI, bounded to aria2 x4 and one concurrent file.
+The detached job writes status under
+`/home/kearm/strata-scratch/qwen-iq2xs-calibrated/` and must finish both full
+verification and the two pinned SHA-256 checks before the artifact is accepted.
+
+The ASUS TUF GAMING B550-PLUS WIFI II documentation confirms the live PCI
+result is fixed wiring, not a missing BIOS setting. PCIEX16_1 is the CPU Gen4
+x16 slot and offers only a Hyper M.2 `PCIe RAID Mode`, while PCIEX16_2 is a
+chipset slot documented as Gen3 x4/x1. There is no x8/x8 two-GPU bifurcation
+mode. Swapping cards or forcing link generations cannot turn PCIEX16_2 into
+Gen3 x8 or route CPU lanes to it. Full evidence is in
+[B550 staging and PCIe evidence](../evidence/b550-iq2xs-staging-and-pcie-bifurcation.json).
