@@ -1000,8 +1000,9 @@ hybrid CE/TV objective. It completed 99 steps in 11.459 s
 17,500-cycle Ada receipt is 16,587 steps in 1252.894 s (`0.075535 s/step`)
 with 9.670 GiB peak allocation. At the observed prices, A100 is 1.53x slower
 per step and 2.51x more expensive per step. Memory is not the constraint:
-both runs fit below 10 GiB, so 80 GB and multi-GPU bandwidth do not help this
-sequential batch-1 workload.
+trainer allocations stayed below 10 GiB, while observed GPU telemetry peaked at
+9.77 GiB on Ada and 10.12 GiB on A100. A 48 GB card has ample capacity, and
+80 GB plus multi-GPU bandwidth does not help this sequential batch-1 workload.
 
 Prime also remains the best provider lane after account probing: Modal has no
 remaining credit headroom and higher comparable-GPU rates, RunPod has a zero

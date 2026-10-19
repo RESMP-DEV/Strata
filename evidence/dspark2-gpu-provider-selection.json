@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-19T20:21:28Z",
+  "recorded_at": "2026-10-19T20:41:14Z",
   "agent": "Codex",
   "source_revision": "ad040e0f596bfc481d4436a1e048d798aad2d12e",
   "source_dirty": false,
@@ -9,7 +9,7 @@
     "preferred_gpu": "one RTX 6000 Ada 48 GB",
     "multi_gpu": "not for one sequential batch-1 arm; use process-level data parallel only for a broad post-acceptance matrix",
     "current_stock_boundary": "The 20:20Z Prime query listed no Ada. Stock is transient; wait for the preferred card or benchmark a specific replacement. An unmeasured H100, H200, A100 40 GB, or RTX 5090 is not an authorized substitute.",
-    "rationale": "Prime is the funded full-control on-demand lane with the measured low-cost card. The real A100 80GB control was 1.53x slower and 2.51x costlier per step than Ada; both fit below 10 GiB."
+    "rationale": "Prime is the funded full-control on-demand lane with the measured low-cost card. The real A100 80GB control was 1.53x slower and 2.51x costlier per step than Ada. Trainer allocations stayed below 10 GiB; observed GPU telemetry peaked at 9.77 GiB on Ada and 10.12 GiB on A100, so a 48 GB card has ample capacity."
   },
   "workload": {
     "student_sha256": "c90e0fc65dddbe4107b1b417d771c3be188c87197e89cf4b14415f56abc866f0",
@@ -33,6 +33,7 @@
     "max_reserved_gb": 9.767578125,
     "cost_per_million_steps_usd": 15.736393576153594,
     "receipt_path": "/Users/kearm/models/dflash-full-logit-candidates/hybrid-17500-2e-6-e1/receipt.json",
+    "receipt_path_availability": "local main-machine path; not repository-reproducible",
     "receipt_sha256": "bad1e06427dc67ded5c946328a643399d029b357e740c5319e16bc622f7f8e2c",
     "note": "The prior 0.093 s/step prose value was conservative; receipt division is authoritative."
   },
@@ -66,6 +67,7 @@
     "per_step_time_ratio_vs_ada": 1.5323769678734749,
     "per_step_cost_ratio_vs_ada": 2.513098227312499,
     "receipt_path": "build/reports/dspark-provider-a100/a100-hybrid-eager-r8-128-v3/receipt.json",
+    "receipt_path_availability": "ignored local benchmark artifact; not repository-reproducible",
     "receipt_sha256": "cf73cbdb9a9665e811306a5c4aba8db7a0844f4e9cd1d2ef1f4bb0494716494a",
     "run_log_sha256": "4d737678ab27f9517c1dd5db6de7b4d08d0ebc557cab60b68d43f4a16d9ded60",
     "time_log_sha256": "bde2703f344366f548cefe98edc29d8a4a659f42a175118fb2714c45c08cd671",
@@ -97,8 +99,9 @@
   ],
   "verification": [
     {"command": "jq empty evidence/dspark2-gpu-provider-selection.json", "exit": 0, "result": "valid JSON"},
-    {"command": "just quality", "exit": 0, "result": "all required domains passed; build/reports/quality/receipt.json recorded aggregate_passed=true at 2026-10-19T20:24:07Z"}
+    {"command": "just quality", "exit": 0, "result": "all required domains passed; the generated receipt records aggregate_passed=true and source_dirty=true"}
   ],
+  "verification_note": "source_revision and source_dirty describe the clean measurement/authoring baseline. The verification commands ran in the intended dirty worktree before commit 1b36f6943ba05c253fd6961f8eda7e6543804fc5; the quality receipt records source_dirty=true.",
   "non_claims": [
     "No distilled candidate is promoted; exact parity and paired live acceptance remain separate gates.",
     "Validation proxies did not drive provider selection.",
