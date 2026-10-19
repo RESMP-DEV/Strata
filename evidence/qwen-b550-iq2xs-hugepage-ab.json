@@ -1,0 +1,103 @@
+{
+  "recorded_at": "2026-10-19T16:46:00Z",
+  "agent": "Codex",
+  "source_revision": "524603825d785d3ac4ca332fe963a15df4dfb18e",
+  "source_dirty": false,
+  "scope": "Measure the current calibrated Qwen IQ2_XS/Q2_0 two-GPU MTP path on B550 with explicit 2 MiB hugetlb backing versus STRATA_NO_LARGEPAGES, then release the experimental page pool. No huge-page setting was persisted.",
+  "environment": {
+    "host": "B550 alias at 192.168.1.171",
+    "hostname": "b550",
+    "kernel": "7.0.0-38-generic",
+    "remote_checkout": "/home/kearm/strata-main at 83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
+    "driver": "custom NVIDIA 595.99.02 kearm@b550 with Bar1P2PMode=2",
+    "p2p_matrices": "OK in both directions",
+    "artifact": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/pack-split plus the pinned split GGUF and Q2_0 MTP runtime",
+    "expert_arena_gib": 32.23,
+    "explicit_pool": "16512 x 2 MiB pages, runtime sysctl only"
+  },
+  "protocol": {
+    "arms": [
+      "hugetlb: default MAP_HUGETLB path",
+      "control: STRATA_NO_LARGEPAGES=1, explicitly using 4 KiB pages"
+    ],
+    "interleaving": "hugetlb, control, hugetlb, control server starts",
+    "requests_per_arm": "5 total; the cold first request was discarded, leaving 8 warm samples per arm across two rounds",
+    "request": "The saved 25-token binary-search prompt, max_tokens 128, temperature 0, reasoning_effort none",
+    "configuration": "two-GPU layer-split auto, expert-cache auto, prefill auto, spec 4, Q2_0 MTP max-t 4, max-context 2048, KV int8, direct PLE I/O, no pipeline-windows override",
+    "resident_embedding_services": "both unrelated sindexer CUDA replicas stayed resident"
+  },
+  "results": {
+    "backing_confirmed": {
+      "hugetlb": "expert arena: cudaHostRegister PORTABLE ok; hugetlb 2 MB pages",
+      "control": "expert arena: cudaHostRegister PORTABLE ok; large pages skipped (STRATA_NO_LARGEPAGES); using 4 KB pages"
+    },
+    "warm_decode_tok_s": {
+      "hugetlb_median": 217.1,
+      "hugetlb_range": [217.0, 217.2],
+      "control_median": 217.45,
+      "control_range": [217.2, 217.6],
+      "interpretation": "No hugetlb decode win on this fully resident workload; the tiny observed difference favors control by about 0.16 percent."
+    },
+    "warm_prompt_tok_s": {
+      "hugetlb_median": 136.45,
+      "control_median": 135.8,
+      "interpretation": "A negligible approximately 0.5 percent hugetlb prompt-rate difference."
+    },
+    "draft_acceptance": {
+      "hugetlb": "71 of 72 on every warm request",
+      "control": "71 of 72 on every warm request"
+    },
+    "expert_load_seconds": {
+      "hugetlb_rounds": [39, 41],
+      "control_rounds": [49, 46],
+      "hugetlb_median": 40,
+      "control_median": 47.5,
+      "interpretation": "Hugetlb reduced this 32.23 GiB expert-load phase by a median 7.5 seconds in alternating rounds."
+    },
+    "output_content_sha256_all_rounds": "666848633d8fbf299d3f7010f2d38bb27a199d9819f36eee0772ffe8b7d81214",
+    "resource_after_cleanup": {
+      "strata_processes": 0,
+      "explicit_2mib_pages": 0,
+      "mem_available_kib": 90310760,
+      "gpu_memory_used_mib": [1458, 1442],
+      "embedding_health": "both replicas healthy"
+    }
+  },
+  "decision": "Do not persist vm.nr_hugepages for this workload. Hugetlb improves load time but not warm inference, while a persistent 16512-page pool removes about 32 GiB from general memory. Revisit only for a startup-sensitive service or a measured host-expert/cache-miss-heavy workload.",
+  "raw_evidence_root": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/logs",
+  "checks": [
+    {
+      "name": "allocate-hugepages",
+      "command": "sudo sysctl -w vm.nr_hugepages=16512",
+      "exit": 0
+    },
+    {
+      "name": "hugetlb-real-engine",
+      "command": "start the saved two-GPU Strata server and require the hugetlb 2 MB pages startup line",
+      "exit": 0
+    },
+    {
+      "name": "matched-openai-workload",
+      "command": "five localhost OpenAI chat requests per round for two interleaved rounds per arm",
+      "exit": 0
+    },
+    {
+      "name": "four-kb-control",
+      "command": "repeat with STRATA_NO_LARGEPAGES=1 and require the using 4 KB pages startup line",
+      "exit": 0
+    },
+    {
+      "name": "restore-host",
+      "command": "stop Strata, set vm.nr_hugepages=0, and verify services, GPU memory, driver, and both P2P matrices",
+      "exit": 0
+    }
+  ],
+  "non_claims": [
+    "This short, fully resident warm workload does not measure long-context, multi-client, batch, memory-pressure, or host-expert cache-miss behavior.",
+    "Load-time observations use the server's one-second progress output and are directional, not a high-resolution storage benchmark.",
+    "No persistent host, boot, or Strata configuration was changed; the experimental page pool was released.",
+    "The identical response-content hash does not prove broad generation quality, only identical content for this exact prompt and settings.",
+    "The unrelated sindexer embedding replicas remained resident, matching the prior B550 baseline conditions but adding fixed GPU memory occupancy."
+  ]
+}

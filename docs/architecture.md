@@ -919,3 +919,26 @@ stratified cycles, rank 8, LR 1e-6, 488 steps, 11.66 seconds training time,
 not included in that timing. Full corpus, prior-search, official-config,
 resource, and non-claim details are in
 [DSpark2 parameter evidence](../evidence/dspark2-qwen27b-training-parameters.json).
+
+### Qwen B550 explicit-hugepage decision, 2026-10-19
+
+	The current calibrated IQ2_XS/Q2_0 two-GPU MTP server was run with a
+	runtime-only pool of 16,512 explicit 2 MiB pages and with
+	`STRATA_NO_LARGEPAGES=1`. The arms alternated across four server starts. The
+	default arm reported `hugetlb 2 MB pages`; the control reported 4 KiB pages.
+	Each arm contributed eight warm requests after a discarded cold request.
+
+	Warm decode was effectively tied and slightly favored 4 KiB pages: the
+	medians were 217.1 tok/s for hugetlb and 217.45 tok/s for the control. Warm
+	prompt medians were 136.45 and 135.8 tok/s. Every warm request accepted 71
+	of 72 drafts, and all response content matched one SHA-256. Hugetlb did
+	reduce the 32.23 GiB expert-load phase from a median 47.5 seconds to 40
+	seconds in alternating rounds.
+
+	The page pool was released after the test. Persisting it is not justified for
+	this fully resident workload because the only measured win is startup/load
+	time while a permanent pool would remove about 32 GiB from general memory.
+	Revisit explicit pages for a startup-sensitive resident service or after a
+	measured host-expert/cache-miss-heavy workload wins. Full protocol, cleanup,
+	and non-claims are in
+	[Qwen B550 hugepage A/B](../evidence/qwen-b550-iq2xs-hugepage-ab.json).
