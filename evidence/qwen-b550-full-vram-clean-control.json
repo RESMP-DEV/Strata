@@ -1,0 +1,92 @@
+{
+  "recorded_at": "2026-10-19T21:46:45Z",
+  "agent": "Codex",
+  "source_revision": "5e2dc5a271e647a9350a87c8480d55ff7e27c1b7",
+  "source_dirty": false,
+  "authorization": "The user authorized stopping the B550 embedding services if needed for Strata work and said Strix downtime or temporary movement was acceptable.",
+  "scope": "Clear B550's two resident embedding replicas, run the pinned Qwen IQ2_XS/Q2_0 two-GPU MTP workload without GPU contention, probe Strix as the temporary fallback, stop the task-owned Strata server, and leave both B550 GPUs idle.",
+  "b550_service_change": {
+    "units_stopped": ["sindexer-embed-gpu@0.service", "sindexer-embed-gpu@1.service"],
+    "command": "sudo -n systemctl stop sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",
+    "exit": 0,
+    "result": "both units inactive/dead, ports 1236 and 1237 closed, and both old PIDs gone",
+    "cpu_embedding_service": "llama-embedding.service remained running and untouched",
+    "restart_boundary": "The GPU replicas were intentionally left stopped; restart only with the coordinating owner's next instruction."
+  },
+  "clean_control": {
+    "remote_checkout": "/home/kearm/strata-main",
+    "remote_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
+    "config": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/clean-control-mtp-server.json",
+    "configuration": "two GPUs, layer-split auto, Q2_0 MTP, pipeline windows 2, INT8 KV, direct PLE I/O, expert cache auto",
+    "workload": "The prior exact binary-search prompt: 25 prompt tokens, max 128, greedy, reasoning effort none; one warm-up discarded and five measured requests.",
+    "load": {
+      "expert_bytes_gib": 32.23,
+      "load_gib_per_second": 1.07,
+      "gpu0_slots": 12288,
+      "gpu1_slots": 12288,
+      "resident_experts": "24576 of 24576 (100 percent)",
+      "free_vram_with_everything_loaded_mib": 3649
+    },
+    "samples": [
+      {"completion_tokens": 94, "prompt_tok_s": 99.3, "decode_tok_s": 224.6, "drafts_offered": 78, "drafts_accepted": 66},
+      {"completion_tokens": 94, "prompt_tok_s": 151.5, "decode_tok_s": 227.7, "drafts_offered": 78, "drafts_accepted": 66},
+      {"completion_tokens": 94, "prompt_tok_s": 151.8, "decode_tok_s": 227.5, "drafts_offered": 78, "drafts_accepted": 66},
+      {"completion_tokens": 94, "prompt_tok_s": 151.5, "decode_tok_s": 227.4, "drafts_offered": 78, "drafts_accepted": 66},
+      {"completion_tokens": 94, "prompt_tok_s": 151.5, "decode_tok_s": 227.0, "drafts_offered": 78, "drafts_accepted": 66}
+    ],
+    "median": {"prompt_tok_s": 151.5, "decode_tok_s": 227.4, "drafts_offered": 78, "drafts_accepted": 66},
+    "curl_total_seconds": [0.490276, 0.460284, 0.460464, 0.460688, 0.461333],
+    "repeated_output_content_sha256": "d214df135ad44aaddb65a27fa9273ea4ef0315b188c82a90215235e6cdcb85f3",
+    "loaded_gpu_memory_mib": {"gpu0": 20514, "gpu1": 21742},
+    "prior_embedding_resident_observation": {
+      "warm_decode_tok_s": [219.1, 214.2],
+      "mean": 216.65,
+      "resident_experts": 21973,
+      "comparison": "The clean full-cache median is 4.96 percent above that two-sample mean, but the earlier runs were not interleaved with this control."
+    }
+  },
+  "strix_fallback_probe": {
+    "address": "192.168.1.182",
+    "reported_hostname": "strix",
+    "online": true,
+    "gpu": "RTX 5070 Laptop, 8151 MiB total, 2 MiB used, 0 percent utilization",
+    "driver": "595.99.02",
+    "compute_apps": "none",
+    "npu": "/dev/accel/accel0 visible; kearm is in render group",
+    "action": "read-only probe only; no workload or shutdown"
+  },
+  "cleanup": {
+    "task_owned_server": "stopped by exact PID after Ctrl-C did not propagate through detached SSH",
+    "final_b550_gpu_memory_mib": [1, 33],
+    "final_compute_apps": "none",
+    "embedding_units": "both intentionally inactive"
+  },
+  "raw_evidence": {
+    "local_ignored_root": "build/reports/b550-clean-control-mtp",
+    "engine_log_sha256": "fd65b567ff4b9e275eb7b28859ad3cb039a0c1d81402946df444cc3c8778b79d",
+    "server_log_sha256": "f70a6662d13da048ad953316b0c97737076a141b28571beb2f4088cc4544c049",
+    "request_sha256": "6684f30f5563e280a52a0b9f3d2838eab3975f5151bbc97615f313ac6f34636a",
+    "measured_response_hashes": [
+      "05f745c584a5da564f2177ee3be897bb91ff06b47cddb0bec2572f06612b482f",
+      "8d65fba62deee6a55f3cb8de223d5c0f7edd6ad9cfc9d74bda49bd5b3a42762d",
+      "4ab891e7d2de47a0b9fc51744324a8157a3e0f74f922eb153804dfdaba4ed9f3",
+      "9cb33e28da2a582441372d22ac5b1075084647449c567015258293d9511bfc07",
+      "c3ad87778ec8a8c440f9b0f3a2384868ba2110082126b3f80cd4c0bd235c47b8"
+    ]
+  },
+  "verification": [
+    {"command": "systemctl is-active sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service", "exit": 1, "result": "inactive inactive, as intended"},
+    {"command": "curl http://127.0.0.1:18095/v1/chat/completions", "exit": 0, "result": "six HTTP 200 responses including the discarded warm-up"},
+    {"command": "nvidia-smi query-compute-apps after cleanup", "exit": 0, "result": "no compute applications"}
+  ],
+  "non_claims": [
+    "This is one short coding prompt with five warm measured requests; it is a clean control, not a broad workload median or quality claim.",
+    "The 4.96 percent comparison is observational because the prior two samples were not interleaved and used lower expert residency.",
+    "Stopping the embedding replicas does not prove they caused prior variance; it proves the cleared configuration and measured result.",
+    "Strix was only probed read-only; no temporary move or shutdown was performed.",
+    "The Optane device remained absent from B550 lsblk/findmnt.",
+    "Repeated identical output within this control is not a cross-build correctness or acceptance gate."
+  ]
+}

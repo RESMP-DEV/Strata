@@ -1158,6 +1158,27 @@ This advances runtime compatibility only. It does not load Flash-Next weights,
 run RCO calibration or full-model KL, train a heal adapter, quantize, pack, or
 measure performance, and it does not size the eventual multi-GPU search.
 
+### Qwen B550 full-VRAM clean MTP control, 2026-10-19
+
+With explicit authorization, the two resident B550 Jina embedding replicas were
+stopped cleanly. The pinned Qwen IQ2_XS/Q2_0 two-GPU MTP configuration then fit
+all 24,576 profiled experts in VRAM, 12,288 per card, loaded 32.23 GiB at
+1.07 GiB/s, and retained 3,649 MiB free with everything loaded. On the exact
+prior short coding prompt, one discarded warm-up and five measured requests
+produced median prompt and decode throughput of 151.5 and 227.4 tok/s; every
+request completed 94 tokens, offered 78 MTP drafts, accepted 66, and returned
+one output-content SHA-256. The clean median is 4.96 percent above the prior
+two-sample mean with roughly 22k experts resident, but the arms were not
+interleaved, so this is an observational control rather than a causal service
+benchmark.
+
+The task-owned server was stopped afterward and both GPUs returned to idle.
+The embedding units remain intentionally stopped, so their owner must restart
+them before sindexer depends on ports 1236 and 1237. Strix was probed read-only
+as a fallback and is online with an idle RTX 5070 and accessible NPU device
+node. Full state and non-claims are in
+[full-VRAM clean control](../evidence/qwen-b550-full-vram-clean-control.json).
+
 ### DSpark2-Qwen GPU provider selection, 2026-10-19
 
 The full-logit lane stays on Prime Intellect, with one RTX 6000 Ada 48 GB as
