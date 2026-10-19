@@ -9,22 +9,179 @@
   "concurrency_findings": {
     "engine_support": "Strata serves concurrent requests via --batch N slots with --batch-groups across a layer split; --batch-mtp (one MTP proposal per slot) is opt-in and requires ONE GPU, no layer split. /v1/status exposes concurrency.serving. Confirmed in src/program/generate.cpp and docs/BATCHING.md.",
     "config_A_two_gpu_batch": {
-      "gpu": [0, 1], "layer_split": "auto", "batch": 4, "batch_groups": "auto",
+      "gpu": [
+        0,
+        1
+      ],
+      "layer_split": "auto",
+      "batch": 4,
+      "batch_groups": "auto",
       "pipeline_windows": "removed (--pipeline-windows is disabled with --batch slots)",
       "residency": "24576/24576 experts resident (100%), 3491 MiB VRAM free, ready in 54s",
-      "aggregate_tok_s": {"C1": 149.61, "C2": 126.26, "C4": 158.12},
-      "per_request_decode_median_tok_s": {"C1": 199.8, "C2": 75.25, "C4": 49.7},
+      "aggregate_tok_s": {
+        "C1": 149.61,
+        "C2": 126.26,
+        "C4": 158.12
+      },
+      "per_request_decode_median_tok_s": {
+        "C1": 199.8,
+        "C2": 75.25,
+        "C4": 49.7
+      },
       "draft_n_at_C_ge2": 0
     },
     "config_B_single_gpu_batch_mtp": {
-      "gpu": [1], "batch": 4, "batch_mtp": true, "batch_mtp_warning": "none (engaged; 4 slot sessions, 0.15 GiB each)",
+      "gpu": [
+        1
+      ],
+      "batch": 4,
+      "batch_mtp": true,
+      "batch_mtp_warning": "none (engaged; 4 slot sessions, 0.15 GiB each)",
       "residency": "13236 experts resident on one card (experts stream from RAM), 461 MiB VRAM free, ready in 85s",
-      "aggregate_tok_s": {"C1": 111.44, "C2": 99.03, "C4": 105.99},
-      "per_request_decode_median_tok_s": {"C1": 139.0, "C2": 56.8, "C4": 31.45},
-      "draft_c1": {"draft_n": 96, "draft_accepted": 92}
+      "aggregate_tok_s": {
+        "C1": 111.44,
+        "C2": 99.03,
+        "C4": 105.99
+      },
+      "per_request_decode_median_tok_s": {
+        "C1": 139.0,
+        "C2": 56.8,
+        "C4": 31.45
+      },
+      "draft_c1": {
+        "draft_n": 96,
+        "draft_accepted": 92
+      }
     },
-    "interpretation": "On this launch/CPU-bound, expert-streaming workload, concurrency buys LATENCY-fairness (nobody waits for a whole answer) but NOT aggregate throughput. Two-GPU C4 aggregate (158 tok/s) barely exceeds C1 (150) and C2 dips below C1; single-GPU C4 aggregate (106) is flat-to-below C1 (111). Per-request decode falls ~4x at C4 because the window carries one token of each slot. Two-GPU full residency (config A) gives the best solo throughput (~200 tok/s); the batch slots are for several concurrent agent requests, not for more total tokens/sec.",
-    "batch_slot_draft_note": "Batch-slot requests report draft_n=0 in their .timings; the batch-slot timing path does not populate the per-request draft counters, so whether MTP drafts are active inside slots is UNCONFIRMED, not proven off. Solo (C1) path uses MTP drafts."
+    "interpretation": "On this launch/CPU-bound, expert-streaming workload, concurrency buys LATENCY-fairness (nobody waits for a whole answer) but NOT aggregate throughput. Two-GPU C4 aggregate (158 tok/s) barely exceeds C1 (150) and C2 dips below C1; single-GPU C4 aggregate (106) is flat-to-below C1 (111). Per-request decode falls ~4x at C4, likely because each verify window carries one token of every active slot (hypothesis consistent with docs/BATCHING.md; no profile or ablation isolating this cause was run). Two-GPU full residency (config A) gives the best solo throughput (~200 tok/s); the batch slots are for several concurrent agent requests, not for more total tokens/sec.",
+    "batch_slot_draft_note": "Batch-slot requests report draft_n=0 in their .timings; the batch-slot timing path does not populate the per-request draft counters, so whether MTP drafts are active inside slots is UNCONFIRMED, not proven off. Solo (C1) path uses MTP drafts.",
+    "per_round_samples": {
+      "config_A_two_gpu_batch": {
+        "C1": {
+          "per_request_decode_tok_s": [
+            199.8,
+            149.5,
+            204.2
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128
+          ]
+        },
+        "C2": {
+          "per_request_decode_tok_s": [
+            75.1,
+            74.6,
+            74.8,
+            75.6,
+            75.4,
+            97.7
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        },
+        "C4": {
+          "per_request_decode_tok_s": [
+            43.1,
+            43.2,
+            49.6,
+            58.8,
+            43.6,
+            43.7,
+            50.3,
+            59.3,
+            43.3,
+            49.8,
+            58.9,
+            71.9
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        }
+      },
+      "config_B_single_gpu_batch_mtp": {
+        "C1": {
+          "per_request_decode_tok_s": [
+            139.0,
+            112.4,
+            146.8
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128
+          ]
+        },
+        "C2": {
+          "per_request_decode_tok_s": [
+            77.5,
+            51.7,
+            55.3,
+            51.8,
+            58.3,
+            70.8
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        },
+        "C4": {
+          "per_request_decode_tok_s": [
+            31.9,
+            31.0,
+            32.3,
+            29.2,
+            102.0,
+            25.9,
+            26.2,
+            25.3,
+            30.8,
+            42.4,
+            34.8,
+            48.4
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            97,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        }
+      }
+    },
+    "per_round_samples_note": "One C4 config-B request stopped early at 97 completion tokens (finish_reason stop); its 102.0 tok/s is the solo-path promotion of the last remaining slot, not a batch-slot rate. Aggregate tok/s divides total completion tokens by total wall, so early stop is accounted for."
   },
   "embedding_findings": {
     "two_distinct_embedders": {
@@ -33,10 +190,20 @@
       "not_interchangeable": "Different dimensionality (1536 vs 1024) and model; swapping requires a full reindex of the collection."
     },
     "cpu_embedding_measured": {
-      "single_request_latency_s": {"cpu_qwen_1235": 0.020, "gpu_jina_1238": 0.081},
-      "batch32_wall_s": {"cpu": 0.826, "gpu": 0.175},
-      "batch32_items_per_s": {"cpu": 38.8, "gpu": 183.1},
-      "verdict": "CPU-only embedding of the small Qwen3-0.6B is REASONABLE for single/low-volume requests (20ms latency, lower than the GPU round-trip) but ~4.7x slower for bulk throughput. It is a valid tier for interactive/light embedding, not for large reindex sweeps. MXFP4 Jina acceleration is CUDA-only; it is not a CPU path."
+      "single_request_latency_s": {
+        "cpu_qwen_1235": 0.02,
+        "gpu_jina_1238": 0.081
+      },
+      "batch32_wall_s": {
+        "cpu": 0.826,
+        "gpu": 0.175
+      },
+      "batch32_items_per_s": {
+        "cpu": 38.8,
+        "gpu": 183.1
+      },
+      "verdict": "CPU-only embedding of the small Qwen3-0.6B is REASONABLE for single/low-volume requests (20ms latency, lower than the GPU round-trip) but ~4.7x slower for bulk throughput. It is a valid tier for interactive/light embedding, not for large reindex sweeps. MXFP4 Jina acceleration is CUDA-only; it is not a CPU path.",
+      "ratio_direction": "GPU is 4.72x the CPU on bulk items/sec (183.1/38.8 = 4.72); equivalently CPU is 0.21x GPU (38.8/183.1 = 0.212). Single-request latency is the opposite direction: CPU 0.020 s is 4.05x faster than GPU-balancer 0.081 s (0.081/0.020 = 4.05)."
     },
     "mxfp4_cpu_capability": "cuda_embed_server.py raises RuntimeError if torch.cuda.is_available() is false and calls Triton matmul_ogs on cuda:0. The MXFP4 Jina build has no CPU execution path as shipped; 'CPU-only MXFP4 embedding' is not a supported mode. A CPU embedder exists but is the separate Qwen3-0.6B Q8_0 model.",
     "strix_mxfp4": "Strix has an RTX 5070 Laptop (8GB, CUDA) and an Intel Arrow Lake NPU (/dev/accel/accel0, render group). The MXFP4 Jina embedder needs CUDA, so it could run on the Strix RTX 5070 if VRAM and the Triton MXFP4 kernel support SM120 (Blackwell laptop); the NPU path is a separate, unverified question. Strix was probed read-only; no embedder was deployed there this turn."
@@ -73,5 +240,45 @@
     "The CPU-vs-GPU embedding comparison is one prompt and one batch-32; not a latency/throughput curve.",
     "The invalid HF token was worked around, not fixed; a valid token still needs the user's hf auth login.",
     "No distilled candidate, model, or quality claim is made; this is serving-topology and embedding-tier evidence only."
+  ],
+  "commands": [
+    {
+      "step": "stop embeddings (each benchmark window)",
+      "command": "sudo -n systemctl stop sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",
+      "exit": 0
+    },
+    {
+      "step": "config A: two-GPU batch server",
+      "command": "/home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/batch-control-server.json --host 127.0.0.1 --port 18096",
+      "exit": 0,
+      "note": "ready after 54s; /health status ok, loaded true"
+    },
+    {
+      "step": "config A: concurrency driver per C",
+      "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/qwen-iq2xs-calibrated/conc_driver.py --url http://127.0.0.1:18096/v1/chat/completions --model qwen3.8-flash-next-iq2xs-calibrated-b550-batch-control --concurrency {1,2,4} --rounds 3 --max-tokens 128 --warm 1",
+      "exit": 0
+    },
+    {
+      "step": "config B: single-GPU batch-mtp server",
+      "command": "/home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/batchmtp-gpu1-server.json --host 127.0.0.1 --port 18097",
+      "exit": 0,
+      "note": "ready after 85s; no --batch-mtp disable warning; 4 slot sessions, 0.15 GiB each"
+    },
+    {
+      "step": "config B: concurrency driver per C",
+      "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/qwen-iq2xs-calibrated/conc_driver.py --url http://127.0.0.1:18097/v1/chat/completions --model qwen3.8-flash-next-iq2xs-b550-batchmtp-gpu1 --concurrency {1,2,4} --rounds 3 --max-tokens 128 --warm 1",
+      "exit": 0
+    },
+    {
+      "step": "cpu-vs-gpu embedding latency/throughput",
+      "command": "curl POST /v1/embeddings to :1235 (CPU Qwen 1024-dim) and :1238 (GPU Jina 1536-dim), single + batch-32, 5 latency reps",
+      "exit": 0
+    },
+    {
+      "step": "restore embeddings + verify",
+      "command": "sudo -n systemctl restart sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service; curl :1238/v1/embeddings; sindexer update",
+      "exit": 0,
+      "note": "units active; 1536-dim embedding returned; sindexer update/search ok"
+    }
   ]
 }

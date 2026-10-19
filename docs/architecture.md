@@ -1219,7 +1219,9 @@ support it: `--batch N` slots with `--batch-groups auto` across a layer split,
 expert-streaming workload concurrency buys latency fairness, not aggregate
 throughput. The two-GPU full-residency config (24,576/24,576 experts, 3,491 MiB
 free) measured aggregate decode 149.6 tok/s at C=1, 126.3 at C=2, and 158.1 at
-C=4; per-request median fell 199.8 to 49.7 tok/s across that range. A single-GPU
+C=4; per-request median fell 199.8 to 49.7 tok/s across that range, likely because each
+verify window carries one token of every active slot (a hypothesis consistent with
+`docs/BATCHING.md`; no profile isolated the cause). A single-GPU
 `--batch-mtp` config (13,236 experts resident, rest streaming) measured 111.4 /
 99.0 / 106.0 tok/s aggregate at C=1/2/4. So several concurrent agent requests can
 be served without any one waiting for a whole answer, but total tokens/sec stays
@@ -1236,8 +1238,8 @@ CPU embedder (llama.cpp `Qwen3-Embedding-0.6B-Q8_0`, 1024-dim, 16 threads) runs
 on port 1235 and is bound to a different collection, so the two are not
 drop-in interchangeable without a reindex. Measured, the CPU Qwen embedder has
 lower single-request latency (0.020 s versus 0.081 s through the GPU balancer)
-but is about 4.7x slower on bulk throughput (38.8 versus 183.1 items/s on a
-batch of 32). CPU-only embedding of the small model is therefore reasonable for
+but is about 4.7x slower on bulk throughput (GPU 183.1 versus CPU 38.8 items/s on a
+batch of 32; GPU/CPU = 4.72). CPU-only embedding of the small model is therefore reasonable for
 interactive or light use, not for large reindex sweeps.
 
 Third, is the MXFP4 embedder CPU-capable, and could it move to Strix? As shipped
