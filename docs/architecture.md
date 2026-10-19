@@ -1274,3 +1274,46 @@ sindexer update/search succeed end-to-end. The invalid token itself still needs
 the user's `hf auth login --force`; the drop-in is a workaround to remove once a
 valid token is set. Full measurements, hashes, and non-claims are in
 [concurrency and embedding evidence](../evidence/qwen-b550-concurrency-fallback.json).
+
+### Strix MXFP4 embedding tier, 2026-10-19
+
+The question was whether the sindexer Jina MXFP4 embedder is built for
+acceleration on Strix, and whether it could host there. Both are answered yes on
+the CUDA path, by measurement rather than by version reading. The Triton MXFP4
+`matmul_ogs` kernel from `kernels-community/gpt-oss-triton-kernels` compiles and
+runs on the RTX 5070 Laptop's SM120 silicon (compute capability 12.0): a direct
+probe with packed E2M1 weights and E8M0 scales returned
+`MXFP4_MATMUL_OK shape (8, 64) dtype torch.bfloat16 finite True`. The unmodified
+`cuda_embed_server.py` then served
+`jina-code-embeddings-1.5b-block-gptq-mxfp4-32k` on Strix, returning 1536-dim
+embeddings that agree with the B550 RTX 3090 Ti reference at cosine 0.99990560
+and 0.99990414 on two code inputs (max absolute element difference 1.241e-3 and
+2.521e-3, the residual being MXFP4 kernel ordering between Ampere and Blackwell).
+
+Strix's environment needed one alignment to the proven B550 combination:
+`transformers` 5.20.2 there requires `kernels` >= 0.17.2, a different package
+layout without `kernels.utils`, so Strix was pinned to the B550-proven
+`transformers` 5.17.0 with `kernels` 0.16.0 in an isolated probe environment
+(`/home/kearm/.probe-mxfp4-sm120`). Strix also carries the same invalid Hugging
+Face token as B550 (`hf auth whoami` reports "Invalid user token"), so the
+embedder runs with `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` and the publisher-trust
+check runs anonymously; the credential file was not modified.
+
+That yields three embedding tiers with different characters. The B550 RTX 3090 Ti
+MXFP4 path (1536-dim) is the bulk tier at 0.081 s single-request and 183.1
+items/s on a batch of 32. The Strix RTX 5070 Laptop MXFP4 path (1536-dim, the
+same model) is the interactive tier at 0.036 s single-request, 2.25x lower
+latency than the B550 GPU path, though far lower on bulk at 15.9 items/s. The
+always-on B550 CPU embedder (llama.cpp `Qwen3-Embedding-0.6B-Q8_0`, 1024-dim,
+16 threads) is fastest per request at 0.020 s and reaches 38.8 items/s on bulk,
+but it is a different model and dimensionality, so it is not a drop-in for the
+1536-dim collection without a reindex. Strix can therefore host the exact
+production embedding model, which the CPU tier cannot.
+
+The Strix embedder runs standalone on `127.0.0.1:1236`; it was not put into the
+sindexer routing path, no nginx balancer or tunnel was created, and the Intel
+NPU path was not exercised. The model (1.1 GB) and the server module were
+placed on Strix, the model by a B550 to Mac to Strix relay because this Mac's
+`rsync` is openrsync 2.6.9 and cannot do remote-to-remote copies. Full
+measurements and non-claims are in
+[Strix MXFP4 embedding tier](../evidence/qwen-strix-mxfp4-embed-tier.json).
