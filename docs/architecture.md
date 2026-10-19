@@ -1094,9 +1094,9 @@ Qwen3.5-MoE classes that GSQ already wraps, including the conditional
 `text_config`, language-model layer prefix, hybrid linear/full layers, shared
 expert, and fused 3D routed experts. A GPU environment must therefore override
 RCO's declared 5.7 pin with at least the 5.16 support family (5.20.2 verified for
-config loading), then revalidate its router hook against `Qwen4ExpTextTopKRouter`
-and its checkpoint materializer against the fused expert layout. GSQ's PLE-aware
-layer movement remains equally unvalidated.
+config loading). A later tiny-model probe then validated RCO's router hook and
+physical fused-expert materializer on CPU, as recorded below. GSQ's PLE-aware
+layer movement remains unvalidated.
 
 Full commands, exact counts, the 5.7-versus-5.20 result, and non-claims are in
 [compression preflight evidence](../evidence/gsq-rco-compression-preflight.json).
@@ -1121,3 +1121,22 @@ as the `compression-tools` domain. No routing trace currently exists in this che
 real mask was generated; the tool prepares for trace capture and is a heuristic control, not
 RCO's joint full-model KL search. Full contract, checks, and non-claims are in
 [REAP trace-control evidence](../evidence/reap-trace-control.json).
+
+
+### Tiny Qwen4-Exp RCO compatibility probe, 2026-10-19
+
+`tools/validate_qwen4exp_rco.py` instantiates a tiny random
+`Qwen4ExpForCausalLM` under Transformers 5.20.2, imports the pinned RCO tree, and
+exercises the two model-specific boundaries that blocked a real pruning run.
+RCO reads the expected `(2,4,2)` MoE geometry; `Qwen4ExpTextTopKRouter` supplies
+the three-value logits/scores/indices signature RCO consumes; the fused
+`Qwen4ExpTextExperts` layout executes through RCO's STE wrapper; and RCO's
+checkpoint materializer physically shrinks router plus fused gate-up/down tensors
+from four experts to three before another finite forward.
+
+This ran on CPU with a tiny random model, not the 360 GB target checkpoint. It
+removes the structural Qwen4Exp/RCO adapter objection and justifies moving to a
+real GPU model-load/calibration boundary, but it does not validate full-model KL,
+calibration data, PLE-aware GSQ layer movement, quantization, packing, or output
+quality. Evidence is in
+[tiny Qwen4-Exp RCO probe](../evidence/qwen4exp-rco-tiny-probe.json).
