@@ -1,0 +1,119 @@
+{
+  "recorded_at": "2026-10-19T12:18:27Z",
+  "agent": "Codex",
+  "source_revision": "b0759d5f7e3054ba5a349991246f996c6b33ba61",
+  "source_dirty": false,
+  "scope": "Complete and verify staging of the RESMP-owned calibrated Qwen3.8-Flash-Next IQ2_XS/Q2_0 GGUF and prepared pack on B550 root-NVMe scratch. This receipt does not load or benchmark the model.",
+  "source_host": {
+    "alias": "strix",
+    "lan": "192.168.1.182",
+    "hostname": "strix",
+    "machine_id": "b71b3a116ec74b7a8797f38a0af8168a",
+    "source_path": "/home/kearm/models/qwen-flash-next/standard-iq2xs-deterministic",
+    "initial_state": "offline during the first probes; became reachable after boot and answered SSH with the expected machine ID"
+  },
+  "destination_host": {
+    "alias": "B550",
+    "lan": "192.168.1.171",
+    "hostname": "b550",
+    "machine_id": "27e232eefb5743a48455b58e0fb997a0",
+    "destination": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated",
+    "filesystem": "/dev/nvme0n1p2 ext4",
+    "free_after_staging": "1.9 TiB"
+  },
+  "transfer_history": [
+    {
+      "path": "bounded public-HFD fallback",
+      "started": "2026-10-19T11:31:58Z",
+      "stopped": "2026-10-19T12:04:50Z",
+      "reason": "Strix became reachable and its direct LAN path measured 112 MiB/s",
+      "preserved": "the partial HFD file was retained as rsync delta basis"
+    },
+    {
+      "path": "direct Strix-to-B550 rsync over SSH",
+      "command": "rsync -a --partial --inplace --info=progress2 <strix hf-shards>/ kearm@192.168.1.171:<destination>/hf-shards/",
+      "duration_seconds": 540,
+      "observed_rate": "117.59 MiB/s overall",
+      "transferred_bytes": 66649935904,
+      "completed": "2026-10-19T12:18:16Z"
+    }
+  ],
+  "staged_files": [
+    {
+      "path": "hf-shards/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf",
+      "bytes": 39969168288,
+      "sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+      "verified": true
+    },
+    {
+      "path": "hf-shards/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00002-of-00002.gguf",
+      "bytes": 26680767616,
+      "sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+      "verified": true
+    },
+    {
+      "path": "pack/dense.bin",
+      "bytes": 1485606400,
+      "sha256": "1fab0d62440d5ffeaf3cdbf0aa2a3f64961b77ebcea62f6915096cba4765d01a",
+      "verified": true
+    },
+    {
+      "path": "pack/index.txt",
+      "bytes": 93571,
+      "sha256": "593a83da03dc6c1389c5eeabfbbce0769de63a8b5a0025670056f458417b3f53",
+      "verified": true
+    },
+    {
+      "path": "pack/native_experts.txt",
+      "bytes": 3336,
+      "sha256": "39f5c5ddd5cadd972ee4b1a87433f6728563e580018bcdda76d0bf07c9f93cd3",
+      "verified": true
+    },
+    {
+      "path": "pack/conversions.json",
+      "bytes": 177246,
+      "sha256": "fe73f0677161f30d43fc4463344e7534663d5fb2b6243bf8352511da8272650b",
+      "verified": true
+    },
+    {
+      "path": "pack/compat-bf16.json",
+      "bytes": 39723,
+      "sha256": "4e99732e2b3a7b3780fe3186b5a31b099db5b4cbc339026b131ffbc85f29cab1",
+      "verified": true
+    }
+  ],
+  "checks": [
+    {
+      "command": "ssh kearm@192.168.1.182 'hostname; cat /etc/machine-id'",
+      "exit": 0,
+      "result": "Returned hostname strix and machine ID b71b3a116ec74b7a8797f38a0af8168a."
+    },
+    {
+      "command": "ssh -A kearm@192.168.1.182 'ssh kearm@192.168.1.171 hostname; cat /etc/machine-id'",
+      "exit": 0,
+      "result": "Direct SSH reached hostname b550 with machine ID 27e232eefb5743a48455b58e0fb997a0 without copying credentials."
+    },
+    {
+      "command": "rsync pack and GGUF shards from Strix to B550 with --partial --inplace",
+      "exit": 0,
+      "result": "The 1.50 GB pack copied in 13 seconds at 111.87 MiB/s; the 66.65 GB shard set copied in 540 seconds at 117.59 MiB/s."
+    },
+    {
+      "command": "sha256sum both GGUF shards and the five canonical pack files on B550",
+      "exit": 0,
+      "result": "All digests matched the deterministic artifact evidence; the stale fallback .aria2 marker was removed only after the GGUF hashes matched."
+    },
+    {
+      "command": "cat /home/kearm/strata-scratch/qwen-iq2xs-calibrated/status.txt; find <destination> -type f -printf '%s %P\\n'",
+      "exit": 0,
+      "result": "Status ends with direct_rsync_complete hashes_verified and complete; no staging transfer process remains."
+    }
+  ],
+  "non_claims": [
+    "No Qwen model was loaded, executed, or benchmarked on B550.",
+    "Hash verification proves storage identity; it does not rerun tensor, pack, or engine validation.",
+    "The public HFD fallback was stopped partway and replaced by direct rsync; HFD full-verify did not run to completion and is not claimed.",
+    "The prepared pack was previously validated at its creation revision, but this staging receipt only verifies its recorded hashes.",
+    "No GPU, BIOS, storage, or service configuration was changed during this staging completion."
+  ]
+}

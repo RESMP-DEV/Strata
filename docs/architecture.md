@@ -792,3 +792,19 @@ chipset slot documented as Gen3 x4/x1. There is no x8/x8 two-GPU bifurcation
 mode. Swapping cards or forcing link generations cannot turn PCIEX16_2 into
 Gen3 x8 or route CPU lanes to it. Full evidence is in
 [B550 staging and PCIe evidence](../evidence/b550-iq2xs-staging-and-pcie-bifurcation.json).
+
+### Calibrated IQ2_XS artifact staged on B550, 2026-10-19
+
+Strix returned with the expected machine ID before the fallback HFD transfer
+completed. A direct Strix-to-B550 rsync measured 112-118 MiB/s, so the bounded
+public-HFD job was stopped and its partial file retained as the delta basis.
+The 66,649,935,904-byte GGUF shard set completed in nine minutes. Both shard
+digests match the public RESMP-DEV release, and the stale `.aria2` marker was
+removed only after those hashes passed. The 1.50 GB prepared pack also copied
+directly, and `dense.bin`, `index.txt`, `native_experts.txt`,
+`conversions.json`, and `compat-bf16.json` match their deterministic-artifact
+hashes. The complete benchmark input now lives under
+`/home/kearm/strata-scratch/qwen-iq2xs-calibrated/` on root NVMe with 1.9 TiB
+still free. No model has been loaded or benchmarked yet. Full transfer and hash
+evidence is in
+[direct staging completion evidence](../evidence/b550-iq2xs-direct-staging-complete.json).
