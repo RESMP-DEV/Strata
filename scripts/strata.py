@@ -144,6 +144,10 @@ def quality() -> int:
                     "deepseek-contracts",
                     [sys.executable, "scripts/check_deepseek_contracts.py"],
                 ),
+                run_logged(
+                    "compression-tools",
+                    [sys.executable, "-m", "unittest", "tools.test_reap_mask_from_traces"],
+                ),
                 run_logged("ruff-check", ["ruff", "check", "scripts"]),
                 run_logged("ruff-format", ["ruff", "format", "--check", "scripts"]),
                 run_logged(

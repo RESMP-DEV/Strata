@@ -1,0 +1,46 @@
+{
+  "recorded_at": "2026-10-19",
+  "agent": "Codex",
+  "source_revision": "ffea9ba527c4ff0e1000ddb22ed3b0f09b170ac2",
+  "source_dirty": true,
+  "dirty_scope": "Strata compression-pipeline branch plus the new tiny Qwen4-Exp/RCO validation CLI, evidence, and architecture entry.",
+  "scope": "Instantiate a tiny random Qwen4ExpForCausalLM under Transformers 5.20.2 and exercise RCO's STE MoE pruning wrapper and physical fused-expert materializer on CPU. This validates architecture compatibility without loading target weights or using paid GPU time.",
+  "tool": "tools/validate_qwen4exp_rco.py",
+  "runtime": {
+    "transformers": "5.20.2",
+    "torch": "2.14.1",
+    "rco_revision": "9a1e09c07d468109cbe60a1b87d5036034a79d10",
+    "model": "tiny random Qwen4ExpForCausalLM: 2 layers, 4 experts, top-k 2, PLE disabled"
+  },
+  "validated_contract": [
+    "RCO get_moe_info returns (2, 4, 2).",
+    "Qwen4ExpTextTopKRouter returns the three-value logits/scores/indices signature consumed by RCO.",
+    "Qwen4ExpTextExperts uses the fused 3D expert layout consumed by RCO.",
+    "install_wrappers executes a finite STE-masked MoE forward.",
+    "run_build_checkpoint._remove_experts physically shrinks router and fused gate_up/down tensors from 4 to 3 experts in both layers.",
+    "The shrunk MoE block still returns the expected finite shape."
+  ],
+  "checks": [
+    {
+      "command": "uv run --quiet --with torch --with transformers==5.20.2 --with accelerate --with datasets python tools/validate_qwen4exp_rco.py --json",
+      "exit": 0,
+      "result": "status PASS; output written to ignored build/qwen4exp-rco-probe.json"
+    },
+    {
+      "command": "ruff check tools/validate_qwen4exp_rco.py",
+      "exit": 0,
+      "result": "all checks passed"
+    },
+    {
+      "command": "python3 -m py_compile tools/validate_qwen4exp_rco.py",
+      "exit": 0,
+      "result": "compile passed"
+    }
+  ],
+  "non_claims": [
+    "This is a tiny random model, not Qwen3.8-Flash-Next weights.",
+    "No full-model forward, KL objective, RCO search, calibration pass, pruning artifact, quantization, pack, or inference ran.",
+    "GPU execution remains unclaimed; the probe ran on CPU.",
+    "The full target checkpoint still needs a GPU-host model-load and RCO calibration/search validation."
+  ]
+}
