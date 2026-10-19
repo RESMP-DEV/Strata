@@ -1,0 +1,113 @@
+{
+  "recorded_at": "2026-10-19T20:41:14Z",
+  "agent": "Codex",
+  "source_revision": "ad040e0f596bfc481d4436a1e048d798aad2d12e",
+  "source_dirty": false,
+  "scope": "Select the GPU provider and card class for Qwen3.8-27B DFlash2 full-logit LoRA distillation using real captures, real hardware, and live account state. This is a provider and throughput decision only.",
+  "decision": {
+    "provider": "Prime Intellect",
+    "preferred_gpu": "one RTX 6000 Ada 48 GB",
+    "multi_gpu": "not for one sequential batch-1 arm; use process-level data parallel only for a broad post-acceptance matrix",
+    "current_stock_boundary": "The 20:20Z Prime query listed no Ada. Stock is transient; wait for the preferred card or benchmark a specific replacement. An unmeasured H100, H200, A100 40 GB, or RTX 5090 is not an authorized substitute.",
+    "rationale": "Prime is the funded full-control on-demand lane with the measured low-cost card. The real A100 80GB control was 1.53x slower and 2.51x costlier per step than Ada. Trainer allocations stayed below 10 GiB; observed GPU telemetry peaked at 9.77 GiB on Ada and 10.12 GiB on A100, so a 48 GB card has ample capacity."
+  },
+  "workload": {
+    "student_sha256": "c90e0fc65dddbe4107b1b417d771c3be188c87197e89cf4b14415f56abc866f0",
+    "objective": "hybrid selector CE plus full-vocab teacher CE and TV",
+    "weights": {"selector": 1.0, "distribution_ce": 0.1, "distribution_tv": 0.9},
+    "lora_rank": 8,
+    "lora_alpha": 16.0,
+    "trainer_commit": "5f47153",
+    "capture_index_sha256": "e78806d0c36887830482c613f1eaf8b61908bee303e6de726d1ca3df47f1ef8a"
+  },
+  "baseline": {
+    "provider": "Prime Intellect",
+    "gpu": "RTX 6000 Ada 48 GB",
+    "price_per_hour_usd": 0.75,
+    "cycles": 17500,
+    "steps": 16587,
+    "elapsed_seconds": 1252.8938891887665,
+    "seconds_per_step": 0.07553468916553725,
+    "steps_per_second": 13.23895035575589,
+    "max_allocated_gb": 9.669508457183838,
+    "max_reserved_gb": 9.767578125,
+    "cost_per_million_steps_usd": 15.736393576153594,
+    "receipt_path": "/Users/kearm/models/dflash-full-logit-candidates/hybrid-17500-2e-6-e1/receipt.json",
+    "receipt_path_availability": "local main-machine path; not repository-reproducible",
+    "receipt_sha256": "bad1e06427dc67ded5c946328a643399d029b357e740c5319e16bc622f7f8e2c",
+    "note": "The prior 0.093 s/step prose value was conservative; receipt division is authoritative."
+  },
+  "a100_control": {
+    "pod_id": "f90fe485fec843e39558f3b72bba34ea",
+    "provider": "Prime Intellect",
+    "gpu": "A100-SXM4-80GB",
+    "price_per_hour_usd": 1.23,
+    "mode": "on-demand",
+    "created_at_utc": "2026-10-19T19:50:49Z",
+    "terminated": true,
+    "billed_usd": 0.5393,
+    "cycles": 128,
+    "steps": 99,
+    "training_elapsed_seconds": 11.459014177322388,
+    "load_inclusive_wall_seconds": 19.85,
+    "seconds_per_step": 0.11574761795275139,
+    "steps_per_second": 8.639486649377128,
+    "max_allocated_gb": 9.427614688873291,
+    "max_reserved_gb": 9.603515625,
+    "gpu_telemetry": {
+      "samples": 88,
+      "memory_mib_mean": 7277.25,
+      "memory_mib_max": 10361.0,
+      "utilization_percent_mean": 30.25,
+      "utilization_percent_max": 88.0,
+      "power_w_mean": 109.9959090909091,
+      "power_w_max": 250.31
+    },
+    "cost_per_million_steps_usd": 39.54710280052339,
+    "per_step_time_ratio_vs_ada": 1.5323769678734749,
+    "per_step_cost_ratio_vs_ada": 2.513098227312499,
+    "receipt_path": "build/reports/dspark-provider-a100/a100-hybrid-eager-r8-128-v3/receipt.json",
+    "receipt_path_availability": "ignored local benchmark artifact; not repository-reproducible",
+    "receipt_sha256": "cf73cbdb9a9665e811306a5c4aba8db7a0844f4e9cd1d2ef1f4bb0494716494a",
+    "run_log_sha256": "4d737678ab27f9517c1dd5db6de7b4d08d0ebc557cab60b68d43f4a16d9ded60",
+    "time_log_sha256": "bde2703f344366f548cefe98edc29d8a4a659f42a175118fb2714c45c08cd671",
+    "gpu_log_sha256": "44502f46bc15065ef9f30960b80a3b46606264e696ebab53c0a770958ac0def3"
+  },
+  "provider_lanes": {
+    "prime_intellect": {
+      "wallet_after_task_pod_usd": 47.2549,
+      "full_control_ssh": true,
+      "on_demand_policy": "required and used",
+      "current_non_cpu_listing_note": "RTX5090 32GB $1.2068/h low stock; A10 24GB $1.29/h; A100 40GB $1.99/h; H100 80GB $3.29/h; H200 141GB $5.40/h; 8x H100 $24/h"
+    },
+    "modal": {
+      "billing_reprobe": {"metered_cost_usd": 21.54, "credits_usd": -20.71, "billed_usd": 0.0},
+      "rates_usd_per_hour": {"A100_80GB": 2.50, "L40S": 1.95, "H100": 3.95, "RTX_PRO_6000": 3.03},
+      "verdict": "not selected"
+    },
+    "runpod": {"client_balance_usd": 0.0, "verdict": "cannot launch until funded"},
+    "gmi": {"verdict": "not selected; inference surface, not full-control compute rental"},
+    "vast": {"verdict": "not selected; authenticated reads require elevated 2FA"},
+    "lambda": {"verdict": "not selected; no configured token"}
+  },
+  "commands_and_results": [
+    {"command": "ssh ... mlx_gptq.dflash2_distill --loss-mode hybrid --lora-rank 8 --limit 128 --stratified-limit --device cuda:0", "exit": 0, "result": "99 steps in 11.459014177322388 training seconds"},
+    {"command": "prime pods terminate f90fe485fec843e39558f3b72bba34ea --yes --plain", "exit": 0, "result": "terminated; billed $0.5393; wallet $47.2549"},
+    {"command": "modal billing summary; modal billing rates", "exit": 0, "result": "no credit headroom; higher comparable rates"},
+    {"command": "runpodctl user", "exit": 0, "result": "balance $0.00"},
+    {"command": "prime availability list --output json --plain", "exit": 0, "result": "17 grouped resources; no Ada at query instant"}
+  ],
+  "verification": [
+    {"command": "jq empty evidence/dspark2-gpu-provider-selection.json", "exit": 0, "result": "valid JSON"},
+    {"command": "just quality", "exit": 0, "result": "all required domains passed; the generated receipt records aggregate_passed=true and source_dirty=true"}
+  ],
+  "verification_note": "source_revision and source_dirty describe the clean measurement/authoring baseline. The verification commands ran in the intended dirty worktree before commit 1b36f6943ba05c253fd6961f8eda7e6543804fc5; the quality receipt records source_dirty=true.",
+  "non_claims": [
+    "No distilled candidate is promoted; exact parity and paired live acceptance remain separate gates.",
+    "Validation proxies did not drive provider selection.",
+    "The A100 control used the 128-cycle pilot while Ada used the 17,500-cycle run; both are real hybrid full-logit executions with the same model and trainer commit, but this is not a byte-identical paired duration test.",
+    "No H100, H200, RTX 5090, A6000, L40S, or RTX PRO 6000 throughput is claimed.",
+    "Provider inventory and balances are time-local and must be re-read before launch.",
+    "No B550 or Strix GPU was used; the Optane/driver-work boundary remained active."
+  ]
+}

@@ -1157,3 +1157,26 @@ under ignored `build/compression-cloud/`, with the durable record in
 This advances runtime compatibility only. It does not load Flash-Next weights,
 run RCO calibration or full-model KL, train a heal adapter, quantize, pack, or
 measure performance, and it does not size the eventual multi-GPU search.
+
+### DSpark2-Qwen GPU provider selection, 2026-10-19
+
+The full-logit lane stays on Prime Intellect, with one RTX 6000 Ada 48 GB as
+the preferred card when stocked. A real Prime A100 80 GB control ran the same
+DFlash2 G3 model, immutable teacher-logit capture, trainer revision, rank, and
+hybrid CE/TV objective. It completed 99 steps in 11.459 s
+(`0.115748 s/step`) and peaked at 9.428 GiB allocated. The authoritative
+17,500-cycle Ada receipt is 16,587 steps in 1252.894 s (`0.075535 s/step`)
+with 9.670 GiB peak allocation. At the observed prices, A100 is 1.53x slower
+per step and 2.51x more expensive per step. Memory is not the constraint:
+trainer allocations stayed below 10 GiB, while observed GPU telemetry peaked at
+9.77 GiB on Ada and 10.12 GiB on A100. A 48 GB card has ample capacity, and
+80 GB plus multi-GPU bandwidth does not help this sequential batch-1 workload.
+
+Prime also remains the best provider lane after account probing: Modal has no
+remaining credit headroom and higher comparable-GPU rates, RunPod has a zero
+balance, GMI is inference-oriented, Vast requires elevated 2FA, and Lambda has
+no token. The task-owned A100 pod was terminated after receipt harvest and
+billed $0.5393. A later inventory query listed no Ada; inventory is transient,
+so an unmeasured H100, H200, or RTX 5090 substitute is not authorized by this
+decision. Full measurements and non-claims are in
+[GPU provider selection](../evidence/dspark2-gpu-provider-selection.json).
