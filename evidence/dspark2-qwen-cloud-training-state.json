@@ -1,0 +1,156 @@
+{
+  "recorded_at": "2026-10-19T18:00:00Z",
+  "agent": "Codex",
+  "source_revision": "d550cac",
+  "source_dirty": false,
+  "scope": "Review the hugepage documentation and its B550 A/B evidence, confirm the Optane/driver work is out of scope and untouched, audit the MLX DFlash2 prediction-head distillation template and its new full-logit/QAT trainer commits, and record the live cloud (Prime) DSpark-weighted parameter state for Qwen3.8-27B. No GPU work was performed on B550 or Strix.",
+  "hugepages": {
+    "doc": "docs/TROUBLESHOOTING.md Linux explicit-2MiB-hugepage section plus docs/architecture.md decision entry",
+    "evidence": "evidence/qwen-b550-iq2xs-hugepage-ab.json",
+    "review_verdict": "Correct and self-consistent. The B550 A/B (2 arms x 2 interleaved rounds, 8 warm requests each) showed explicit hugetlb cut the 32.23 GiB expert-load phase from a 47.5 s median to 40 s but left warm decode tied (217.1 vs 217.45 tok/s, control marginally faster) with identical 71/72 draft acceptance and one output-content SHA-256. Decision: do not persist vm.nr_hugepages; page ownership stays a host operator action, never a server ExecStop side effect.",
+    "boundary_confirmed": "vm.nr_hugepages is currently 0 on B550; nothing was changed."
+  },
+  "optane_and_gpu_boundary": {
+    "instruction": "User reported active Optane driver twiddling; stay off B550 GPUs.",
+    "action": "No nvidia-smi probe, engine launch, or training job was run on B550 or Strix this turn. All GPU work was confined to the existing Prime cloud pod."
+  },
+  "mlx_dflash2_prediction_head_template": {
+    "dflash_mlx_worktree": "/Users/kearm/mlx/.worktrees/dflash-mlx branch work/local-mxfp4-dflash2 head 71bce81",
+    "trainer_worktree": "/Users/kearm/mlx/.worktrees/mlx-gptq-mxfp branch work/dflash2-calibration head 5f47153 (advanced mid-turn from 9cfb3929)",
+    "prediction_head_seam": "DFlashDraftModel.forward_projected_context produces draft hidden states; the target LM head is supplied externally by TargetOps.logits_from_hidden (MLX) and by --lm-head safetensors (PyTorch trainer). The draft checkpoint deliberately owns no lm_head; loading.py raises if a draft-owned lm_head is present. This is the correct template: the drafter shares the frozen target head, so a Flash-Next port swaps the head and target-feature projection, not the head ownership model.",
+    "capture": "scripts/capture_dflash2_distillation.py --full-logits stores target_logits F32 [5,248320] per cycle plus anchor/context/raw_context/noise_embedding/selector_hidden/top64/greedy; full-vocab logits are exactly what the DSpark TV and confidence objectives require.",
+    "trainer_objectives": "selector (top-64 CE), distribution (full-vocab CE+TV via the frozen LM head), hybrid (both); configurable --selector-weight/--distribution-ce-weight/--distribution-tv-weight; loss-reduction mean|sum.",
+    "qat": "--qat-mxfp4 fake-quantizes the effective LoRA weight and the selector projection through fake_quantize_mxfp4 (MXFP4 grid, straight-through gradient); merge path also re-quantizes. This supersedes the earlier PTQ-only boundary.",
+    "hardening_5f47153": "float32 selector path, dtype-safe LoRA merge, --selection-metric auto with a prefix-only-for-selector guard, a training fingerprint (model+capture SHA-256, hyperparameters) bound into checkpoints and receipts, and full-logit export quantization.",
+    "local_validation": "20/20 tests pass in tests/test_dflash2_distill.py including MXFP4 straight-through gradient and aligned full-vocab distribution loss."
+  },
+  "cloud_prime_lane": {
+    "pod_id": "9e96876cc684431ca7731f09d55fe479",
+    "pod": "dflash-full-logit-2, RTX 6000 Ada 48 GB x1, provider massedcompute, image ubuntu_22_cuda_12",
+    "billing": "Prime wallet $49.54; Modal free credits effectively exhausted (17.74 consumed vs 17.00 credits), so Prime is the active lane.",
+    "concurrent_owner": "A user tmux session dflash-lr-ext is running the DSpark-weighted hybrid sweep (ce 0.1, tv 0.9) on the single GPU; it was preserved, never stopped.",
+    "codex_qat_smoke": {
+      "run": "runs/hybrid-triton-qat-r8-128-v1",
+      "trainer_at_run": "9cfb3929 (pre-hardening)",
+      "config": "hybrid loss, rank 8, alpha 16, lr 2e-7, MXFP4 QAT, Triton dynamic conv, 128-cycle pilot, seed 43",
+      "result": "exit 0; 99 steps in 164 s; 13.4 GiB peak GPU; best validation CE 6.039, TV 0.939",
+      "finding": "MXFP4 QAT is roughly 11x slower than the BF16 full-replay path (164 s vs ~15 s for 128 cycles), so QAT must stay a winner-only step, not a sweep default."
+    },
+    "armed_then_disarmed_watcher": "Codex armed a fail-closed watcher to auto-start a weights-1.0 baseline on the incoming 12,000-cycle slice; after detecting the user dflash-lr-ext job already owning the single GPU, Codex killed the watcher (confirmed gone, no training dir created) to avoid contention and a duplicate baseline. The 12,000-cycle slice transfer continues untouched.",
+    "measured_lr_trend": {
+      "corpus": "captures/fable-full-logits-frozen4096 (4096 cycles, full F32 vocab logits)",
+      "objective": "hybrid, DSpark weights ce 0.1 / tv 0.9, rank 8, alpha 16, seed 73, weight-decay 1e-4, validation-fraction 0.05",
+      "results": [
+        {
+          "lr": 5.0E-7,
+          "epochs": 1,
+          "steps": 3818,
+          "seconds": 283,
+          "best_val_ce": 7.1520
+        },
+        {
+          "lr": 0.0000010,
+          "epochs": 1,
+          "steps": 3818,
+          "seconds": 299,
+          "best_val_ce": 7.1370
+        },
+        {
+          "lr": 0.0000020,
+          "epochs": 1,
+          "steps": 3818,
+          "seconds": 298,
+          "best_val_ce": 7.0685
+        },
+        {
+          "lr": 0.0000040,
+          "epochs": 1,
+          "steps": 3818,
+          "seconds": 280,
+          "best_val_ce": 6.6150
+        }
+      ],
+      "interpretation": "Monotonic improvement with rising LR through 4e-6; the user sweep is extending upward and running a 2e-6/2-epoch arm. On this frozen 4096-cycle full-logit corpus the DSpark2-Qwen LR floor is at or above 4e-6 for rank 8, materially higher than the earlier selector-only regime (~1e-6)."
+    },
+    "dspark_weights_comparison": {
+      "at_432_cycles": {
+        "distribution_only": {
+          "ce_weight": 0.1,
+          "tv_weight": 0.9,
+          "seconds": 69,
+          "val_ce": 6.6835,
+          "val_tv": 0.9294
+        },
+        "hybrid": {
+          "ce_weight": 0.1,
+          "tv_weight": 0.9,
+          "seconds": 128,
+          "val_ce": 6.6851,
+          "val_tv": 0.9295,
+          "prefix_accuracy": 0.7002
+        }
+      },
+      "note": "Hybrid adds the selector CE and prefix metric for roughly 2x the wall time at the same distribution loss; distribution-only is the cheaper pure-logit arm, hybrid is the arm that keeps selector prefix quality measurable."
+    },
+    "triton_kernel": "DFLASH_TRITON_BLOCK_GROUPS=32, DFLASH_TRITON_NUM_WARPS=4 was best on Ada (mean 1.518x isolated conv speedup) and is the kernel config for cloud Triton arms."
+  },
+  "parameter_recommendation_dspark2_qwen27b": {
+    "student": "promoted DFlash2 G3 full head (rank-8 LoRA), not selector-only",
+    "objective": "hybrid selector CE + full-vocab teacher CE + TV, DSpark weights ce 0.1 / tv 0.9",
+    "corpus": "full-logit capture (F32 [5,248320]); the frozen4096 corpus is the current sweep bed, the 12,000-cycle slice is the scale-up bed",
+    "lora": {
+      "rank": 8,
+      "alpha": 16
+    },
+    "lr": "start at 4e-6 and continue upward until validation CE stops improving; the 5e-7..4e-6 band is monotonically better and 4e-6 is not yet the plateau",
+    "weight_decay": 0.00010,
+    "warmup": "cosine via the existing scheduler",
+    "epochs": "1 to start; 2-epoch arms are the extension",
+    "precision": "BF16 select-first; MXFP4 --qat-mxfp4 only on the BF16 winner, given the ~11x cost",
+    "kernel": "Triton dynamic conv block-groups 32 / warps 4",
+    "seed": "sweep seed 73 is the current cloud seed; 43 was the smoke seed",
+    "promotion": "offline validation CE and prefix accuracy rank trials only; exact 256-token parity then paired live acceptance against the G3 incumbent is the acceptance gate, unchanged"
+  },
+  "checks": [
+    {
+      "name": "hugepage-doc-and-evidence-review",
+      "exit": 0,
+      "result": "docs/TROUBLESHOOTING.md and evidence/qwen-b550-iq2xs-hugepage-ab.json read and cross-checked"
+    },
+    {
+      "name": "optane-gpu-boundary-honored",
+      "exit": 0,
+      "result": "no B550/Strix GPU probe, launch, or job"
+    },
+    {
+      "name": "trainer-source-parity",
+      "exit": 0,
+      "result": "local 5f47153 trainer/qat/test SHA-256 match the Prime pod copies"
+    },
+    {
+      "name": "local-trainer-tests",
+      "command": "pytest tests/test_dflash2_distill.py",
+      "exit": 0,
+      "result": "20 passed"
+    },
+    {
+      "name": "cloud-qat-smoke",
+      "command": "mlx_gptq.dflash2_distill --loss-mode hybrid --qat-mxfp4 --triton-dynamic-conv (128-cycle pilot)",
+      "exit": 0,
+      "result": "99 steps, 13.4 GiB, best CE 6.039"
+    },
+    {
+      "name": "watcher-disarm",
+      "exit": 0,
+      "result": "armed watcher killed, no training dir created, user dflash-lr-ext job preserved"
+    }
+  ],
+  "non_claims": [
+    "No Qwen3.8-Flash-Next (hidden 2560 / 48-layer QSA-GDN-PLE) DSpark2 training was started; the cloud lane trains the Qwen3.8-27B (hidden 5120 / 64-layer) prototype only.",
+    "Validation CE and prefix accuracy are captured-cycle proxies, not live acceptance.",
+    "No candidate was promoted; no exact-parity or paired-acceptance gate was run this turn.",
+    "The 4e-6 LR is the best measured so far but is not established as the plateau; the upward sweep and a 2e-6/2-epoch arm are still running on the pod.",
+    "B550 hugepage and Optane driver state were only reviewed, not changed or benchmarked.",
+    "Prime cost accrues to the wallet; no new pod was created and none was terminated this turn."
+  ]
+}

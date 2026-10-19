@@ -947,3 +947,45 @@ resource, and non-claim details are in
 	[troubleshooting](TROUBLESHOOTING.md#linux-allocate-explicit-2-mi-huge-pages-only-after-a-measured-reason).
 	It deliberately keeps server shutdown from releasing the pool: page ownership
 	is a host decision, not a model-lifecycle side effect.
+
+### DSpark2-Qwen full-logit distillation on the Prime cloud lane, 2026-10-19
+
+The MLX DFlash2 prediction-head work is now the distillation template. The
+draft model emits hidden states and deliberately owns no LM head; the frozen
+target head is supplied externally (MLX `TargetOps.logits_from_hidden`, trainer
+`--lm-head`). Full-logit capture stores `target_logits` F32 `[5, 248320]` per
+cycle, which is exactly the aligned full-vocabulary signal the DSpark TV and
+confidence objectives need, replacing the earlier top-64-only limitation. The
+trainer branch reached `5f47153`, adding configurable selector/CE/TV weights, a
+`--selection-metric auto` guard, an MXFP4 QAT fake-quant path with
+straight-through gradients, and a training fingerprint (model + capture SHA-256
+plus hyperparameters) bound into checkpoints and receipts. Twenty focused tests
+pass locally, including the MXFP4 straight-through gradient and the aligned
+full-vocab distribution loss.
+
+Work moved to the Prime cloud lane (RTX 6000 Ada 48 GB) because Modal's free
+credits are effectively exhausted. The user's own `dflash-lr-ext` session is
+running the DSpark-weighted hybrid sweep there (ce 0.1 / tv 0.9, rank 8, alpha
+16, seed 73) on a frozen 4,096-cycle full-logit corpus; that job was preserved
+and never stopped. A Codex-armed watcher for a redundant weights-1.0 baseline
+on the incoming 12,000-cycle slice was killed to avoid contending for the single
+GPU; it created no training directory and left the transfer running.
+
+Measured LR trend on the frozen corpus is monotonic through 4e-6: validation CE
+7.152 at 5e-7, 7.137 at 1e-6, 7.069 at 2e-6, and 6.615 at 4e-6 (3,818 steps,
+~280-300 s each), so the DSpark2-Qwen rank-8 LR floor is at or above 4e-6,
+materially higher than the earlier selector-only ~1e-6 regime, and the upward
+sweep is still open. A Codex MXFP4 QAT smoke (hybrid, rank 8, 128-cycle pilot)
+exited 0 at 13.4 GiB peak and 164 s for 99 steps, about 11x the BF16
+full-replay cost, which fixes QAT as a winner-only step rather than a sweep
+default. This all trains the Qwen3.8-27B prototype (hidden 5120 / 64 layers),
+not Flash-Next (hidden 2560 / 48 layers); no Flash-Next DSpark2 training, no
+promotion, and no live-acceptance gate ran this turn. Full state, commands, and
+non-claims are in
+[DSpark2-Qwen cloud training state](../evidence/dspark2-qwen-cloud-training-state.json).
+
+The B550 explicit-hugepage A/B is reviewed and stands: hugetlb cut the 32.23 GiB
+load median from 47.5 s to 40 s but left warm decode tied at ~217 tok/s with
+identical 71/72 acceptance, so `vm.nr_hugepages` stays 0 and page ownership
+remains an operator action. The Optane driver work is out of scope; no B550 or
+Strix GPU was probed, launched, or benchmarked this turn.
