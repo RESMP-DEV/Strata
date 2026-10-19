@@ -1208,3 +1208,60 @@ billed $0.5393. A later inventory query listed no Ada; inventory is transient,
 so an unmeasured H100, H200, or RTX 5090 substitute is not authorized by this
 decision. Full measurements and non-claims are in
 [GPU provider selection](../evidence/dspark2-gpu-provider-selection.json).
+
+### B550 concurrency fallback tier and CPU-embedding capability, 2026-10-19
+
+Three questions were answered by live measurement, not documentation. First, can
+Strata serve concurrent requests as an agent-tool fallback tier? The engine does
+support it: `--batch N` slots with `--batch-groups auto` across a layer split,
+`--batch-mtp` (one MTP proposal per slot) on a single GPU, and
+`concurrency.serving` on `/v1/status`. But on this launch-bound,
+expert-streaming workload concurrency buys latency fairness, not aggregate
+throughput. The two-GPU full-residency config (24,576/24,576 experts, 3,491 MiB
+free) measured aggregate decode 149.6 tok/s at C=1, 126.3 at C=2, and 158.1 at
+C=4; per-request median fell 199.8 to 49.7 tok/s across that range. A single-GPU
+`--batch-mtp` config (13,236 experts resident, rest streaming) measured 111.4 /
+99.0 / 106.0 tok/s aggregate at C=1/2/4. So several concurrent agent requests can
+be served without any one waiting for a whole answer, but total tokens/sec stays
+flat: the two-GPU solo path (~200 tok/s) remains the fastest single stream, and
+batch slots trade per-request speed for fairness. Whether MTP drafts run inside
+batch slots is unconfirmed; the batch-slot timing path reports `draft_n=0` and
+does not populate the per-request draft counters, which is not proof that
+speculation is off.
+
+Second, is CPU-only embedding reasonable? Two distinct embedders run on B550. The
+sindexer live collection (`jina1536-mxfp4-v1`, 1536-dim) is served by the CUDA
+Jina MXFP4 embedder on ports 1236/1237 behind nginx 1238; a separate always-on
+CPU embedder (llama.cpp `Qwen3-Embedding-0.6B-Q8_0`, 1024-dim, 16 threads) runs
+on port 1235 and is bound to a different collection, so the two are not
+drop-in interchangeable without a reindex. Measured, the CPU Qwen embedder has
+lower single-request latency (0.020 s versus 0.081 s through the GPU balancer)
+but is about 4.7x slower on bulk throughput (38.8 versus 183.1 items/s on a
+batch of 32). CPU-only embedding of the small model is therefore reasonable for
+interactive or light use, not for large reindex sweeps.
+
+Third, is the MXFP4 embedder CPU-capable, and could it move to Strix? As shipped
+it is CUDA-only: `cuda_embed_server.py` raises if `torch.cuda.is_available()` is
+false and runs the Triton `matmul_ogs` MXFP4 kernel on `cuda:0`. There is no CPU
+execution path for the MXFP4 Jina build; the CPU embedder is the separate Qwen
+model. Strix has an RTX 5070 Laptop (8 GB, CUDA) and an Intel Arrow Lake NPU
+(`/dev/accel/accel0`, `render` group). The MXFP4 Jina embedder could in principle
+run on the Strix RTX 5070 if VRAM and Triton MXFP4 support SM120 (Blackwell
+laptop); the NPU path is a separate, unverified question. Strix was probed
+read-only this turn; no embedder was deployed there and no SM120 MXFP4 execution
+was tested.
+
+During the run an unrelated fleet defect surfaced and was worked around. After a
+benchmark restart the GPU embedding units crash-looped because
+`kernels.get_kernel('kernels-community/gpt-oss-triton-kernels')` could not verify
+publisher trust: the stored HF token at `~/.cache/huggingface/token` (dated Oct 6)
+is invalid, and the org-overview trust endpoint returns 401 with the token but 200
+anonymously. A reversible systemd drop-in
+(`/etc/systemd/system/sindexer-embed-gpu@.service.d/hf-anon-trust.conf`,
+`HF_HUB_DISABLE_IMPLICIT_TOKEN=1`) makes the trust check anonymous and loads the
+cached kernel; the credential file was not modified or deleted. Both units were
+verified active, the 1238 balancer round-trips a real 1536-dim embedding, and
+sindexer update/search succeed end-to-end. The invalid token itself still needs
+the user's `hf auth login --force`; the drop-in is a workaround to remove once a
+valid token is set. Full measurements, hashes, and non-claims are in
+[concurrency and embedding evidence](../evidence/qwen-b550-concurrency-fallback.json).
