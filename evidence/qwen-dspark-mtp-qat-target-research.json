@@ -1,0 +1,189 @@
+{
+  "recorded_at": "2026-10-19T15:22:00Z",
+  "agent": "Codex",
+  "source_revision": "bc1ed4f3edf18196eefd7243ae7bfd5b818c3b06",
+  "source_dirty": false,
+  "scope": "Research the best-performing speculative draft-head family for Qwen3.8-Flash-Next-like hybrid MoE models and DeepSeek V4.1 Flash, and define the first QAT logit-distillation target. This is a decision record only: no draft-head training, QAT implementation, backend integration, or new performance claim was executed.",
+  "method": {
+    "parent_probes": [
+      "Read the pinned DeepSeek V4.1 Flash 1017 config and tensor index.",
+      "Fetched only safetensors headers by HTTP range for the three DSpark shards; no model shard was downloaded.",
+      "Fetched and read the DSpark and DeepSeek V4.1 Flash papers, DeepSpec trainer/config sources, and acceptance-loss papers.",
+      "Launched three read-only workers for exact checkpoint architecture, external head landscape, and local DFlash2/QAT seams; independently checked their decisive claims against primary sources."
+    ],
+    "worker_reports": {
+      "architecture": "build/reports/research/dsv41-mtp-architecture.txt",
+      "landscape": "build/reports/research/mtp-head-landscape.txt",
+      "qat_seams": "build/reports/research/dflash2-qat-seams.txt",
+      "all_exit": 0,
+      "boundary": "Worker reports are evidence; this file is the parent receipt."
+    }
+  },
+  "deepseek_v41_flash_native_head": {
+    "identity": "The checkpoint names the family mtp.*, but the config and paper identify it as DSpark, not DeepSeek-V3-style joint MTP.",
+    "revision": "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "config": {
+      "num_nextn_predict_layers": 3,
+      "dspark_block_size": 5,
+      "dspark_target_layer_ids": [
+        37,
+        38,
+        39
+      ],
+      "dspark_markov_rank": 256,
+      "dspark_n_routed_experts": 128,
+      "dspark_num_experts_per_tok": 3,
+      "sliding_window": 128
+    },
+    "tensor_audit": {
+      "tensors": 2401,
+      "shards": 3,
+      "total_gib": 7.388,
+      "routed_expert_weights_mib": 6480,
+      "routed_expert_scales_mib": 405,
+      "families": "Three DeepSeek-V4 blocks: stage 0 adds target-layer fusion main_proj/main_norm; stage 2 adds norm, rank-256 Markov embed/head, and scalar confidence projection; draft logits reuse the target LM head.",
+      "header_probe": "HTTP 206 Content-Range checks against pinned shards; only safetensors JSON headers and dtype/shape byte ranges were inspected."
+    },
+    "paper_claims": {
+      "architecture": "Parallel block backbone plus lightweight sequential Markov head, confidence head, and hardware-aware prefix scheduler.",
+      "offline": "Across Qwen3-4B/8B/14B, DSpark improved macro accepted length over EAGLE-3 by 30.9/26.7/30.0 percent and over DFlash by 16.3/18.4/18.3 percent.",
+      "production": "Compared with MTP-1 in DeepSeek-V4 Flash serving, DSpark improved per-user generation speed by 60 to 85 percent at matched throughput.",
+      "training": "Frozen target; frozen shared embedding/LM head; update drafter, sequential head, and confidence head; anchor-bounded block packing."
+    }
+  },
+  "local_dflash2_state": {
+    "architecture": {
+      "parameters_bf16": 1924404480,
+      "layers": 5,
+      "target_layer_ids": [
+        5,
+        19,
+        33,
+        47,
+        61
+      ],
+      "raw_target_feature_width": 25600,
+      "draft_hidden_size": 5120,
+      "selector_rank": 256,
+      "selector_runtime_top_k": 16,
+      "block_size": 8
+    },
+    "prior_selector_distillation": "Seven exact-parity selector candidates failed live acceptance; control 66.683 percent, best candidate 66.406 percent. Proxy improvement did not transfer.",
+    "promoted_generation3": {
+      "legacy_acceptance": 0.671875,
+      "control": 0.6712239583333334,
+      "fable_heldout_acceptance": 0.64921875,
+      "fable_control": 0.6471875,
+      "exact_256_token_parity": true,
+      "artifact": "/Users/kearm/models/z-lab-Qwen3.8-27B-DFlash2-G3-g20.0625-g30.1875",
+      "sha256": "c90e0fc65dddbe4107b1b417d771c3be188c87197e89cf4b14415f56abc866f0"
+    },
+    "tooling_boundary": "The existing MXFP4 GPTQ path is post-training quantization, not QAT. No trainable fake-quant or straight-through path exists in the local DFlash2/GPTQ stack."
+  },
+  "recommendation": {
+    "ranking": [
+      {
+        "rank": 1,
+        "name": "Native one-layer Qwen4Exp MTP for immediate Strata QAT",
+        "why": "It is already implemented, uses the target tokenizer/LM head and per-stream Qwen hidden contract, and the B550 Q2_0 runtime accepted 69-71 of 71-72 offered drafts on the short coding probe. It is the only head that can be distilled and live-gated without a new backend.",
+        "position": "Train this first as the production QAT lane."
+      },
+      {
+        "rank": 2,
+        "name": "DSpark-style DFlash2 for the next high-upside head",
+        "why": "DSpark directly addresses DFlash suffix decay with a rank-256 Markov head and adds calibrated confidence scheduling. In matched open experiments it beat DFlash accepted length by 16-18 percent and EAGLE-3 by 27-31 percent.",
+        "position": "Extend the promoted DFlash2 G3 full head with DSpark Markov and confidence heads; do not spend the next campaign on selector-only distillation."
+      },
+      {
+        "rank": 3,
+        "name": "Official DeepSeek V4.1 DSpark",
+        "why": "It is the exact native head for that checkpoint and has the strongest production-system evidence, but it is not weight-compatible with Qwen Flash Next and requires a new Strata proposal loop and FP8/MXFP4 backend.",
+        "position": "Use its architecture/training recipe for DeepSeek work; port the design, not tensors, to Qwen."
+      }
+    ],
+    "not_recommended": [
+      "Medusa-style independent heads: superseded by DSpark/DFlash/EAGLE-3 evidence.",
+      "Deeper native Qwen MTP chains before QAT: available community evidence favors depth 1-2 for this architecture.",
+      "Pure selector-only DFlash2 distillation: already failed live acceptance despite exact parity.",
+      "Token trees as a rewrite: keep chain verification default and cost-gate any width extension because MoE verification amplifies routed-expert work."
+    ]
+  },
+  "qat_logit_distillation_plan": {
+    "phase_0": "Prove exact native-forward, cache rollback, tokenizer, hidden-state extraction, and target parity for the chosen head. A Flash-Next target adapter is still missing for DFlash2.",
+    "phase_1": "Capture anchor-bounded blocks from the exact calibrated production teacher. Store target pre-LM-head hidden states plus enough logits or top-k mass to reproduce the loss exactly; do not silently treat top-k CE as full-vocabulary TV.",
+    "phase_2_objectives": {
+      "native_qwen": "Use acceptance-directed EAL/LK losses first, with ordinary KL and DSpark-style 0.1 CE + 0.9 TV controls. Greedy serving favors EAL; sampled serving requires WTV/temperature-scaled overlap.",
+      "dspark_dflash2": "Use the DeepSpec DSpark recipe: position decay gamma 4, CE weight 0.1, TV/L1 weight 0.9, confidence BCE weight 1.0; train Markov and confidence heads with the frozen target. Compare against LK/EAL before selecting one.",
+      "on_policy": "Add Draft-OPD-style replay from verification-exposed error states only after the supervised objective; offline prefix accuracy remains a proxy."
+    },
+    "phase_3_quantization": {
+      "first": "Select a BF16 candidate by live acceptance, then apply PTQ/Q2_0-style deployment quantization and repeat every gate. The current MXFP4 path is GPTQ/PTQ, not QAT.",
+      "true_qat": "Implement fake-quant plus straight-through training only if PTQ loses exact parity or paired live acceptance. Floor target-hidden fusion, norms, and input projections at high precision; aggressive 2-bit quantization belongs first to drafter experts.",
+      "boundary": "Keep the trunk block feeding the drafter high enough precision that hidden-state argmax drift does not destroy acceptance."
+    },
+    "promotion_gate": [
+      "exact target-controlled parity",
+      "paired smoke acceptance",
+      "session-grouped held-out prompts",
+      "full paired corpus against pinned incumbent",
+      "same-day throughput and occupancy receipt"
+    ],
+    "non_acceptance": [
+      "training loss",
+      "offline replay accuracy",
+      "compression ratio",
+      "memory reduction alone",
+      "throughput alone"
+    ]
+  },
+  "sources": {
+    "papers": [
+      "https://arxiv.org/abs/2607.05147",
+      "https://arxiv.org/html/2609.19969v1",
+      "https://arxiv.org/abs/2602.23881",
+      "https://arxiv.org/abs/2609.24150"
+    ],
+    "code_and_models": [
+      "https://github.com/deepseek-ai/DeepSpec",
+      "https://huggingface.co/collections/deepseek-ai/deepspec",
+      "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash"
+    ],
+    "local": [
+      "evidence/qwen-b550-iq2xs-bringup-and-mtp-baseline.json",
+      "evidence/deepseek-v41-first-host-contracts.json",
+      "evidence/deepseek-v41-flash-portability-audit.json",
+      "/Users/kearm/mlx/evidence/2026-10-18-dflash2-target-distillation-architecture.md",
+      "/Users/kearm/mlx/evidence/2026-10-17-dflash2-selector-distillation-rejection.md",
+      "/Users/kearm/mlx/evidence/2026-10-19-dflash2-generation3-combined-promotion.md"
+    ]
+  },
+  "checks": [
+    {
+      "name": "worker-architecture-audit",
+      "exit": 0,
+      "result": "Exact 2,401-tensor family and DSpark module roles audited from pinned metadata and local implementation."
+    },
+    {
+      "name": "worker-landscape-research",
+      "exit": 0,
+      "result": "Primary and community evidence surveyed; decisive DSpark, native MTP, EAGLE, tree, and loss claims cross-checked by parent."
+    },
+    {
+      "name": "worker-qat-seams",
+      "exit": 0,
+      "result": "Local capture/gate harness audited; MXFP4 GPTQ boundary identified as PTQ, not QAT."
+    },
+    {
+      "name": "parent-primary-source-review",
+      "exit": 0,
+      "result": "DSpark paper, V4.1 paper, DeepSpec config/trainer, pinned checkpoint headers, LK losses, and EAL/WTV paper reviewed directly."
+    }
+  ],
+  "non_claims": [
+    "No QAT training run, artifact, backend integration, or new B550 performance measurement is claimed.",
+    "DSpark production percentages are DeepSeek-reported serving results, not Strata or B550 measurements.",
+    "The Qwen short-coding acceptance rate is not a domain-wide or long-context acceptance claim.",
+    "Public DSpark Qwen3 checkpoints are not Flash-Next-compatible weights because architecture, target feature seams, and vocabulary differ.",
+    "No accepted candidate or publication is produced by this research receipt."
+  ]
+}

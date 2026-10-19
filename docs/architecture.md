@@ -95,6 +95,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | iMatrix low-bit routed experts | The cross-host IQ2_XS difference is isolated to the derived-weight square-root expression before codebook selection; `STRATA_DETERMINISTIC_IQ=1` applies the validated double-precision expression to downloaded llama.cpp source while the default pinned path stays unchanged; an exact-token path now consumes the RESMP-DEV standard `[256,2048]` Qwen view | A full standard-calibrated patched rerun, perplexity/output quality, and same-day throughput/memory controls remain required before replacing a normal quantization choice |
 | DeepSeek V4.1 backend order | CUDA/CPU extraction on B550 is the initial implementation path; Lucebox HIP is reference-only | A HIP-first path is justified only if an AMD target becomes primary or an unmodified Lucebox oracle is required; either way, named AMD hardware and parity evidence are mandatory |
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
+| Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -845,3 +846,39 @@ All task-owned model services were stopped; the unrelated embedding replicas
 remain resident and untouched. Full commands, hashes, occupancy, timings, and
 non-claims are in
 [Qwen B550 baseline](../evidence/qwen-b550-iq2xs-bringup-and-mtp-baseline.json).
+
+### Speculative-head and QAT direction, 2026-10-19
+
+Research across the pinned DeepSeek-V4.1-Flash checkpoint, the DSpark and
+DeepSpec releases, current acceptance-loss papers, and the local DFlash2
+campaign separates the immediate production lane from the next research
+architecture. DeepSeek-V4.1-Flash does not use a DeepSeek-V3-style joint MTP
+module. Its 2,401 `mtp.*` tensors are a 7.388-GiB DSpark stack: three
+DeepSeek-V4 blocks, target layers 37-39, a five-token block, 128 routed
+experts with three active, a rank-256 Markov head, and a scalar confidence
+head. DSpark reports 16-18% longer accepted blocks than DFlash and 27-31%
+longer than EAGLE-3 in matched open experiments, and 60-85% faster per-user
+generation than MTP-1 in DeepSeek's production serving system.
+
+For Strata, the native one-layer Qwen4Exp MTP remains the first practical QAT
+target because it is already executable, shares the target tokenizer and LM
+head, and produced 69-71 accepted drafts from 71-72 offered on the short B550
+coding probe. The higher-upside research lane is not more selector-only
+distillation: it is a DSpark-style rank-256 Markov head and calibrated
+confidence head over the promoted DFlash2 generation-3 full head. Public
+DSpark Qwen3 checkpoints are references, not Flash-Next-compatible weights;
+their target feature seam and vocabulary differ.
+
+The first training pass should freeze the calibrated target, capture
+anchor-bounded pre-LM-head hidden states and exact loss mass, and compare
+acceptance-directed EAL/LK objectives against KL and DSpark's weighted
+0.1 CE plus 0.9 TV objective. A DSpark-style student also trains its
+confidence head with weight 1.0 and position decay gamma 4. Deployment
+quantization follows a BF16 candidate that already wins live acceptance. The
+existing MXFP4 GPTQ path is post-training quantization, not QAT; true
+fake-quant/straight-through QAT is justified only if the quantized BF16
+candidate loses exact parity or paired acceptance. Promotion always requires
+exact target-controlled parity, paired held-out and corpus acceptance, and a
+same-day throughput/occupancy receipt. Full sources, local DFlash2 limits,
+and non-claims are in
+[speculative-head research](../evidence/qwen-dspark-mtp-qat-target-research.json).
