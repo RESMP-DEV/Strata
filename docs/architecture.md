@@ -1221,7 +1221,14 @@ throughput. The two-GPU full-residency config (24,576/24,576 experts, 3,491 MiB
 free) measured aggregate decode 149.6 tok/s at C=1, 126.3 at C=2, and 158.1 at
 C=4; per-request median fell 199.8 to 49.7 tok/s across that range, likely because each
 verify window carries one token of every active slot (a hypothesis consistent with
-`docs/BATCHING.md`; no profile isolated the cause). A single-GPU
+`docs/BATCHING.md`; no profile isolated the cause). Those are two different
+denominators and must not be read as one number: the aggregate figure is total
+completion tokens divided by total request wall time across the whole round set
+(so it includes prompt time for every request, not decode only, despite the
+driver reporting it as a decode rate), while the per-request figure is the median
+of each request's own engine-reported decode rate. The 227.4 tok/s figure quoted
+elsewhere for B550 is a different experiment: the full-VRAM clean MTP control
+from the previous entry, a two-GPU run with no batch slots. A single-GPU
 `--batch-mtp` config (13,236 experts resident, rest streaming) measured 111.4 /
 99.0 / 106.0 tok/s aggregate at C=1/2/4. So several concurrent agent requests can
 be served without any one waiting for a whole answer, but total tokens/sec stays

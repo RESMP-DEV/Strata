@@ -181,7 +181,14 @@
         }
       }
     },
-    "per_round_samples_note": "One C4 config-B request stopped early at 97 completion tokens (finish_reason stop); its 102.0 tok/s is the solo-path promotion of the last remaining slot, not a batch-slot rate. Aggregate tok/s divides total completion tokens by total wall, so early stop is accounted for."
+    "per_round_samples_note": "One C4 config-B request stopped early at 97 completion tokens (finish_reason stop); its 102.0 tok/s is the solo-path promotion of the last remaining slot, not a batch-slot rate. Aggregate tok/s divides total completion tokens by total wall, so early stop is accounted for.",
+    "metric_definitions": {
+      "aggregate_tok_s": "sum of completion tokens over all requests in the round set divided by the total wall time of the round set (so it spans prompt time as well as decode; the driver labels it a decode rate because it sums tokens per second)",
+      "per_request_decode_tok_s_median": "median across requests of each request's own engine-reported .timings.predicted_per_second (decode only)",
+      "distinction": "the two are not interchangeable and are not compared to each other",
+      "separate_experiment": "the 227.4 tok/s full-VRAM clean MTP control cited elsewhere is a different run (two GPUs, no batch slots) and is not part of this concurrency comparison",
+      "per_request_decode_falls_because": "stated as a hypothesis; no profile or ablation isolated the cause"
+    }
   },
   "embedding_findings": {
     "two_distinct_embedders": {
