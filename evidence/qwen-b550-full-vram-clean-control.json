@@ -1,9 +1,10 @@
 {
   "recorded_at": "2026-10-19T21:46:45Z",
+  "updated_at": "2026-10-19T22:04:26Z",
   "agent": "Codex",
   "source_revision": "5e2dc5a271e647a9350a87c8480d55ff7e27c1b7",
   "source_dirty": false,
-  "authorization": "The user authorized stopping the B550 embedding services if needed for Strata work and said Strix downtime or temporary movement was acceptable.",
+  "authorization": "The user authorized the temporary B550 embedding stop needed for Strata work and accepted Strix downtime or temporary movement. The standing intent was to restore the shared services once the task-owned run finished.",
   "scope": "Clear B550's two resident embedding replicas, run the pinned Qwen IQ2_XS/Q2_0 two-GPU MTP workload without GPU contention, probe Strix as the temporary fallback, stop the task-owned Strata server, and leave both B550 GPUs idle.",
   "b550_service_change": {
     "units_stopped": ["sindexer-embed-gpu@0.service", "sindexer-embed-gpu@1.service"],
@@ -11,7 +12,7 @@
     "exit": 0,
     "result": "both units inactive/dead, ports 1236 and 1237 closed, and both old PIDs gone",
     "cpu_embedding_service": "llama-embedding.service remained running and untouched",
-    "restart_boundary": "The GPU replicas were intentionally left stopped; restart only with the coordinating owner's next instruction."
+    "restart_boundary": "At control cleanup the GPU replicas were intentionally left stopped. That task-local boundary was superseded by the restoration recorded in post_run_restoration after sindexer exposed the live route dependency."
   },
   "clean_control": {
     "remote_checkout": "/home/kearm/strata-main",
@@ -59,9 +60,20 @@
   },
   "cleanup": {
     "task_owned_server": "stopped by exact PID after Ctrl-C did not propagate through detached SSH",
-    "final_b550_gpu_memory_mib": [1, 33],
-    "final_compute_apps": "none",
-    "embedding_units": "both intentionally inactive"
+    "final_b550_gpu_memory_mib_at_control_cleanup": [1, 33],
+    "final_compute_apps_at_control_cleanup": "none",
+    "embedding_units_at_control_cleanup": "both intentionally inactive"
+  },
+  "post_run_restoration": {
+    "recorded_at": "2026-10-19T22:04:26Z",
+    "authorization": "Restored under the user's temporary-stop authorization: restarting the replicas was the reversible remediation that returned the shared B550 lane and sindexer route to the pre-task state after the task-owned Strata run stopped.",
+    "trigger": "The first post-merge sindexer update routed embeddings through B550 nginx and received 502 responses while both GPU replicas were stopped.",
+    "command": "sudo -n systemctl start sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",
+    "exit": 0,
+    "result": "both units active; ports 1236 and 1237 returned the expected Jina model; the Mac tunnel on local port 1236 also returned it",
+    "gpu_after_restore": {"gpu0_used_mib": 2210, "gpu1_used_mib": 2170, "utilization_percent": [0, 0]},
+    "sindexer_update": "A retry logged three initial 502 attempts, then completed successfully with 337 chunks created and 4 files indexed; warnings were empty in the final result.",
+    "non_claim": "The transient 502 cause was not diagnosed beyond confirming that restoring the configured replicas made the route and index update succeed."
   },
   "raw_evidence": {
     "local_ignored_root": "build/reports/b550-clean-control-mtp",
@@ -77,7 +89,7 @@
     ]
   },
   "verification": [
-    {"command": "systemctl is-active sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service", "exit": 1, "result": "inactive inactive, as intended"},
+    {"command": "systemctl is-active sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service", "recorded_at": "2026-10-19T21:46:45Z", "exit": 1, "result": "inactive inactive at control cleanup; restored later in post_run_restoration"},
     {"command": "curl http://127.0.0.1:18095/v1/chat/completions", "exit": 0, "result": "six HTTP 200 responses including the discarded warm-up"},
     {"command": "nvidia-smi query-compute-apps after cleanup", "exit": 0, "result": "no compute applications"}
   ],
