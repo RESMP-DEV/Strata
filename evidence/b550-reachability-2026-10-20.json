@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-10-20T08:05:00Z",
+  "recorded_at": "2026-10-20T08:55:00Z",
   "agent": "Codex",
-  "source_revision": "c3e1d986",
+  "source_revision": "5224f87299f9e1db4139b3ba45ccd40b5bc12d8e",
   "source_dirty": false,
   "scope": "Records the B550 reachability investigation after the user's reboot, and the state of the fleet's network paths from the main machine. It records observed network facts only. It does not diagnose the host's own software, and it makes no claim about what is running on the B550.",
   "observations": [
@@ -27,6 +27,16 @@
     {
       "fact": "the launchd access agents cannot reach the host either",
       "evidence": "dev.resmp.b550-access-master and dev.resmp.sindexer-b550-embed-tunnel both report last exit code 255 with repeated 'Connection timed out during banner exchange' in /tmp/b550-access-master.err"
+    },
+    {
+      "fact": "the B550's ZeroTier node appeared, then vanished, then appeared again as a RELAY peer, and never carried traffic",
+      "evidence": "between 2026-10-20T00:41 and 2026-10-20T01:20 zerotier-cli peers showed '11695746d7 1.16.2 LEAF -1 RELAY' three times, and every nc to 10.243.130.224:22 timed out at each of those moments, including a 20-minute run of 120 pings that forced a path discovery attempt",
+      "consequence": "the node registers with the controller and then stops answering, which is a fault on the host, not a routing problem on the main machine"
+    },
+    {
+      "fact": "the persistent watcher is running with both lanes and has not yet captured a login",
+      "evidence": "tools/b550_watch.sh polls the ZeroTier and the LAN lane every 20 seconds for up to eight hours; /tmp/b550-watch.log records only its start lines, so no lane has answered",
+      "consequence": "the previous boot's kernel journal, the Optane mount, the SMART state, and the GPU state are still uncaptured"
     }
   ],
   "actions_taken": [
@@ -39,6 +49,7 @@
     "The cause of the B550's or the Strix's ZeroTier service not staying up is not diagnosed. It was never reachable long enough to read its own journal.",
     "No claim is made about the B550's uptime, its GPUs, its Optane mount, or its SMART state since the reboot: none of it was observed.",
     "The 'what might have happened' question about the previous session's IO errors is not answered. That evidence lives in the previous boot's kernel journal on the host, which the watcher will capture once the host answers.",
-    "No engine build, model run, or performance measurement ran on the B550, because the host was unreachable for the whole session."
+    "No engine build, model run, or performance measurement ran on the B550, because the host was unreachable for the whole session.",
+    "The B550's ZeroTier service is the suspected cause of the flapping, and that suspicion is NOT a diagnosis: the host was never reachable long enough to read its own journal, and the watcher is what will capture it."
   ]
 }
