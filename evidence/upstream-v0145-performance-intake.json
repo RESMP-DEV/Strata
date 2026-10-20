@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-20T06:26:58Z",
+  "recorded_at": "2026-10-20T06:32:52Z",
   "agent": "Codex",
   "source_revision": "042704af0ffbab779bd19fd1a5a144a1ebde281f",
   "source_dirty": true,
@@ -86,6 +86,21 @@
       "command": "cmake -S . -B build/upstream-intake-host -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTRATA_BUILD_TESTS=ON -DSTRATA_ENABLE_CUDA=OFF -DSTRATA_ENABLE_HIP=OFF -DSTRATA_ENABLE_SYCL=OFF && cmake --build build/upstream-intake-host --target batch_telemetry_test -j 4 && ctest --test-dir build/upstream-intake-host -R '^batch_telemetry_test$' --output-on-failure",
       "exit": 0,
       "result": "host configure completed with fetched llama.cpp 3cf03257f; target built and CTest passed 1/1"
+    },
+    {
+      "command": "git diff --name-status 6cb9acb5..v0.1.45 -- src include CMakeLists.txt; git diff --name-status e4359542..v0.1.45 -- tests bench/micro; git diff --name-status e8a1be9a..v0.1.45 -- serve",
+      "exit": 0,
+      "result": "runtime and fixtures differ only by owned plugin/DeepSeek/CMake additions; the imported serve tree is byte-identical to v0.1.45"
+    },
+    {
+      "command": "git bundle create /tmp/strata-pr10-v0145.bundle feature/kv-disaggregation-v0145 && git bundle verify /tmp/strata-pr10-v0145.bundle",
+      "exit": 0,
+      "result": "complete-history bundle for head 8f76974d verified; 24 MiB, ready for B550 once a route returns"
+    },
+    {
+      "command": "cmake --build build/upstream-intake-host --target strata -j 8",
+      "exit": 1,
+      "result": "Ninja reports no strata target when CUDA/HIP are disabled on macOS; the sampler target and full configure remain the available host checks"
     },
     {
       "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 B550 '...'",
