@@ -144,7 +144,21 @@
       "An earlier contaminated pass had suggested reversed order and explicit split 30 were 3-4x slower; that was the foreign Ming ASR job, not the configurations."
     ]
   },
-  "commands": [
+  "final_host_state": {
+    "b550_embedding_units": "both active; :1238 balancer serving; 1410/1442 MiB resident on the two cards",
+    "b550_strata": "no task-owned Strata server or engine left running",
+    "foreign_job": "the Ming ASR teacher job completed on its own (500/500 both arms) and was never stopped by this task"
+  },
+  "non_claims": [
+    "Five measured requests per arm on one short coding prompt; not a broad or long-context matrix, and the arms are not interleaved (each arm is a separate engine start).",
+    "The decode gain is measured, but the mechanism (link asymmetry versus cache sizing versus draft window) is a hypothesis: no arm isolated those factors.",
+    "No long-context, batch, multi-client, or quality comparison was run for the split-30 configuration.",
+    "The split-30 configuration was measured on this model and this engine revision; it is not established for other models or cards.",
+    "No change was made to any deployed configuration: the finding is a recommendation with evidence, not an applied default.",
+    "The contamination incident and the foreign job are recorded because they changed what could be measured; the foreign job's own results are not evaluated here."
+  ],
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset.",
+  "checks": [
     {
       "step": "stop embeddings for the window",
       "command": "sudo -n systemctl stop sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",
@@ -167,19 +181,5 @@
       "exit": 0,
       "result": "both active, 1536-dim embedding returned"
     }
-  ],
-  "final_host_state": {
-    "b550_embedding_units": "both active; :1238 balancer serving; 1410/1442 MiB resident on the two cards",
-    "b550_strata": "no task-owned Strata server or engine left running",
-    "foreign_job": "the Ming ASR teacher job completed on its own (500/500 both arms) and was never stopped by this task"
-  },
-  "non_claims": [
-    "Five measured requests per arm on one short coding prompt; not a broad or long-context matrix, and the arms are not interleaved (each arm is a separate engine start).",
-    "The decode gain is measured, but the mechanism (link asymmetry versus cache sizing versus draft window) is a hypothesis: no arm isolated those factors.",
-    "No long-context, batch, multi-client, or quality comparison was run for the split-30 configuration.",
-    "The split-30 configuration was measured on this model and this engine revision; it is not established for other models or cards.",
-    "No change was made to any deployed configuration: the finding is a recommendation with evidence, not an applied default.",
-    "The contamination incident and the foreign job are recorded because they changed what could be measured; the foreign job's own results are not evaluated here."
-  ],
-  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset."
+  ]
 }

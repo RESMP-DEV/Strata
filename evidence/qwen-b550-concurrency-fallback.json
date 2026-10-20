@@ -248,7 +248,7 @@
     "The invalid HF token was worked around, not fixed; a valid token still needs the user's hf auth login.",
     "No distilled candidate, model, or quality claim is made; this is serving-topology and embedding-tier evidence only."
   ],
-  "commands": [
+  "checks": [
     {
       "step": "stop embeddings (each benchmark window)",
       "command": "sudo -n systemctl stop sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",

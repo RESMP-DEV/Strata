@@ -46,7 +46,22 @@
     "tier_role": "Strix fits the interactive/low-volume slot (lowest GPU-path latency) and can host the exact 1536-dim MXFP4 model, which the CPU embedder cannot. B550's 3090 Ti remains the bulk-throughput tier.",
     "path_asymmetry_note": "The 2.25x single-request latency ratio compares the B550 balancer path (:1238) with the direct Strix path (:1236), so it is not a GPU-only comparison."
   },
-  "commands": [
+  "non_claims": [
+    "Strix was NOT put into the sindexer routing path; the embedder on Strix runs standalone on :1236 and no nginx balancer or LaunchAgent tunnel was created.",
+    "The NPU path is untested; the MXFP4 embedder is a CUDA/Triton implementation as shipped.",
+    "Two input rows on one host pair are not a parity suite; the 0.9999 cosine is a spot check, not a bit-exact acceptance gate.",
+    "Strix throughput numbers are from one batch of 32 and five single reps on an otherwise idle host; no sustained-load or thermal behavior was measured.",
+    "The invalid HF token on Strix is worked around, not fixed.",
+    "No B550 embedding service was stopped or modified for the Strix work; both B550 units remained active throughout.",
+    "The B550 GPU and CPU tier values are reused from evidence/qwen-b550-concurrency-fallback.json, not re-measured in this session.",
+    "The B550 GPU latency was measured through the nginx :1238 balancer and the Strix latency direct on :1236; the 2.25x latency ratio includes that path difference and is not a GPU-only comparison."
+  ],
+  "final_host_state": {
+    "strix": "embedder running standalone on 127.0.0.1:1236, 1324 MiB VRAM, model and venv in place",
+    "b550": "both GPU embedding units active, serving the same 1536-dim model; no Strata server left running"
+  },
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset.",
+  "checks": [
     {
       "step": "kernel probe on SM120",
       "command": "python /tmp/mxfp4_sm120_probe.py (kernels 0.16.0, packed E2M1 + E8M0 scales, matmul_ogs)",
@@ -77,20 +92,5 @@
       "exit": 0,
       "result": "see three_tier_comparison"
     }
-  ],
-  "non_claims": [
-    "Strix was NOT put into the sindexer routing path; the embedder on Strix runs standalone on :1236 and no nginx balancer or LaunchAgent tunnel was created.",
-    "The NPU path is untested; the MXFP4 embedder is a CUDA/Triton implementation as shipped.",
-    "Two input rows on one host pair are not a parity suite; the 0.9999 cosine is a spot check, not a bit-exact acceptance gate.",
-    "Strix throughput numbers are from one batch of 32 and five single reps on an otherwise idle host; no sustained-load or thermal behavior was measured.",
-    "The invalid HF token on Strix is worked around, not fixed.",
-    "No B550 embedding service was stopped or modified for the Strix work; both B550 units remained active throughout.",
-    "The B550 GPU and CPU tier values are reused from evidence/qwen-b550-concurrency-fallback.json, not re-measured in this session.",
-    "The B550 GPU latency was measured through the nginx :1238 balancer and the Strix latency direct on :1236; the 2.25x latency ratio includes that path difference and is not a GPU-only comparison."
-  ],
-  "final_host_state": {
-    "strix": "embedder running standalone on 127.0.0.1:1236, 1324 MiB VRAM, model and venv in place",
-    "b550": "both GPU embedding units active, serving the same 1536-dim model; no Strata server left running"
-  },
-  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset."
+  ]
 }
