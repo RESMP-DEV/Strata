@@ -1,0 +1,130 @@
+{
+  "recorded_at": "2026-10-20T07:01:31Z",
+  "agent": "Codex",
+  "source_revision": "042704af0ffbab779bd19fd1a5a144a1ebde281f",
+  "source_dirty": true,
+  "scope": "Read-only upstream audit and integration planning for the disaggregated KV lane. The receipt records the imported runtime boundary, candidate ordering, host-safe gate, and the live B550 reachability blocker. It does not apply or measure a post-v0.1.45 candidate.",
+  "upstream": {
+    "merge_base": "fb58e0dbc8399662c0e47c76578c6e878b14f6cf",
+    "stable_tag_v0_1_45": "477ac13cbe8e582c20484871ce459d20d82df09d",
+    "sm86_stack": "2725c23f746e21bbbe08c55173bc72b1c39f2ec5",
+    "audited_tip": "e88ee39d1d6be6e3364183af3b39b62a7ed6f211",
+    "tip_observation": "October 19 has no src/include engine commits; the visible tip is 0.2.0 app, protocol, packaging, monitor, and release wiring."
+  },
+  "owned_branch": {
+    "imported_base": "e8a1be9add1e0e95f6983efb72d2b373d04e46e4",
+    "architecture_cherry_pick": "253a28da6ade3ce7e768b541094bb9660430fcba",
+    "new_branch": "feature/kv-disaggregation-v0145",
+    "engine_tree_proof": "Before telemetry import, git diff --name-status 2725c23f..HEAD -- src include CMakeLists.txt reported only the owned accelerator-plugin and DeepSeek geometry/test/build additions.",
+    "imported_measurement_patch": "79d8ea066a6f93bfd9e4a8eaf4c7c2d15daa3287"
+  },
+  "candidate_order": [
+    {
+      "name": "batch-stage-telemetry",
+      "commits": [
+        "79d8ea066a6f"
+      ],
+      "decision": "imported as an opt-in measurement dependency"
+    },
+    {
+      "name": "host-aware-prefill-planner",
+      "commits": [
+        "e77f1dfc3fa1",
+        "d8471050bde2",
+        "8253477bf9be"
+      ]
+    },
+    {
+      "name": "cpu-pool-planner",
+      "commits": [
+        "5ece068f7e45",
+        "036c8f6ec3b5",
+        "bec4c838ab18"
+      ],
+      "condition": "B550 worker sweep must show a benefit"
+    },
+    {
+      "name": "expert-io-mechanics",
+      "commits": [
+        "c85cc6dd19d2",
+        "2044864dba32",
+        "8b1139d026c9"
+      ],
+      "condition": "all defaults remain off"
+    },
+    {
+      "name": "linux-expert-defaults",
+      "commits": [
+        "82c80ac4d76a",
+        "c3136797"
+      ],
+      "decision": "rejected for now; only cgroup clean-page accounting is a possible extraction"
+    }
+  ],
+  "checks": [
+    {
+      "command": "git fetch upstream --prune --tags",
+      "exit": 0,
+      "result": "upstream/main remained e88ee39d; no newer engine-core commits arrived"
+    },
+    {
+      "command": "git diff --stat 2725c23f..HEAD -- src include CMakeLists.txt",
+      "exit": 0,
+      "result": "only nine owned plugin/DeepSeek paths differ; the imported engine source equals the upstream SM86 stack"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed=true at e8a1be9a before this documentation change; receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "c++ -std=c++17 -Iinclude src/core/batch_telemetry_test.cpp -o build/upstream-intake/batch_telemetry_test && ./build/upstream-intake/batch_telemetry_test",
+      "exit": 0,
+      "result": "batch telemetry sampler: OK after resolving the cherry-pick against the SM86 concurrent-read context"
+    },
+    {
+      "command": "cmake -S . -B build/upstream-intake-host -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTRATA_BUILD_TESTS=ON -DSTRATA_ENABLE_CUDA=OFF -DSTRATA_ENABLE_HIP=OFF -DSTRATA_ENABLE_SYCL=OFF && cmake --build build/upstream-intake-host --target batch_telemetry_test -j 4 && ctest --test-dir build/upstream-intake-host -R '^batch_telemetry_test$' --output-on-failure",
+      "exit": 0,
+      "result": "host configure completed with fetched llama.cpp 3cf03257f; target built and CTest passed 1/1"
+    },
+    {
+      "command": "git diff --name-status 6cb9acb5..v0.1.45 -- src include CMakeLists.txt; git diff --name-status e4359542..v0.1.45 -- tests bench/micro; git diff --name-status e8a1be9a..v0.1.45 -- serve",
+      "exit": 0,
+      "result": "runtime and fixtures differ only by owned plugin/DeepSeek/CMake additions; the imported serve tree is byte-identical to v0.1.45"
+    },
+    {
+      "command": "git bundle create /tmp/strata-pr10-v0145.bundle feature/kv-disaggregation-v0145 && git bundle verify /tmp/strata-pr10-v0145.bundle",
+      "exit": 0,
+      "result": "complete-history bundle for the then-current head 45e19220 verified; 24 MiB, ready for B550 once a route returns"
+    },
+    {
+      "command": "cmake --build build/upstream-intake-host --target strata -j 8",
+      "exit": 1,
+      "result": "Ninja reports no strata target when CUDA/HIP are disabled on macOS; the sampler target and full configure remain the available host checks"
+    },
+    {
+      "command": "gh pr view 10 --repo RESMP-DEV/Strata --json statusCheckRollup,comments",
+      "exit": 0,
+      "result": "CodeRabbit reports SUCCESS as a skip: the mechanical 312-file import exceeds its 100-file review limit"
+    },
+    {
+      "command": "ocr review --from e8a1be9add1e0e95f6983efb72d2b373d04e46e4 --to HEAD --effort high --concurrency 4 --timeout 20 --format json --output /tmp/strata-pr10-ocr.json",
+      "exit": 1,
+      "result": "terminated after 31 minutes with no final JSON; session state shows one evidence group completed with zero comments, the code group aborted, no LLM failure, and no substantive review"
+    },
+    {
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 B550 '...'",
+      "exit": 255,
+      "result": "Connection closed by UNKNOWN port 65535 before authentication",
+      "followup": "LAN 192.168.1.171 and ZeroTier 10.243.130.224 both timed out; one known wake packet was sent and SSH did not return in 120 seconds"
+    }
+  ],
+  "non_claims": [
+    "No performance-changing upstream candidate after the SM86 stack has been cherry-picked onto the owned branch; only default-disabled batch telemetry was imported.",
+    "No CUDA backend build, model run, performance A/B, or SM86 identity gate has run on B550.",
+    "Upstream throughput numbers in commit messages are provenance only and were not reproduced.",
+    "The latest serving changes were classified by source audit; none was promoted to a performance claim.",
+    "B550 hardware state, GPU occupancy, Optane mount, and SMART state remain unverified because both network routes were unreachable.",
+    "CodeRabbit's skip and OpenCodeReview's hung/aborted focused pass are reviewer unavailability, not approvals or completed substantive review."
+  ]
+}
