@@ -44,8 +44,16 @@ CONTROLLED_ENGINE_FLAGS = {
     "--slots",
     "--layer-split",
     "--peer-device",
+    "--short-read",
 }
 REQUIRED_SERVE_FLAGS = ("--spec", "--prefill")
+# The KV tier's hooks live on the verify-window path.  A prompt longer than
+# --short-read tokens is read through the batched prefill path instead, which
+# neither writes the teacher-forced log-probabilities the control compares nor
+# runs the tier's serving hooks.  The harness therefore owns the flag and
+# requires it, so a control can never measure a path that does not exercise
+# the tier.
+REQUIRED_SHORT_READ = 512
 
 
 @dataclass
@@ -764,6 +772,9 @@ def _validate_engine_args(args: list[str], kv_resident: int) -> None:
     for required in REQUIRED_SERVE_FLAGS:
         if required not in args:
             raise ValueError(f"serve mode needs {required} in --engine-arg")
+    # --short-read is the harness's own flag: the serve command appends the
+    # value that keeps the prompt on the verify-window path, so a control can
+    # never measure the batched prefill path, where the tier's hooks do not run.
 
 
 def _require_writable_tier_parent(harness: Harness, mount: dict[str, Any], tier_dir: str) -> None:
@@ -798,7 +809,9 @@ def _serve_command(
         command.append(f"STRATA_SM86_PERF={sm86_perf}")
     command.append(engine)
     command.extend(engine_args)
-    command.extend(["--serve", "--max-context", str(max_context)])
+    command.extend(
+        ["--serve", "--max-context", str(max_context), "--short-read", str(REQUIRED_SHORT_READ)]
+    )
     if cold_tier is not None:
         command.extend(["--kv-tier", cold_tier, "--kv-tier-l1", str(l1_groups)])
     return command

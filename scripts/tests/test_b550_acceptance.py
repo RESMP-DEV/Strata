@@ -188,8 +188,28 @@ class RemoteSafetyTest(unittest.TestCase):
             acceptance._validate_engine_args(
                 ["--kv-resident", "32768", "--serve", "--spec", "2"], 32768
             )
+        with self.assertRaises(ValueError):
+            acceptance._validate_engine_args(
+                ["--kv-resident", "32768", "--short-read", "1024", "--spec", "2"], 32768
+            )
         acceptance._validate_engine_args(
-            ["--pack", "/p", "--spec", "2", "--prefill", "auto", "--kv-resident", "32768"], 32768
+            ["--pack", "/p", "--spec", "2", "--prefill", "auto", "--kv-resident", "32768"],
+            32768,
+        )
+
+    def test_serve_command_takes_the_verify_window_path(self) -> None:
+        command = acceptance._serve_command(
+            engine="/engine",
+            engine_args=["--pack", "/p", "--spec", "2", "--prefill", "auto"],
+            max_context=8192,
+            logpos_path="/tmp/logpos",
+            cold_tier=None,
+            l1_groups=0,
+            sm86_perf=None,
+        )
+        self.assertIn("--short-read", command)
+        self.assertEqual(
+            command[command.index("--short-read") + 1], str(acceptance.REQUIRED_SHORT_READ)
         )
 
     def test_failed_step_is_recorded_and_aggregated(self) -> None:
