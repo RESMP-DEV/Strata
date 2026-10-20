@@ -1,0 +1,67 @@
+{
+  "recorded_at": "2026-10-20T01:17:38Z",
+  "agent": "Codex",
+  "source_revision": "40c2962d161fd4a65cbbc331ab7f47ff82d0a4df",
+  "source_dirty": false,
+  "authorization": "The user asked whether C=2 is genuinely slower overall and whether B550's topology can reduce the penalty; prior standing authorization covers bounded stops of the embedding replicas for Strata measurements.",
+  "scope": "Measure focused C=2 topology alternatives for the pinned Qwen IQ2_XS/Q2_0 MTP serving path, including batch-group choices, split placement, independent per-GPU servers, a shared CPU expert arena, and serial queueing on the two-GPU solo path.",
+  "question_answer": {
+    "is_c2_slower_overall": "Yes for the built-in batch path. The topology-aware default (auto K=24, --batch-groups auto) fell from 142.66 aggregate tok/s at C=1 to 127.02 at C=2, a 10.95 percent aggregate loss. Per-request decode median fell from 176.6 to 75.65 tok/s.",
+    "best_builtin_c2": "Auto K=24 with --batch-groups auto. One shared group, split-30 grouping, and per-GPU process sharding were all slower.",
+    "better_topology_aware_fallback": "For exactly two short requests, do not use batch slots: keep the split-30 two-GPU solo/MTP path and queue the requests serially. An exact binary-search prompt pair completed ten requests at 222.53 aggregate tok/s with 252.6 tok/s median per-request decode. First-request wall was about 0.42-0.44 s and second-request wall about 0.83-0.88 s.",
+    "comparison_caveat": "The 222.53 figure uses the exact repeated binary-search prompt and 94-token completions. The varied-prompt driver measured split-30 solo/serial-class C=1 at 137.49 aggregate tok/s against 106.29 for split-30 C=2 batch slots. The direction is consistent under both workload styles, but 222.53 is not a same-prompt-family comparison to 127.02."
+  },
+  "measurements": {
+    "same_driver_varied_prompts": [
+      {"arm": "auto K24, groups auto", "c1_aggregate_tok_s": 142.66, "c1_per_request_median": 176.6, "c2_aggregate_tok_s": 127.02, "c2_per_request_median": 75.65, "c2_tokens": 1280},
+      {"arm": "auto K24, one group", "c1_aggregate_tok_s": 142.33, "c1_per_request_median": 176.2, "c2_aggregate_tok_s": 102.17, "c2_per_request_median": 61.35, "c2_tokens": 1280},
+      {"arm": "split30, groups auto", "c1_aggregate_tok_s": 137.49, "c1_per_request_median": 176.1, "c2_aggregate_tok_s": 106.29, "c2_per_request_median": 64.05, "c2_tokens": 1172},
+      {"arm": "split30, one group", "c1_aggregate_tok_s": 137.17, "c1_per_request_median": 175.6, "c2_aggregate_tok_s": 92.27, "c2_per_request_median": 63.5, "c2_tokens": 1190}
+    ],
+    "exact_prompt_pair_alternatives": [
+      {"arm": "independent single-GPU servers, duplicated arenas", "aggregate_tok_s": 109.11, "per_request_decode_median": 69.6, "requests": 10, "completion_tokens": 1001, "resident_experts_per_gpu": "13745 and 13720", "memory": "about 71 GiB RAM used and 2.4 GiB swap"},
+      {"arm": "independent single-GPU servers, shared /dev/shm arena", "aggregate_tok_s": 104.79, "per_request_decode_median": 68.3, "requests": 10, "completion_tokens": 1001, "resident_experts_per_gpu": "13745 and 13720", "shared_arena": "33 GiB in /dev/shm, pack hash checked, cudaHostRegister PORTABLE ok in both processes"},
+      {"arm": "serial queue on two-GPU split-30 solo/MTP path", "aggregate_tok_s": 222.53, "per_request_decode_median": 252.6, "requests": 10, "completion_tokens": 940, "drafts_accepted": 679, "drafts_offered": 765}
+    ],
+    "serial_queue_walls_seconds": {
+      "first_request_range": [0.418679, 0.443255],
+      "second_request_range": [0.829917, 0.877974],
+      "note": "One pair swapped queue order; the observed walls still show one request near 0.42 s and the other near 0.83 s. Ten exact-prompt requests completed in 4.224 s total."
+    }
+  },
+  "interpretation": {
+    "builtin_batch_penalty": "The topology-aware two-group pipeline is already the best built-in C=2 mode. It cannot preserve the solo MTP path: batch-slot requests lose the solo draft behavior/reporting and each verify window carries one token per conversation, so per-request decode falls even though both cards remain busy.",
+    "why_process_sharding_does_not_help": "One full model per card leaves only about 13.7k of 24.6k experts resident per GPU and competes for CPU/RAM. Sharing the 32.23 GiB CPU arena removes duplication but does not improve throughput (104.79 versus 109.11 tok/s), so the bottleneck is not merely duplicate RAM.",
+    "recommendation": "Use split-30 two-GPU serial queueing for an agent fallback tier at concurrency <=2, especially short tool calls. Enable batch slots only when fairness across more than two longer concurrent conversations matters more than total latency. A future engine optimization would need topology-aware batch MTP across a layer split; current --batch-mtp is explicitly one-GPU-only."
+  },
+  "credentials_and_host_incident": {
+    "hf_token_refresh": "The valid Mac token was copied to B550 and Strix with mode 0600. hf auth whoami reports user Kearm on both. The B550 hf-anon-trust.conf drop-in was removed, daemon-reloaded, and both embedding units restarted successfully; :1238 returned a 1536-dim embedding. Strix's standalone embedder was also restarted without the anonymous workaround and returned a 1536-dim embedding.",
+    "network_incident": "During the shared-arena run, B550's Realtek enp7s0 link dropped for 52 seconds and returned; journalctl shows r8169 Link Down at 18:10:53 and Link Up at 18:11:45, with no OOM, GPU reset, or panic. The run had already completed, the restore trap removed the shared file, and both embedding units were active afterward. A later brief SSH disconnect also recovered without a new kernel Link Down line in the queried five-minute window.",
+    "non_cause_claim": "The shared-arena configuration was running when the first link flap occurred, but the kernel log attributes the outage to enp7s0 link state; this record does not claim the GPU or shared-memory experiment caused it."
+  },
+  "checks": [
+    {"name": "foreign-gpu-guard", "command": "nvidia-smi --query-compute-apps=pid --format=csv,noheader | wc -l", "exit": 0, "result": "zero foreign apps before each GPU window; abort on nonzero count"},
+    {"name": "c2-topology-arms", "command": "serve four --batch 2 configurations and run conc_driver.py at C=1 and C=2, five rounds each after warm-up", "exit": 0},
+    {"name": "process-shard-arms", "command": "serve one single-GPU model per card with duplicated arenas, then with --shared-expert-arena /dev/shm/strata-qwen-iq2xs-shared-arena", "exit": 0},
+    {"name": "serial-queue-arm", "command": "serve two-GPU split-30 without batch slots; submit two requests concurrently to one endpoint and let the server queue them", "exit": 0},
+    {"name": "restore-embeddings", "command": "restart sindexer-embed-gpu@0/@1 and query :1238 /v1/embeddings after each window", "exit": 0, "result": "active/active and 1536-dim response"},
+    {"name": "quality", "command": "just quality", "exit": 0, "result": "all required domains passed"}
+  ],
+  "raw_evidence": {
+    "local_ignored_root": "build/reports/b550-c2-topology",
+    "key_hashes": {
+      "auto_groups_auto_c2_json": "77adeda6fb2dee6abfcabd5f722b7282f9550ae0c179765349236a0059c8ed5d",
+      "request_shard_pair_json": "57baca99f89aa5cf3e787bf4c1a19f517b68c9554ee7e7b2d4d044526f35ff8b",
+      "shared_arena_pair_json": "0d0c6c67b9f69fa95f33ad4fb07a3e4c485f3fe15f047472127f70ce97e49f32",
+      "serial_queue_pair_json": "8d084bf89d77e09b6246f4407512a657fec8fdf882ec4df3b1328d76db411773"
+    }
+  },
+  "non_claims": [
+    "The exact-prompt serial result is not a same-workload substitute for the varied-prompt 127.02 tok/s batch number; both are reported and the comparison caveat is explicit.",
+    "Five rounds per arm and one exact-prompt paired control are short-prompt observations, not a broad agent workload matrix.",
+    "Queueing is recommended for concurrency <=2 and short requests; it is not shown superior for long generations, prompts much larger than 25 tokens, or more than two clients.",
+    "Batch-slot MTP behavior remains unconfirmed because batch timings do not populate draft counters; process-shard and serial controls did report active drafts.",
+    "No deployed Strata configuration or routing tier was changed.",
+    "The Realtek link flap is recorded as an operational hazard, not diagnosed or repaired."
+  ]
+}
