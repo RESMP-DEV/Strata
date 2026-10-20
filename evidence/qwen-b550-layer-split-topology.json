@@ -1,0 +1,185 @@
+{
+  "recorded_at": "2026-10-20T00:13:44Z",
+  "agent": "Codex",
+  "source_revision": "445c8f6488201a4d046ef90aeecb1adae860d204",
+  "source_dirty": false,
+  "authorization": "The user authorized killing the B550 embedding services for Strata work and asked to continue the Strata optimization for the B550.",
+  "scope": "Find whether B550's asymmetric PCIe topology can be exploited for more decode/prompt throughput on the pinned Qwen IQ2_XS/Q2_0 MTP workload, with a contamination guard on every arm.",
+  "host": "B550 alias 192.168.1.171, dual RTX 3090 Ti 24GB, kernel 7.0.0-38, custom open NVIDIA module 595.99.02 (build tag kearm@b550)",
+  "topology_facts": {
+    "gpu0": {
+      "bus": "00000000:04:00.0 (domain 0000, bus 04, device 0, function 0)",
+      "pcie_path": "AMD 500 Series Chipset (00:01.2) -> [04]",
+      "link": "Gen3 x4, 2.9 GB/s host->device probed",
+      "miss_cost_scale": "x6.96"
+    },
+    "gpu1": {
+      "bus": "00000000:08:00.0 (domain 0000, bus 08, device 0, function 0)",
+      "pcie_path": "CPU root (00:03.1) -> [08]",
+      "link": "Gen4 x16, 25.4 GB/s host->device probed",
+      "miss_cost_scale": "x1.00"
+    },
+    "note": "GPU0 is chipset-attached at Gen3 x4 while GPU1 is CPU-root Gen4 x16, an 8.7x host-bandwidth asymmetry. The engine's auto placement search already scales each stage's miss cost by its probed link.",
+    "pci_identifier_note": "The identifiers are the values nvidia-smi reports as pci.bus_id on this host. Note the bus numbers are 04 and 08, not 00: the earlier note wrote 0000:00:04.0, which reads as a device on bus 00 and would select the wrong PCI device."
+  },
+  "contamination_incident": {
+    "what_happened": "A first pass of these arms measured 50-73 tok/s, far below the 227 tok/s control, and the placement logs showed only 2.99 GiB free and 1628 cache slots instead of 20.04 GiB and 12288.",
+    "root_cause": "Another session's live job, a Ming ASR teacher transcription (tmux ming-full-none, /home/kearm/salm-lora/asr_teachers, started 16:33:50), held ~17.5 GB on each GPU (PIDs 68886 and 68888). The ~17,459 MiB difference in free VRAM (20.04 GiB expected against 2.99 GiB observed, 1024-based units) matches that footprint, to the precision the two-decimal GiB inputs allow.",
+    "handling": "The foreign job was NOT stopped or disturbed; it was allowed to finish (500/500 on both arms, hyps written) and then the arms were re-run on a clean GPU.",
+    "lesson": "A pre-flight guard that aborts when any foreign process holds GPU memory is now part of the arm script (clean_arms.sh); the guard printed 0,1 / 1,33 MiB before the clean run started."
+  },
+  "clean_arms": {
+    "workload": "the pinned 25-token binary-search prompt, max_tokens 128, temperature 0, reasoning_effort none, one discarded warm-up plus 5 measured requests, identical model/pack/MTP runtime/engine binary (SHA-256 c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8) and remote revision 83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "forward_order": {
+      "control_gpu0_first_auto_K24": {
+        "decode_tok_s": [
+          227.8,
+          227.5,
+          226.9,
+          226.7,
+          226.8
+        ],
+        "decode_median": 226.9,
+        "prompt_median": 151.8,
+        "placement": "K=24, 24576/24576 pairs (100.0%), 12288 slots, 3649 MiB free",
+        "prefill": "12288 of 12288 in 6.1 s (2832 MB/s)"
+      },
+      "order_gpu1_first_auto_K24": {
+        "decode_tok_s": [
+          229.9,
+          229.5,
+          229.0,
+          229.1,
+          229.3
+        ],
+        "decode_median": 229.3,
+        "prompt_median": 152.5,
+        "placement": "K=24, 24576/24576 pairs (100.0%), 12288 slots, 3617 MiB free"
+      },
+      "split30_gpu1_first_explicit": {
+        "decode_tok_s": [
+          232.6,
+          236.0,
+          238.0,
+          237.1,
+          229.1
+        ],
+        "decode_median": 236.0,
+        "prompt_median": 165.9,
+        "placement": "split 30, 14499 slots, 599 MiB free",
+        "drafts": "67-68 accepted of 79-80"
+      },
+      "miss_ms_600": {
+        "decode_tok_s": [
+          227.4,
+          227.4,
+          226.9,
+          227.3,
+          227.2
+        ],
+        "decode_median": 227.3,
+        "prompt_median": 152.8,
+        "placement": "K=24, unchanged from default"
+      },
+      "miss_ms_2000": {
+        "decode_tok_s": [
+          227.2,
+          227.5,
+          227.3,
+          227.4,
+          227.4
+        ],
+        "decode_median": 227.4,
+        "prompt_median": 151.8,
+        "placement": "K=24, unchanged from default"
+      }
+    },
+    "reverse_order_control_last": {
+      "purpose": "rule out a warm-page-cache artifact: the control arm runs last, so the file cache is already warm for it",
+      "split30b": {
+        "decode_tok_s": [
+          230.7,
+          252.3,
+          236.1,
+          243.8,
+          243.6
+        ],
+        "decode_median": 243.6,
+        "prompt_median": 165.9
+      },
+      "order10b": {
+        "decode_tok_s": [
+          230.1,
+          230.1,
+          230.1,
+          230.2,
+          230.2
+        ],
+        "decode_median": 230.1,
+        "prompt_median": 152.2
+      },
+      "controlb": {
+        "decode_tok_s": [
+          227.5,
+          227.9,
+          227.3,
+          227.3,
+          227.1
+        ],
+        "decode_median": 227.3,
+        "prompt_median": 151.2,
+        "prefill": "12288 of 12288 in 6.1 s (2816 MB/s), still cold"
+      }
+    }
+  },
+  "result": {
+    "winner": "explicit --layer-split 30 with the fast CPU-root card first (--gpu 1,0)",
+    "decode_gain_vs_control": "+4.01% (forward order, 236.0 vs 226.9) and +7.16% (reverse order, 243.6 vs 227.3); control is stable at 226.9-227.3 across both orderings",
+    "prompt_gain_vs_control": "+9.29% (165.9 vs 151.8)",
+    "artifact_ruled_out": "The gain is not a warm-cache artifact: with the control running last its expert prefill was still 6.1 s (cold) and its decode stayed at 227.3, while split30 measured 243.6 in the same ordering.",
+    "mechanism_hypothesis": "Giving the Gen4 x16 card 30 of 48 layers moves layer work and the expert-miss stream onto the fast link; the split also changes the per-card cache sizing (14499 slots, 599 MiB free) and the draft window (67-68 of 79-80 accepted versus 66 of 78). This is a hypothesis consistent with the probed links, not an isolated causal proof.",
+    "negative_results": [
+      "Reversing the card order alone (auto placement) changes little: +1.06% decode, because the auto search already scales miss cost by the probed link and still reaches K=24 with 100% residency.",
+      "STRATA_SPLIT_MISS_MS at 600 and 2000 leaves the placement decision unchanged (K=24, 12288 slots) and the throughput within 0.2% of control, so the miss-cost constant is not a live lever on this rig.",
+      "An earlier contaminated pass had suggested reversed order and explicit split 30 were 3-4x slower; that was the foreign Ming ASR job, not the configurations."
+    ]
+  },
+  "final_host_state": {
+    "b550_embedding_units": "both active; :1238 balancer serving; 1410/1442 MiB resident on the two cards",
+    "b550_strata": "no task-owned Strata server or engine left running",
+    "foreign_job": "the Ming ASR teacher job completed on its own (500/500 both arms) and was never stopped by this task"
+  },
+  "non_claims": [
+    "Five measured requests per arm on one short coding prompt; not a broad or long-context matrix, and the arms are not interleaved (each arm is a separate engine start).",
+    "The decode gain is measured, but the mechanism (link asymmetry versus cache sizing versus draft window) is a hypothesis: no arm isolated those factors.",
+    "No long-context, batch, multi-client, or quality comparison was run for the split-30 configuration.",
+    "The split-30 configuration was measured on this model and this engine revision; it is not established for other models or cards.",
+    "No change was made to any deployed configuration: the finding is a recommendation with evidence, not an applied default.",
+    "The contamination incident and the foreign job are recorded because they changed what could be measured; the foreign job's own results are not evaluated here."
+  ],
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset.",
+  "checks": [
+    {
+      "step": "stop embeddings for the window",
+      "command": "sudo -n systemctl stop sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",
+      "exit": 0
+    },
+    {
+      "step": "guard",
+      "command": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader | wc -l (must be 0, else abort 70)",
+      "exit": 0,
+      "result": "0 foreign processes; GPUs at 1 MiB and 33 MiB"
+    },
+    {
+      "step": "arms",
+      "command": "bash /home/kearm/strata-scratch/qwen-iq2xs-calibrated/clean_arms.sh (5 arms) then clean_arms_rev.sh (3 arms, control last)",
+      "exit": 0
+    },
+    {
+      "step": "restore",
+      "command": "sudo -n systemctl restart sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service; curl :1238/v1/embeddings",
+      "exit": 0,
+      "result": "both active, 1536-dim embedding returned"
+    }
+  ]
+}

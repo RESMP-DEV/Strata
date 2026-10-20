@@ -1208,3 +1208,158 @@ billed $0.5393. A later inventory query listed no Ada; inventory is transient,
 so an unmeasured H100, H200, or RTX 5090 substitute is not authorized by this
 decision. Full measurements and non-claims are in
 [GPU provider selection](../evidence/dspark2-gpu-provider-selection.json).
+
+### B550 concurrency fallback tier and CPU-embedding capability, 2026-10-19
+
+Three questions were answered by live measurement, not documentation. First, can
+Strata serve concurrent requests as an agent-tool fallback tier? The engine does
+support it: `--batch N` slots with `--batch-groups auto` across a layer split,
+`--batch-mtp` (one MTP proposal per slot) on a single GPU, and
+`concurrency.serving` on `/v1/status`. But on this launch-bound,
+expert-streaming workload concurrency buys latency fairness, not aggregate
+throughput. The two-GPU full-residency config (24,576/24,576 experts, 3,491 MiB
+free) measured aggregate decode 149.6 tok/s at C=1, 126.3 at C=2, and 158.1 at
+C=4; per-request median fell 199.8 to 49.7 tok/s across that range, likely because each
+verify window carries one token of every active slot (a hypothesis consistent with
+`docs/BATCHING.md`; no profile isolated the cause). Those are two different
+denominators and must not be read as one number: the aggregate figure is total
+completion tokens divided by total request wall time across the whole round set
+(so it includes prompt time for every request, not decode only, despite the
+driver reporting it as a decode rate), while the per-request figure is the median
+of each request's own engine-reported decode rate. The 227.4 tok/s figure quoted
+elsewhere for B550 is a different experiment: the full-VRAM clean MTP control
+from the previous entry, a two-GPU run with no batch slots. A single-GPU
+`--batch-mtp` config (13,236 experts resident, rest streaming) measured 111.4 /
+99.0 / 106.0 tok/s aggregate at C=1/2/4. So several concurrent agent requests can
+be served without any one waiting for a whole answer, but total tokens/sec stays
+flat: the two-GPU solo path (~200 tok/s) remains the fastest single stream, and
+batch slots trade per-request speed for fairness. Whether MTP drafts run inside
+batch slots is unconfirmed; the batch-slot timing path reports `draft_n=0` and
+does not populate the per-request draft counters, which is not proof that
+speculation is off.
+
+Second, is CPU-only embedding reasonable? Two distinct embedders run on B550. The
+sindexer live collection (`jina1536-mxfp4-v1`, 1536-dim) is served by the CUDA
+Jina MXFP4 embedder on ports 1236/1237 behind nginx 1238; a separate always-on
+CPU embedder (llama.cpp `Qwen3-Embedding-0.6B-Q8_0`, 1024-dim, 16 threads) runs
+on port 1235 and is bound to a different collection, so the two are not
+drop-in interchangeable without a reindex. Measured, the CPU Qwen embedder has
+lower single-request latency (0.020 s versus 0.081 s through the GPU balancer)
+but is about 4.7x slower on bulk throughput (GPU 183.1 versus CPU 38.8 items/s on a
+batch of 32; GPU/CPU = 4.72). CPU-only embedding of the small model is therefore reasonable for
+interactive or light use, not for large reindex sweeps.
+
+Third, is the MXFP4 embedder CPU-capable, and could it move to Strix? As shipped
+it is CUDA-only: `cuda_embed_server.py` raises if `torch.cuda.is_available()` is
+false and runs the Triton `matmul_ogs` MXFP4 kernel on `cuda:0`. There is no CPU
+execution path for the MXFP4 Jina build; the CPU embedder is the separate Qwen
+model. Strix has an RTX 5070 Laptop (8 GB, CUDA) and an Intel Arrow Lake NPU
+(`/dev/accel/accel0`, `render` group). The MXFP4 Jina embedder could in principle
+run on the Strix RTX 5070 if VRAM and Triton MXFP4 support SM120 (Blackwell
+laptop); the NPU path is a separate, unverified question. Strix was probed
+read-only this turn; no embedder was deployed there and no SM120 MXFP4 execution
+was tested.
+
+During the run an unrelated fleet defect surfaced and was worked around. After a
+benchmark restart the GPU embedding units crash-looped because
+`kernels.get_kernel('kernels-community/gpt-oss-triton-kernels')` could not verify
+publisher trust: the stored HF token at `~/.cache/huggingface/token` (dated Oct 6)
+is invalid, and the org-overview trust endpoint returns 401 with the token but 200
+anonymously. A reversible systemd drop-in
+(`/etc/systemd/system/sindexer-embed-gpu@.service.d/hf-anon-trust.conf`,
+`HF_HUB_DISABLE_IMPLICIT_TOKEN=1`) makes the trust check anonymous and loads the
+cached kernel; the credential file was not modified or deleted. Both units were
+verified active, the 1238 balancer round-trips a real 1536-dim embedding, and
+sindexer update/search succeed end-to-end. The invalid token itself still needs
+the user's `hf auth login --force`; the drop-in is a workaround to remove once a
+valid token is set. Full measurements, hashes, and non-claims are in
+[concurrency and embedding evidence](../evidence/qwen-b550-concurrency-fallback.json).
+
+### Strix MXFP4 embedding tier, 2026-10-19
+
+The question was whether the sindexer Jina MXFP4 embedder is built for
+acceleration on Strix, and whether it could host there. Both are answered yes on
+the CUDA path, by measurement rather than by version reading. The Triton MXFP4
+`matmul_ogs` kernel from `kernels-community/gpt-oss-triton-kernels` compiles and
+runs on the RTX 5070 Laptop's SM120 silicon (compute capability 12.0): a direct
+probe with packed E2M1 weights and E8M0 scales returned
+`MXFP4_MATMUL_OK shape (8, 64) dtype torch.bfloat16 finite True`. The unmodified
+`cuda_embed_server.py` then served
+`jina-code-embeddings-1.5b-block-gptq-mxfp4-32k` on Strix, returning 1536-dim
+embeddings that agree with the B550 RTX 3090 Ti reference at cosine 0.99990560
+and 0.99990414 on two code inputs (max absolute element difference 1.241e-3 and
+2.521e-3; the residual is likely MXFP4 kernel ordering between Ampere and
+Blackwell, a hypothesis no ablation isolates).
+
+Strix's environment needed one alignment to the proven B550 combination:
+`transformers` 5.20.2 there requires `kernels` >= 0.17.2, a different package
+layout without `kernels.utils`, so Strix was pinned to the B550-proven
+`transformers` 5.17.0 with `kernels` 0.16.0 in an isolated probe environment
+(`/home/kearm/.probe-mxfp4-sm120`). Strix also carries the same invalid Hugging
+Face token as B550 (`hf auth whoami` reports "Invalid user token"), so the
+embedder runs with `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` and the publisher-trust
+check runs anonymously; the credential file was not modified.
+
+That yields three embedding tiers with different characters. The B550 RTX 3090 Ti
+MXFP4 path (1536-dim) is the bulk tier at 0.081 s single-request and 183.1
+items/s on a batch of 32. The Strix RTX 5070 Laptop MXFP4 path (1536-dim, the
+same model) is the interactive tier at 0.036 s single-request, 2.25x lower
+latency than the B550 GPU path, though far lower on bulk at 15.9 items/s. The
+always-on B550 CPU embedder (llama.cpp `Qwen3-Embedding-0.6B-Q8_0`, 1024-dim,
+16 threads) is fastest per request at 0.020 s and reaches 38.8 items/s on bulk,
+but it is a different model and dimensionality, so it is not a drop-in for the
+1536-dim collection without a reindex. Strix can therefore host the exact
+production embedding model, which the CPU tier cannot.
+
+The Strix embedder runs standalone on `127.0.0.1:1236`; it was not put into the
+sindexer routing path, no nginx balancer or tunnel was created, and the Intel
+NPU path was not exercised. The model (1.1 GB) and the server module were
+placed on Strix, the model by a B550 to Mac to Strix relay because this Mac's
+`rsync` is openrsync 2.6.9 and cannot do remote-to-remote copies. Full
+measurements and non-claims are in
+[Strix MXFP4 embedding tier](../evidence/qwen-strix-mxfp4-embed-tier.json).
+
+### B550 layer-split topology optimization, 2026-10-20
+
+B550's two cards are not symmetric on the host bus, and the difference is
+larger than the card order. The PCI tree puts GPU0 (`00000000:04:00.0`, bus 04) behind the
+AMD 500-series chipset at Gen3 x4, 2.9 GB/s host-to-device as the engine probes
+it, while GPU1 (`00000000:08:00.0`, bus 08) is CPU-root at Gen4 x16, 25.4 GB/s. The engine's
+auto placement search already scales each stage's miss cost by its probed link
+(x6.96 against x1.00 here), so the question was whether an explicit placement
+beats the search on this asymmetric pair.
+
+On a GPU verified clean (a pre-flight guard aborts if any foreign process holds
+VRAM) and with the embedding replicas stopped for the window, five arms of the
+pinned workload ran: the auto control, the same with the fast card first, an
+explicit split of 30 layers with the fast card first, and the miss-cost constant
+raised to 600 and to 2000. The explicit split-30 configuration was the winner.
+Decode measured 236.0 tok/s median against the control's 226.9, and 243.6
+against 227.3 when the arms were re-run with the control last, with prompt
+throughput 165.9 against 151.8 tok/s, a 9.29% gain. The control is stable at
+226.9 and 227.3 across the two orderings, and the control's expert prefill was
+still 6.1 s when it ran last, so the gain is not a warm-page-cache artifact.
+Reversing the card order alone changes little (230.1 to 229.3, about 1%),
+because the auto search already reaches K=24 with 100% of the profiled pairs
+resident, and raising `STRATA_SPLIT_MISS_MS` leaves the placement decision
+unchanged, so that constant is not a live lever on this rig.
+
+The mechanism is a hypothesis, not an isolated proof: giving the Gen4 x16 card
+30 of 48 layers moves layer work and the expert-miss stream onto the fast link,
+and it also changes the per-card cache sizing (14,499 slots and 599 MiB free
+against 12,288 slots and 3,649 MiB) and the draft window (67 to 68 accepted of
+79 to 80, against 66 of 78). The recommendation is to run `--gpu 1,0` with an
+explicit `--layer-split 30` on this rig; nothing in the deployed configuration
+was changed, and the result is specific to this model, this engine revision, and
+this short-prompt workload.
+
+One measurement hazard is worth recording because it nearly produced the wrong
+conclusion. An earlier pass of the same arms measured 50 to 73 tok/s and
+placement logs showing only 2.99 GiB free against the control's 20.04 GiB. The
+cause was another session's live Ming ASR teacher transcription, which held
+about 17.5 GB on each card; the 17,459 MiB difference in free VRAM matches that
+footprint exactly. That job was not stopped. It was allowed to finish on its own
+(500 of 500 on both arms), and the arms were re-run on a verified-clean GPU with
+a guard that aborts on any foreign VRAM holder. Full measurements, the
+contamination record, and non-claims are in
+[layer-split topology evidence](../evidence/qwen-b550-layer-split-topology.json).

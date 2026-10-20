@@ -1,0 +1,291 @@
+{
+  "recorded_at": "2026-10-19T23:07:28Z",
+  "agent": "Codex",
+  "source_revision": "457086517bbb947480e8d8f0a0ae1c860a650829",
+  "source_dirty": false,
+  "authorization": "The user authorized killing the B550 embedding services for Strata work and said Strix downtime/movement was acceptable; embeddings were restored after each bounded benchmark window.",
+  "scope": "Answer three questions with live measurement: (1) can Strata serve concurrent requests as an agent-tool fallback tier, (2) is CPU-only embedding reasonable and is the Jina MXFP4 embedder CPU-capable, (3) can the embedder move to Strix. Then continue B550 Strata optimization.",
+  "host": "B550 alias 192.168.1.171 (dual RTX 3090 Ti 24GB, 91GiB RAM, 32 cores); Strix alias 192.168.1.182 probed read-only.",
+  "concurrency_findings": {
+    "engine_support": "Strata serves concurrent requests via --batch N slots with --batch-groups across a layer split; --batch-mtp (one MTP proposal per slot) is opt-in and requires ONE GPU, no layer split. /v1/status exposes concurrency.serving. Confirmed in src/program/generate.cpp and docs/BATCHING.md.",
+    "config_A_two_gpu_batch": {
+      "gpu": [
+        0,
+        1
+      ],
+      "layer_split": "auto",
+      "batch": 4,
+      "batch_groups": "auto",
+      "pipeline_windows": "removed (--pipeline-windows is disabled with --batch slots)",
+      "residency": "24576/24576 experts resident (100%), 3491 MiB VRAM free, ready in 54s",
+      "aggregate_tok_s": {
+        "C1": 149.61,
+        "C2": 126.26,
+        "C4": 158.12
+      },
+      "per_request_decode_median_tok_s": {
+        "C1": 199.8,
+        "C2": 75.25,
+        "C4": 49.7
+      },
+      "draft_n_at_C_ge2": 0
+    },
+    "config_B_single_gpu_batch_mtp": {
+      "gpu": [
+        1
+      ],
+      "batch": 4,
+      "batch_mtp": true,
+      "batch_mtp_warning": "none (engaged; 4 slot sessions, 0.15 GiB each)",
+      "residency": "13236 experts resident on one card (experts stream from RAM), 461 MiB VRAM free, ready in 85s",
+      "aggregate_tok_s": {
+        "C1": 111.44,
+        "C2": 99.03,
+        "C4": 105.99
+      },
+      "per_request_decode_median_tok_s": {
+        "C1": 139.0,
+        "C2": 56.8,
+        "C4": 31.45
+      },
+      "draft_c1": {
+        "draft_n": 96,
+        "draft_accepted": 92
+      }
+    },
+    "interpretation": "On this launch/CPU-bound, expert-streaming workload, concurrency buys LATENCY-fairness (nobody waits for a whole answer) but NOT aggregate throughput. Two-GPU C4 aggregate (158 tok/s) barely exceeds C1 (150) and C2 dips below C1; single-GPU C4 aggregate (106) is flat-to-below C1 (111). Per-request decode falls ~4x at C4, likely because each verify window carries one token of every active slot (hypothesis consistent with docs/BATCHING.md; no profile or ablation isolating this cause was run). Two-GPU full residency (config A) gives the best solo throughput (~200 tok/s); the batch slots are for several concurrent agent requests, not for more total tokens/sec.",
+    "batch_slot_draft_note": "Batch-slot requests report draft_n=0 in their .timings; the batch-slot timing path does not populate the per-request draft counters, so whether MTP drafts are active inside slots is UNCONFIRMED, not proven off. Solo (C1) path uses MTP drafts.",
+    "per_round_samples": {
+      "config_A_two_gpu_batch": {
+        "C1": {
+          "per_request_decode_tok_s": [
+            199.8,
+            149.5,
+            204.2
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128
+          ]
+        },
+        "C2": {
+          "per_request_decode_tok_s": [
+            75.1,
+            74.6,
+            74.8,
+            75.6,
+            75.4,
+            97.7
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        },
+        "C4": {
+          "per_request_decode_tok_s": [
+            43.1,
+            43.2,
+            49.6,
+            58.8,
+            43.6,
+            43.7,
+            50.3,
+            59.3,
+            43.3,
+            49.8,
+            58.9,
+            71.9
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        }
+      },
+      "config_B_single_gpu_batch_mtp": {
+        "C1": {
+          "per_request_decode_tok_s": [
+            139.0,
+            112.4,
+            146.8
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128
+          ]
+        },
+        "C2": {
+          "per_request_decode_tok_s": [
+            77.5,
+            51.7,
+            55.3,
+            51.8,
+            58.3,
+            70.8
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        },
+        "C4": {
+          "per_request_decode_tok_s": [
+            31.9,
+            31.0,
+            32.3,
+            29.2,
+            102.0,
+            25.9,
+            26.2,
+            25.3,
+            30.8,
+            42.4,
+            34.8,
+            48.4
+          ],
+          "completion_tokens": [
+            128,
+            128,
+            128,
+            128,
+            97,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128,
+            128
+          ]
+        }
+      }
+    },
+    "per_round_samples_note": "One C4 config-B request stopped early at 97 completion tokens (finish_reason stop); its 102.0 tok/s is the solo-path promotion of the last remaining slot, not a batch-slot rate. Aggregate tok/s divides total completion tokens by total wall, so early stop is accounted for.",
+    "metric_definitions": {
+      "aggregate_tok_s": "sum of completion tokens over all requests in the round set divided by the total wall time of the round set (so it spans prompt time as well as decode; the driver labels it a decode rate because it sums tokens per second)",
+      "per_request_decode_tok_s_median": "median across requests of each request's own engine-reported .timings.predicted_per_second (decode only)",
+      "distinction": "the two are not interchangeable and are not compared to each other",
+      "separate_experiment": "the 227.4 tok/s full-VRAM clean MTP control cited elsewhere is a different run (two GPUs, no batch slots) and is not part of this concurrency comparison",
+      "per_request_decode_falls_because": "stated as a hypothesis; no profile or ablation isolated the cause"
+    }
+  },
+  "embedding_findings": {
+    "two_distinct_embedders": {
+      "gpu_jina_mxfp4": "ports 1236/1237 behind nginx :1238, model jina-code-embeddings-1.5b-block-gptq-mxfp4-32k, 1536-dim, CUDA-only (Triton matmul_ogs MXFP4). This is the sindexer live collection (jina1536-mxfp4-v1).",
+      "cpu_qwen": "port 1235, llama.cpp Qwen3-Embedding-0.6B-Q8_0, 1024-dim, 16 CPU threads, always-on, no GPU. Bound to a DIFFERENT 1024-dim collection.",
+      "not_interchangeable": "Different dimensionality (1536 vs 1024) and model; swapping requires a full reindex of the collection."
+    },
+    "cpu_embedding_measured": {
+      "single_request_latency_s": {
+        "cpu_qwen_1235": 0.02,
+        "gpu_jina_1238": 0.081
+      },
+      "batch32_wall_s": {
+        "cpu": 0.826,
+        "gpu": 0.175
+      },
+      "batch32_items_per_s": {
+        "cpu": 38.8,
+        "gpu": 183.1
+      },
+      "verdict": "CPU-only embedding of the small Qwen3-0.6B is REASONABLE for single/low-volume requests (20ms latency, lower than the GPU round-trip) but ~4.7x slower for bulk throughput. It is a valid tier for interactive/light embedding, not for large reindex sweeps. MXFP4 Jina acceleration is CUDA-only; it is not a CPU path.",
+      "ratio_direction": "GPU is 4.72x the CPU on bulk items/sec (183.1/38.8 = 4.72); equivalently CPU is 0.21x GPU (38.8/183.1 = 0.212). Single-request latency is the opposite direction: CPU 0.020 s is 4.05x faster than GPU-balancer 0.081 s (0.081/0.020 = 4.05)."
+    },
+    "mxfp4_cpu_capability": "cuda_embed_server.py raises RuntimeError if torch.cuda.is_available() is false and calls Triton matmul_ogs on cuda:0. The MXFP4 Jina build has no CPU execution path as shipped; 'CPU-only MXFP4 embedding' is not a supported mode. A CPU embedder exists but is the separate Qwen3-0.6B Q8_0 model.",
+    "strix_mxfp4": "Strix has an RTX 5070 Laptop (8GB, CUDA) and an Intel Arrow Lake NPU (/dev/accel/accel0, render group). The MXFP4 Jina embedder needs CUDA, so it could run on the Strix RTX 5070 if VRAM and the Triton MXFP4 kernel support SM120 (Blackwell laptop); the NPU path is a separate, unverified question. Strix was probed read-only; no embedder was deployed there this turn."
+  },
+  "service_incident_and_fix": {
+    "trigger": "After a benchmark restart, sindexer-embed-gpu@0/@1 crash-looped: kernels.get_kernel('kernels-community/gpt-oss-triton-kernels') raised 'could not verify publisher trust status'.",
+    "root_cause": "The stored HF token at ~/.cache/huggingface/token (dated Oct 6) is INVALID. Anonymous GET /api/organizations/kernels-community/overview returns 200, but with the token it returns 401 Unauthorized; the kernels library sends the token, gets 401, and treats it as untrusted. This is fleet-wide (any host using that token), not caused by the benchmark. hf auth whoami reports 'Invalid user token'.",
+    "fix": "Added a reversible systemd drop-in /etc/systemd/system/sindexer-embed-gpu@.service.d/hf-anon-trust.conf setting Environment=HF_HUB_DISABLE_IMPLICIT_TOKEN=1 so the trust check runs anonymously (200) and loads the cached Triton kernel. The credential file was NOT modified or deleted. Verified: kernel loads (KERNEL_OK True), both units active, :1236/:1237 serve the 1536-dim model, :1238 balancer round-trips a real embedding, sindexer update/search succeed end-to-end.",
+    "followup_not_done": "The invalid token itself was not refreshed (needs the user's hf auth login --force with a valid token); the drop-in is a workaround that should be removed once a valid token is set."
+  },
+  "raw_evidence": {
+    "local_ignored_root": "build/reports/b550-concurrency-fallback",
+    "batch_control_engine_log_sha256": "813d3dbe8da8e132811503312764de86d1d3341ff449b1d5d6a33eea669abcf2",
+    "batchmtp_gpu1_engine_log_sha256": "a2b87ce8724205d06f845c770eec312dfd1b3b8fac6e8618625554a6a697d730",
+    "conc_driver_sha256": "803bbf983ffc43a2850e47711ba05921365458dc2b95c55fc1a6f114c407f946",
+    "per_run_json_sha256": {
+      "batch_control_c1": "c2fb1ea9cb9c768225d6e345a0f473fd363b65892ab7e5216b05235aee77aea4",
+      "batch_control_c2": "5fa493e1a8cc82e92462b2dc38a43da92257e990d0aedb36ac37c669281c191f",
+      "batch_control_c4": "0dd0aab78711d3d73074b708528fe52d9b9c1d3d098213515e2f61d40624e2be",
+      "batchmtp_gpu1_c1": "b9c2173b525338e15104154af8b70745ad36a477795aedbd7696e7834e795e89",
+      "batchmtp_gpu1_c2": "d8d028515bd651a150f8cdd6d6b7be8e251bf1475a94b38b0257d252e02fa56f",
+      "batchmtp_gpu1_c4": "405a41dc47ccf036a7a107d5774b80ba251ec25be444eb02fe190051b4c48b8c"
+    }
+  },
+  "final_host_state": {
+    "b550_embedding_units": "both active; :1236/:1237/:1238 serving; sindexer update+search verified",
+    "b550_gpus": "idle except embedding residency (~1.4 GiB/card); no task-owned Strata server left running",
+    "strix": "online, RTX 5070 idle, NPU node visible; read-only, unchanged"
+  },
+  "non_claims": [
+    "Concurrency was measured on one short coding prompt family at C=1/2/4, 3 rounds, 128 max tokens; not a broad or long-context throughput matrix.",
+    "Whether MTP drafts run inside batch slots is unconfirmed (batch-slot timings report draft_n=0; the field is likely unpopulated, not proof of no speculation).",
+    "No Strix embedder deployment, no NPU MXFP4 execution, and no SM120 Triton MXFP4 support was tested this turn; Strix was probed read-only.",
+    "The CPU-vs-GPU embedding comparison is one prompt and one batch-32; not a latency/throughput curve.",
+    "The invalid HF token was worked around, not fixed; a valid token still needs the user's hf auth login.",
+    "No distilled candidate, model, or quality claim is made; this is serving-topology and embedding-tier evidence only."
+  ],
+  "checks": [
+    {
+      "step": "stop embeddings (each benchmark window)",
+      "command": "sudo -n systemctl stop sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service",
+      "exit": 0
+    },
+    {
+      "step": "config A: two-GPU batch server",
+      "command": "/home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/batch-control-server.json --host 127.0.0.1 --port 18096",
+      "exit": 0,
+      "note": "ready after 54s; /health status ok, loaded true"
+    },
+    {
+      "step": "config A: concurrency driver per C",
+      "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/qwen-iq2xs-calibrated/conc_driver.py --url http://127.0.0.1:18096/v1/chat/completions --model qwen3.8-flash-next-iq2xs-calibrated-b550-batch-control --concurrency {1,2,4} --rounds 3 --max-tokens 128 --warm 1",
+      "exit": 0
+    },
+    {
+      "step": "config B: single-GPU batch-mtp server",
+      "command": "/home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/batchmtp-gpu1-server.json --host 127.0.0.1 --port 18097",
+      "exit": 0,
+      "note": "ready after 85s; no --batch-mtp disable warning; 4 slot sessions, 0.15 GiB each"
+    },
+    {
+      "step": "config B: concurrency driver per C",
+      "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/qwen-iq2xs-calibrated/conc_driver.py --url http://127.0.0.1:18097/v1/chat/completions --model qwen3.8-flash-next-iq2xs-b550-batchmtp-gpu1 --concurrency {1,2,4} --rounds 3 --max-tokens 128 --warm 1",
+      "exit": 0
+    },
+    {
+      "step": "cpu-vs-gpu embedding latency/throughput",
+      "command": "curl POST /v1/embeddings to :1235 (CPU Qwen 1024-dim) and :1238 (GPU Jina 1536-dim), single + batch-32, 5 latency reps",
+      "exit": 0
+    },
+    {
+      "step": "restore embeddings + verify",
+      "command": "sudo -n systemctl restart sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service; curl :1238/v1/embeddings; sindexer update",
+      "exit": 0,
+      "note": "units active; 1536-dim embedding returned; sindexer update/search ok"
+    }
+  ]
+}
