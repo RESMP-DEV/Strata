@@ -74,6 +74,10 @@ struct KvBlockRequest {
     int64_t offset = 0;      ///< the byte offset inside the group's payload
     uint64_t bytes = 0;      ///< how many bytes to read
     void* dst = nullptr;     ///< where the bytes go
+    /// The checksum the payload is expected to have. A store that can verify what it received checks it; one that
+    /// cannot leaves it zero and the caller verifies instead. A shared pool is a place where a group can be
+    /// corrupted in transit, and a corrupted group is refused, never returned.
+    uint64_t checksum = 0;
 };
 
 /// A write of one group. The whole group is submitted at once; the store commits its valid marker only after the

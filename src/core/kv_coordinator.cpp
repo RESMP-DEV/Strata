@@ -15,6 +15,8 @@ std::string key_string(const KvBlockKey& key) {
     return out.str();
 }
 
+uint64_t fnv1a(const void* data, size_t bytes);
+
 uint64_t fnv1a(const void* data, size_t bytes) {
     const uint8_t* p = static_cast<const uint8_t*>(data);
     uint64_t h = 1469598103934665603ull;
@@ -24,6 +26,8 @@ uint64_t fnv1a(const void* data, size_t bytes) {
     }
     return h;
 }
+
+uint64_t checksum_of(const void* data, size_t bytes) { return fnv1a(data, bytes); }
 
 }  // namespace
 
@@ -343,6 +347,8 @@ bool KvTierCoordinator::load_group(int32_t layer, int32_t group, int32_t slot, s
     request.offset = 0;
     request.bytes = bytes;
     request.dst = slot_bytes_.data() + (size_t) slot * (size_t) bytes;
+    // The coordinator names the checksum it expects, so a store that can verify what it received does.
+    request.checksum = checksum_of(slot_bytes_.data() + (size_t) slot * (size_t) bytes, (size_t) bytes);
 
     // The counters move when the read is ISSUED, not when it succeeds: a run that claims to have used the cold
     // tier must show a foreground cold read, and a refused read is still a cold read.

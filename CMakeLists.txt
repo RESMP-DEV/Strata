@@ -277,7 +277,8 @@ target_compile_definitions(strata-dequant PRIVATE STRATA_DEQUANT_SELFTEST)
 # The disaggregated KV tier's host sources. The engine links this library, and so does every contract test, so
 # the tests exercise the same objects the engine runs.
 add_library(strata_kv_tier STATIC src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp
-                                src/core/kv_file_store.cpp src/core/kv_tier_hooks.cpp src/core/kv_read_batch.cpp)
+                                src/core/kv_file_store.cpp src/core/kv_tier_hooks.cpp src/core/kv_read_batch.cpp
+                                src/core/kv_mooncake_store.cpp)
 target_include_directories(strata_kv_tier PUBLIC include)
 
 if(STRATA_BUILD_TESTS)
@@ -304,6 +305,10 @@ if(STRATA_BUILD_TESTS)
   add_executable(kv_read_batch_test src/core/kv_read_batch_test.cpp)
   target_link_libraries(kv_read_batch_test PRIVATE strata_kv_tier)
   add_test(NAME kv_read_batch_test COMMAND kv_read_batch_test)
+  # the L3 shared store's contract: opaque payloads, Strata-owned keys, the epoch, the quota, and the refusal
+  add_executable(kv_mooncake_store_test src/core/kv_mooncake_store_test.cpp)
+  target_link_libraries(kv_mooncake_store_test PRIVATE strata_kv_tier)
+  add_test(NAME kv_mooncake_store_test COMMAND kv_mooncake_store_test)
   add_executable(logit_bias_test src/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE include)
   add_test(NAME logit_bias_test COMMAND logit_bias_test)
