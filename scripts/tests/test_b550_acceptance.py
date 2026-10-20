@@ -230,7 +230,7 @@ class RemoteSafetyTest(unittest.TestCase):
         )
         self.assertIn("--short-read", command)
         self.assertEqual(
-            command[command.index("--short-read") + 1], str(acceptance.REQUIRED_SHORT_READ)
+            command[command.index("--short-read") + 1], str(acceptance.DEFAULT_SHORT_READ)
         )
 
     def test_failed_step_is_recorded_and_aggregated(self) -> None:

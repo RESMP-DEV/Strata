@@ -53,7 +53,11 @@ REQUIRED_SERVE_FLAGS = ("--spec", "--prefill")
 # runs the tier's serving hooks.  The harness therefore owns the flag and
 # requires it, so a control can never measure a path that does not exercise
 # the tier.
-REQUIRED_SHORT_READ = 512
+# The prompt is read through the verify windows when it is no longer than
+# --short-read tokens.  The value is the harness's own: a control names the
+# prompt length it wants, and the harness keeps the prompt on the path where
+# the KV tier's hooks run.
+DEFAULT_SHORT_READ = 8192
 # The control's fixed request seed.  The draft acceptance path samples, so two
 # arms of the same control must share a seed or their generated tokens can
 # differ for reasons that have nothing to do with the tier.
@@ -801,6 +805,7 @@ def _serve_command(
     cold_tier: str | None,
     l1_groups: int,
     sm86_perf: str | None,
+    short_read: int = DEFAULT_SHORT_READ,
 ) -> list[str]:
     """The engine's serve command line, with the harness's own flags last.
 
@@ -813,9 +818,7 @@ def _serve_command(
         command.append(f"STRATA_SM86_PERF={sm86_perf}")
     command.append(engine)
     command.extend(engine_args)
-    command.extend(
-        ["--serve", "--max-context", str(max_context), "--short-read", str(REQUIRED_SHORT_READ)]
-    )
+    command.extend(["--serve", "--max-context", str(max_context), "--short-read", str(short_read)])
     if cold_tier is not None:
         command.extend(["--kv-tier", cold_tier, "--kv-tier-l1", str(l1_groups)])
     return command
