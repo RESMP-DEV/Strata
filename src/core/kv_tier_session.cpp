@@ -4,7 +4,9 @@
 #include "strata/core/kv_tier_hooks.hpp"
 
 #include <cstdio>
+#include <iomanip>
 #include <mutex>
+#include <sstream>
 
 namespace strata::core {
 
@@ -19,6 +21,14 @@ int g_window_stage = 0;   // 0: nothing, 1: selection seen, 2: readiness seen
 KvTierSession& KvTierSession::instance() {
     static KvTierSession session;
     return session;
+}
+
+KvTierSession::~KvTierSession() {
+    if (!enabled_) return;
+    std::string error;
+    if (!flush(error))
+        std::fprintf(stderr, "strata kv tier (shutdown): background I/O failed: %s\n", error.c_str());
+    report("shutdown");
 }
 
 bool KvTierSession::enable(const KvTierSessionConfig& config, std::string& error) {
@@ -42,25 +52,6 @@ bool KvTierSession::enable(const KvTierSessionConfig& config, std::string& error
     }
     session.config_ = config;
 
-    // The L2 store is a file: it holds whole groups, commits a group's valid marker only after its payload is
-    // durable, and refuses a key of another geometry, format, layer, or epoch.
-    KvFileStore::Identity identity;
-    // The store's session identity is the SESSION's, not the geometry's: the coordinator's scope carries the same
-    // value, so the key the coordinator writes is the key the store accepts. A store whose identity is a
-    // different number from the coordinator's scope refuses every publish.
-    identity.session_id = config.session_id;
-    identity.geometry_id = config.geometry_id;
-    identity.format_id = config.format_id;
-    identity.layer = config.layer;
-    identity.blocks_per_group = config.blocks_per_group;
-    uint64_t block_bytes = 0;
-    for (const auto& run : config.runs) block_bytes += run.bytes;
-    identity.group_bytes = block_bytes * (uint64_t) config.blocks_per_group;
-    // The directory is a FIXED area, so the store must be told how many groups it may ever hold. It is sized from
-    // the context: the number of blocks the layer can hold, over the group's blocks.
-    identity.max_groups = config.max_groups;
-    if (!session.store_.open(config.store_path, identity, config.runs, error)) return false;
-    session.store_open_ = true;
     session.enabled_ = true;
     return true;
 }
@@ -72,14 +63,35 @@ bool KvTierSession::enabled() {
 
 KvTierCoordinator* KvTierSession::coordinator_for(int32_t layer) {
     KvTierSession& session = instance();
-    // One coordinator per LAYER: the layers have different stores and different geometry identities, so a layer
-    // must never share a coordinator with another one.
+    // One coordinator and one fixed-layout file per LAYER. A file store's directory is indexed by group, so
+    // mixing layers would make the file grow without bound and make one layer's directory capacity a lie.
     for (auto& coordinator : session.coordinators_) {
         if (coordinator->scope().stage == 0 && coordinator->scope().slot == 0 &&
             coordinator->scope().session_id == session.config_.session_id &&
             coordinator->layer() == layer)
             return coordinator.get();
     }
+    uint64_t block_bytes = 0;
+    for (const auto& run : session.config_.runs) block_bytes += run.bytes;
+    KvFileStore::Identity identity;
+    identity.session_id = session.config_.session_id;
+    identity.geometry_id = session.config_.geometry_id;
+    identity.format_id = session.config_.format_id;
+    identity.layer = layer;
+    identity.blocks_per_group = session.config_.blocks_per_group;
+    identity.group_bytes = block_bytes * (uint64_t) session.config_.blocks_per_group;
+    identity.max_groups = session.config_.max_groups;
+    std::ostringstream path;
+    path << session.config_.store_path << "/layer-" << std::setfill('0') << std::setw(4) << layer;
+    auto store = std::make_unique<KvFileStore>();
+    std::string error;
+    if (!store->open(path.str(), identity, session.config_.runs, error)) {
+        session.last_error_ = error;
+        return nullptr;
+    }
+    auto [store_it, inserted] = session.stores_.emplace(layer, std::move(store));
+    if (!inserted) return nullptr;
+
     KvTierCoordinator::Options options;
     options.layer = layer;
     options.l1_groups = session.config_.l1_groups_per_layer;
@@ -88,15 +100,19 @@ KvTierCoordinator* KvTierSession::coordinator_for(int32_t layer) {
     options.blocks_per_group = session.config_.blocks_per_group;
     options.block_bytes = session.config_.block_bytes;
     options.runs = session.config_.runs;
+    options.async_io = session.config_.async_io;
     session.coordinators_.push_back(std::make_unique<KvTierCoordinator>(
-        KvCoordinatorScope{session.config_.session_id, 0, 0}, options, &session.store_));
+        KvCoordinatorScope{session.config_.session_id, 0, 0}, options, store_it->second.get()));
     return session.coordinators_.back().get();
 }
 
 KvTierCoordinator* KvTierSession::coordinator(int32_t layer) {
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!instance().enabled_) return nullptr;
-    return instance().coordinator_for(layer);
+    KvTierSession& session = instance();
+    KvTierCoordinator* coordinator = session.coordinator_for(layer);
+    if (coordinator == nullptr) std::fprintf(stderr, "kv tier: coordinator %d failed: %s\n", layer, session.last_error_.c_str());
+    return coordinator;
 }
 
 KvTierCounters KvTierSession::counters() {
@@ -113,6 +129,7 @@ KvTierCounters KvTierSession::counters() {
         total.l2_read_bytes += c.l2_read_bytes;
         total.l3_reads += c.l3_reads;
         total.l3_write_bytes += c.l3_write_bytes;
+        total.engine_host_restores += c.engine_host_restores;
         total.published_groups += c.published_groups;
         total.checksum_errors += c.checksum_errors;
         total.readiness_waits += c.readiness_waits;
@@ -155,7 +172,7 @@ void KvTierSession::report(const char* tag) {
     std::fprintf(stderr,
                  "strata kv tier (%s): l1_hits=%llu l1_misses=%llu l1_evictions=%llu l2_reads=%llu "
                  "l2_read_failures=%llu l2_read_bytes=%llu l2_write_bytes=%llu published_groups=%llu "
-                 "checksum_errors=%llu readiness_waits=%llu | graph_split: selection=%llu readiness=%llu "
+                "checksum_errors=%llu readiness_waits=%llu engine_host_restores=%llu | graph_split: selection=%llu readiness=%llu "
                  "resolve=%llu windows=%llu violations=%llu | batches: batches=%llu groups=%llu requested=%llu "
                  "foreground=%llu\n",
                  tag ? tag : "report", (unsigned long long) c.l1_hits, (unsigned long long) c.l1_misses,
@@ -163,6 +180,7 @@ void KvTierSession::report(const char* tag) {
                  (unsigned long long) c.l2_read_failures, (unsigned long long) c.l2_read_bytes,
                  (unsigned long long) c.l2_write_bytes, (unsigned long long) c.published_groups,
                  (unsigned long long) c.checksum_errors, (unsigned long long) c.readiness_waits,
+                (unsigned long long) c.engine_host_restores,
                  (unsigned long long) phases.selection, (unsigned long long) phases.readiness,
                  (unsigned long long) phases.resolve, (unsigned long long) phases.windows,
                  (unsigned long long) phases.split_violations, (unsigned long long) batches.batches,
@@ -191,12 +209,25 @@ bool KvTierSession::reset(std::string& error) {
     return ok;
 }
 
+bool KvTierSession::flush(std::string& error) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    KvTierSession& session = instance();
+    bool ok = true;
+    for (const auto& coordinator : session.coordinators_) {
+        std::string one;
+        if (!coordinator->flush(one)) {
+            ok = false;
+            if (error.empty()) error = one;
+        }
+    }
+    return ok;
+}
+
 void KvTierSession::shutdown() {
     std::lock_guard<std::mutex> lock(g_mutex);
     KvTierSession& session = instance();
     session.coordinators_.clear();
-    if (session.store_open_) session.store_.close();
-    session.store_open_ = false;
+    session.stores_.clear();
     session.enabled_ = false;
 }
 

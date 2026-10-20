@@ -149,7 +149,8 @@ bool KvFileStore::open(const std::string& path, const Identity& identity, const 
     if (::pread(fd_, &header, sizeof(header), 0) == (ssize_t) sizeof(header) &&
         std::memcmp(header.magic, "STRATKV1", 8) == 0 && header.version == kFormatVersion &&
         header.header_size == kHeaderSize && header.session_id == identity.session_id &&
-        header.geometry_id == identity.geometry_id && header.format_id == identity.format_id &&
+        header.layer == identity.layer && header.geometry_id == identity.geometry_id &&
+        header.format_id == identity.format_id &&
         header.blocks_per_group == (uint64_t) identity.blocks_per_group &&
         header.block_bytes == block_bytes_ && header.group_bytes == group_bytes_ &&
         header.run_count == runs_.size()) {

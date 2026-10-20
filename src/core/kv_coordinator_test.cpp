@@ -1,9 +1,14 @@
 // src/core/kv_coordinator_test.cpp - the coordinator's state machine, epoch rules, and the store's refusal paths.
 #include "strata/core/kv_coordinator.hpp"
+#include "strata/core/kv_read_batch.hpp"
 
 #include <cstdio>
 #include <cstring>
+#include <exception>
+#include <atomic>
 #include <string>
+#include <thread>
+#include <chrono>
 #include <vector>
 
 using namespace strata::core;
@@ -21,6 +26,20 @@ KvTierCoordinator::Options small_options() {
     return o;
 }
 
+KvTierCoordinator::Options async_options() {
+    KvTierCoordinator::Options o = small_options();
+    o.async_io = true;
+    o.async_workers = 1;
+    o.l1_groups = 1;
+    return o;
+}
+
+KvTierCoordinator::Options async_two_slot_options() {
+    KvTierCoordinator::Options o = async_options();
+    o.l1_groups = 2;
+    return o;
+}
+
 /// Append a whole group of blocks with a recognizable payload.
 bool fill_group(KvTierCoordinator& c, int32_t layer, int32_t group, uint8_t value, std::string& error) {
     std::vector<uint8_t> block(64, 0);
@@ -34,9 +53,31 @@ bool fill_group(KvTierCoordinator& c, int32_t layer, int32_t group, uint8_t valu
     return true;
 }
 
+/// A real store whose get path can be held at a host boundary, so cancellation is deterministic.
+class BlockingStore : public KvBlockStore {
+public:
+    bool contains(const KvBlockKey& key) const override { return memory.contains(key); }
+    bool get(const KvBlockRequest& request, std::string& error) override {
+        ++gets;
+        while (block_gets.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return memory.get(request, error);
+    }
+    bool put(const KvBlockPut& put_request, std::string& error) override { return memory.put(put_request, error); }
+    bool invalidate(const KvBlockKey& key, std::string& error) override { return memory.invalidate(key, error); }
+    void block_reads() { block_gets.store(true, std::memory_order_release); }
+    void unblock_reads() { block_gets.store(false, std::memory_order_release); }
+    size_t size() const { return memory.size(); }
+    uint64_t read_count() const { return gets.load(std::memory_order_acquire); }
+
+private:
+    KvMemoryStore memory;
+    std::atomic<bool> block_gets{false};
+    std::atomic<uint64_t> gets{0};
+};
+
 }  // namespace
 
-int main() {
+int test() {
     // 1. The L1 cache is a real cache: a group that is in L1 is a hit, one that is not is a miss that reads the
     //    store, and the bytes survive the round trip.
     {
@@ -205,6 +246,96 @@ int main() {
         if (store.get(request, error)) return 93;
     }
 
+    // 10. Opt-in Phase C publication is asynchronous but explicit: the bytes are snapshotted, the store commit
+    // completes off the caller's path, and the group is not consumed or unpinned until the completion is drained.
+    {
+        KvMemoryStore store;
+        KvTierCoordinator c({17, 0, 0}, async_options(), &store);
+        std::string error;
+        if (!fill_group(c, 0, 0, 0x90, error)) return 100;
+        if (!c.flush(error)) return 106;
+        std::vector<uint8_t> published(64, 0);
+        if (!c.read_block(0, 0, published.data(), published.size(), error)) return 101;
+        if (!c.group_io_ready(0, 0)) return 105;   // draining waits for and consumes the store completion
+        if (store.writes() != 1 || c.counters().published_groups != 1) return 102;
+        if (c.counters().async_writes_submitted != 1) return 103;
+        if (c.slot_of(0, 0) < 0) return 104;       // the completed group remains cached and evictable
+    }
+
+    // 11. A canceled foreground read is a refusal, never a late byte installation.
+    {
+        BlockingStore store;
+        KvTierCoordinator c({18, 0, 0}, async_options(), &store);
+        std::string error;
+        if (!fill_group(c, 0, 0, 0xa0, error)) return 110;
+        if (!c.flush(error)) return 129;
+        if (!fill_group(c, 0, 1, 0xb0, error)) return 111;   // evicts group 0 from the one-slot L1
+        if (!c.flush(error)) return 128;
+        std::vector<uint8_t> second(64, 0);
+        if (!c.read_block(0, 4, second.data(), second.size(), error)) return 112;
+        if (c.slot_of(0, 0) >= 0) return 112;
+
+        store.block_reads();
+        KvReadBatch batch(0, KvReadKind::kForeground);
+        if (!batch.add(0, 0, -1)) return 113;
+        if (!c.submit_read(batch, error)) { std::printf("submit failed: %s\n", error.c_str()); return 114; }
+        const uint64_t operation = batch.items().front().operation;
+        if (operation == 0 || c.group_io_ready(0, 0)) return 115;
+        if (!c.cancel_read(operation, error)) return 116;
+        if (c.wait_read(operation, 0, 0, error)) return 117;
+        if (c.counters().async_cancellations != 1 || c.counters().l2_read_failures != 1) return 118;
+        if (!c.group_io_ready(0, 0)) return 119;
+        if (c.slot_of(0, 0) >= 0) return 120;
+
+        // Release the transport and retry the same cold group through the explicit batch API.
+        store.unblock_reads();
+        KvReadBatch retry(0, KvReadKind::kForeground);
+        if (!retry.add(0, 0, -1)) return 121;
+        if (!c.submit_read(retry, error)) return 122;
+        if (!c.wait_read(retry, error)) return 123;
+        if (c.slot_of(0, 0) < 0 || !c.group_io_ready(0, 0)) return 124;
+        std::vector<uint8_t> out(64, 0);
+        if (!c.read_block(0, 0, out.data(), out.size(), error)) return 125;
+        if (out.front() != 0xa0 || out.back() != 0xa0) return 126;
+        if (c.counters().l2_reads != 2 || c.counters().l1_evictions == 0) return 127;
+    }
+
+    // 12. Every missing group in one asynchronous batch reserves a distinct L1 slot. The last completion may
+    //     not overwrite an earlier group that has not been consumed.
+    {
+        KvMemoryStore store;
+        KvTierCoordinator c({19, 0, 0}, async_two_slot_options(), &store);
+        std::string error;
+        for (int32_t group = 0; group < 4; ++group) {
+            if (!fill_group(c, 0, group, static_cast<uint8_t>(0xc0 + group), error)) return 130;
+            if (!c.flush(error)) return 131;
+        }
+        if (c.slot_of(0, 0) >= 0 || c.slot_of(0, 1) >= 0) return 132;
+
+        KvReadBatch batch(0, KvReadKind::kForeground);
+        if (!batch.add(0, 0, -1) || !batch.add(0, 1, -1)) return 133;
+        if (!c.submit_read(batch, error)) return 134;
+        if (!c.flush(error)) return 141;   // an explicit flush installs, but does not invalidate, completions
+        if (!c.wait_read(batch, error)) { std::printf("batch wait failed: %s\n", error.c_str()); return 135; }
+        if (c.slot_of(0, 0) < 0 || c.slot_of(0, 1) < 0) return 136;
+        std::vector<uint8_t> first(64, 0), second(64, 0);
+        if (!c.read_block(0, 0, first.data(), first.size(), error)) return 137;
+        if (!c.read_block(0, 4, second.data(), second.size(), error)) return 138;
+        if (first.front() != 0xc0 || second.front() != 0xc1) return 139;
+    }
+
     std::puts("kv coordinator: OK");
     return 0;
+}
+
+int main() {
+    try {
+        return test();
+    } catch (const std::exception& error) {
+        std::printf("kv coordinator: uncaught exception: %s\n", error.what());
+        return 101;
+    } catch (...) {
+        std::printf("kv coordinator: unknown exception\n");
+        return 140;
+    }
 }

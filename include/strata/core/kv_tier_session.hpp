@@ -13,6 +13,7 @@
 #include "strata/core/kv_file_store.hpp"
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,7 +25,7 @@ namespace strata::core {
 struct KvTierSessionConfig {
     std::string store_path;         ///< the local store's path; empty means no cold tier
     uint64_t session_id = 0;        ///< the session's identity; the store and the coordinators share it
-    int32_t layer = 0;              ///< the QSA layer the store holds
+    int32_t layer = 0;              ///< compatibility only; a live session opens one store per owned QSA layer
     int32_t l1_groups_per_layer = 0;///< how many groups the L1 cache holds per layer; 0 means no L1 cache
     uint64_t geometry_id = 0;
     uint64_t format_id = 0;
@@ -32,6 +33,7 @@ struct KvTierSessionConfig {
     uint64_t block_bytes = 0;
     uint64_t max_groups = 0;    ///< how many groups the store's directory may hold; 0 refuses every write
     std::vector<KvBlockRun> runs;
+    bool async_io = false;      ///< opt-in Phase C store worker; false keeps synchronous I/O
 };
 
 /// The graph-split proof. A CUDA graph cannot perform host-side file I/O or update a host cache from a CPU
@@ -95,14 +97,21 @@ public:
     /// Disable the tier and release the session's state.
     static void shutdown();
 
+    /// Wait for and consume every background operation, reporting the first failure.
+    static bool flush(std::string& error);
+
 private:
     static KvTierSession& instance();
     KvTierCoordinator* coordinator_for(int32_t layer);
+    /// The error of the last store open, so a failed open can report why.
+    std::string last_error_;
     KvTierSessionConfig config_;
-    KvFileStore store_;              ///< the L2 local file store
-    bool store_open_ = false;
+    std::map<int32_t, std::unique_ptr<KvFileStore>> stores_;   ///< one fixed-layout file per QSA layer
     std::vector<std::unique_ptr<KvTierCoordinator>> coordinators_;
     bool enabled_ = false;
+
+public:
+    ~KvTierSession();
 };
 
 }  // namespace strata::core

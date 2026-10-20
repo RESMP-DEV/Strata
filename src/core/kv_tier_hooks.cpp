@@ -6,6 +6,8 @@
 #include "strata/kernels/kv_q8.hpp"
 #include "strata/kernels/kv_stream.hpp"
 
+#include <algorithm>
+#include <cstring>
 #include <set>
 
 namespace strata::core {
@@ -106,6 +108,28 @@ bool gather_block(const HostRuns& runs, int64_t block, std::vector<uint8_t>& out
     return true;
 }
 
+/// Scatter one block back into the engine's own pinned host copy. This is the consumption boundary: the captured
+/// `qsa_kv_resolve` still reads `QsaState::host`, so a cold group is not "used" until its bytes are here.
+bool scatter_block(const HostRuns& runs, int64_t block, const std::vector<uint8_t>& in, uint64_t block_bytes,
+                   std::string& error) {
+    if (in.size() != block_bytes) {
+        error = "kv tier: the restored block's bytes do not match the geometry";
+        return false;
+    }
+    size_t at = 0;
+    for (int r = 0; r < runs.count; ++r) {
+        if (runs.sources[r] == nullptr) {
+            error = "kv tier: the layer has no host copy for this run";
+            return false;
+        }
+        const uint64_t offset = (uint64_t) block * runs.lengths[r];
+        uint8_t* dst = const_cast<uint8_t*>(runs.sources[r]);
+        std::memcpy(dst + offset, in.data() + at, (size_t) runs.lengths[r]);
+        at += (size_t) runs.lengths[r];
+    }
+    return true;
+}
+
 }  // namespace
 
 bool kv_tier_session_on() { return KvTierSession::enabled(); }
@@ -141,6 +165,7 @@ bool kv_tier_append(int32_t layer, const QsaState& st, const ModelGeometry& g, i
             return false;
         if (!coordinator->complete(layer, (int32_t) block, error)) return false;
     }
+    if (!coordinator->flush(error)) return false;
     return true;
 }
 
@@ -173,12 +198,12 @@ bool kv_tier_commit(int32_t layer, const QsaState& st, const ModelGeometry& g, i
             if (!coordinator->complete(layer, block_index, error)) return false;
         }
     }
+    if (!coordinator->flush(error)) return false;
     return true;
 }
 
 bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, const int32_t* ids, int64_t n_ids,
                      std::string& error) {
-    (void) st;
     if (!KvTierSession::enabled()) return true;
     KvTierCoordinator* coordinator = KvTierSession::coordinator(layer);
     if (coordinator == nullptr) return true;
@@ -189,6 +214,9 @@ bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, 
     // of blocks then issues one request per GROUP, not one per block.
     const int64_t cells_per_block = qsa_shapes(g).idx_block;
     if (cells_per_block <= 0) return true;
+    const KvTierLayerGeometry geometry = kv_tier_geometry(st, g);
+    const HostRuns runs = host_runs(st, g);
+    if (geometry.block_bytes == 0 || runs.count == 0) return true;
     KvReadBatch batch(layer, KvReadKind::kForeground);
     for (int64_t i = 0; i < n_ids; ++i) {
         const int32_t cell = ids[i];
@@ -205,6 +233,17 @@ bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, 
 
     for (const KvReadItem& item : batch.items()) {
         if (!coordinator->read(layer, item.group, error)) return false;
+        std::vector<uint8_t> block_bytes;
+        block_bytes.resize((size_t) geometry.block_bytes);
+        const int64_t first_block = (int64_t) item.group * coordinator->blocks_per_group();
+        const int64_t end_block =
+            std::min<int64_t>(geometry.blocks, first_block + coordinator->blocks_per_group());
+        for (int64_t block = first_block; block < end_block; ++block) {
+            if (!coordinator->read_block(layer, (int32_t) block, block_bytes.data(), geometry.block_bytes, error))
+                return false;
+            if (!scatter_block(runs, block, block_bytes, geometry.block_bytes, error)) return false;
+        }
+        coordinator->note_engine_host_restore();
     }
     return true;
 }

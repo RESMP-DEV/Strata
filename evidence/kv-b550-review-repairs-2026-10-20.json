@@ -1,0 +1,59 @@
+{
+  "recorded_at": "2026-10-20T15:35:00Z",
+  "agent": "Codex parent after CodeRabbit review",
+  "source_revision": "7db98a56cf1c97fbb2be207325766a5652862c05",
+  "source_dirty": false,
+  "scope": "Records the coordinated repair of all nine actionable CodeRabbit findings on the B550 cold-tier PR: the random session expression, selection stride, partial-group bound, asynchronous slot ownership and completion lifetime, acceptance identity parsing, artifact-hash parsing, and the durable identity wording. It does not compile CUDA or run a model.",
+  "review": {
+    "service": "CodeRabbit",
+    "classification": "completed-with-findings",
+    "reviewed_head": "8a30e3d296093c31f163b0af5baa10a44b84ca1a",
+    "state": "CHANGES_REQUESTED",
+    "actionable_findings": 9,
+    "repairs": 9
+  },
+  "checks": [
+    {
+      "command": "c++ -std=c++17 -Wall -Wextra -Iinclude -fsyntax-only src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp src/core/kv_mooncake_store.cpp",
+      "exit": 0,
+      "result": "all touched host KV translation units compile with warnings enabled"
+    },
+    {
+      "command": "cmake --build build/kv-main-check --target kv_coordinator_test kv_tier_session_test kv_tier_graph_test kv_file_store_test kv_read_batch_test kv_mooncake_store_test kv_placement_test kv_failure_injection_test && ctest --test-dir build/kv-main-check -R '^kv_' --output-on-failure",
+      "exit": 0,
+      "result": "8/8 KV tests passed, including the new distinct-slot and explicit-flush regression cases"
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts/tests -p 'test_b550_acceptance.py' -v",
+      "exit": 0,
+      "result": "13/13 harness tests passed, with real two-space sha256sum fixture output"
+    },
+    {
+      "command": "ruff format --check scripts/b550_acceptance.py scripts/tests/test_b550_acceptance.py && ruff check scripts/b550_acceptance.py scripts/tests/test_b550_acceptance.py",
+      "exit": 0,
+      "result": "format and lint passed"
+    },
+    {
+      "command": "just quality && git diff --check",
+      "exit": 0,
+      "result": "repository quality gate and whitespace check passed"
+    },
+    {
+      "command": "c++ -std=c++17 -Wall -Wextra /tmp/random-device-check.cpp -o /tmp/random-device-check && /tmp/random-device-check",
+      "exit": 0,
+      "result": "the repaired std::random_device session-id expression compiles and executes on the host; full generate.cpp still requires a backend build"
+    }
+  ],
+  "findings": [
+    "The critical finding was real: std::random_device() constructed a temporary rather than calling the device, so generate.cpp did not compile. The expression now calls rd() twice and reserves zero.",
+    "The commit copy used last_t_ as the selection stride while the device matrix uses max_t_; cudaMemcpy2D now copies each layer's active rows with the correct source and destination strides.",
+    "Cold restore now stops at geometry.blocks, so an unaligned final group cannot write past the pinned host allocation.",
+    "Asynchronous reads reserve distinct L1 slots, failed or canceled reads release their reservations, explicit records survive a flush until waited on or replaced by an already-ready group, and engine publication flushes before reporting a host boundary.",
+    "The acceptance harness now requests lsblk TYPE and parses sha256sum's binary/text marker correctly; both had unit-test mocks that hid the real output shape."
+  ],
+  "non_claims": [
+    "No CUDA backend was compiled and no model ran.",
+    "The pinned host allocation remains unreduced.",
+    "The separate one-hour async worker timed out with a hanging partial implementation and was not integrated; its timeout receipt is preserved by the CCR worker run directory."
+  ]
+}

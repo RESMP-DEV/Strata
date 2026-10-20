@@ -1,0 +1,87 @@
+{
+  "agent": "Codex B550 acceptance harness worker",
+  "blockers": [
+    "B550 reachability: no documented lane answered during the acceptance window, so the identity, build, NLL, cold-control, and scale gates could not execute.",
+    "KV counter observability: even after reachability, the current engine does not print the KV-tier counters. A report call or equivalent durable counter export is required before the cold gate can pass."
+  ],
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s scripts/tests",
+      "exit": 0,
+      "result": "All 55 repository script tests passed, including 13 focused harness tests for hardware identity parsing, Optane model/serial exactness, serve/logpos parsing, DONE metrics, counter refusal, shell quoting, controlled flags, and exact identity behavior."
+    },
+    {
+      "command": "ruff format --check scripts && ruff check scripts",
+      "exit": 0,
+      "result": "Format and lint passed."
+    },
+    {
+      "command": "CCACHE_DIR=$PWD/build/tool-cache/ccache CCACHE_TEMPDIR=$PWD/build/tool-cache/ccache/tmp just quality",
+      "exit": 0,
+      "result": "Aggregate quality receipt passed after the final harness edits; see build/reports/quality/receipt.json. CCACHE_DIR/CCACHE_TEMPDIR were redirected into the allowed build tree because the managed sandbox could not write the normal ~/.cache/alphaheng ccache temporary path."
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0,
+      "result": "No whitespace errors."
+    },
+    {
+      "command": "python3 scripts/b550_acceptance.py --receipt build/reports/b550-acceptance/identity.json identity",
+      "exit": 1,
+      "observed": {
+        "lan": {
+          "reachable": false,
+          "target": "192.168.1.171:22"
+        },
+        "observed_errors": [
+          "Connection closed by UNKNOWN port 65535",
+          "Connection timed out during banner exchange"
+        ],
+        "ssh_alias": {
+          "address": "192.168.1.171",
+          "reachable": false,
+          "target": "B550",
+          "user": "kearm"
+        },
+        "zero_tier": {
+          "reachable": false,
+          "target": "10.243.130.224:22"
+        }
+      },
+      "result": "Correctly failed: B550 answered on no documented lane. Full exact bounded outputs and per-step exits are in build/reports/b550-acceptance/identity.json."
+    }
+  ],
+  "dirty_scope": "The working tree adds focused repairs and tests to scripts/b550_acceptance.py and scripts/tests/test_b550_acceptance.py on top of the f4095fcd harness work; no engine, coordinator, Mooncake adapter, installer, or server source changed.",
+  "findings": [
+    "At this source revision, git grep finds no caller of KvTierSession::report in src/ or include/: the only occurrences are its declaration and definition. The harness therefore cannot lawfully pass a cold arm without an engine instrumentation change; it will report missing counters as a failure rather than infer cold reads from output identity or file activity.",
+    "The engine's STRATA_LOGPOS teacher-forced NLL surface is in serve mode, not one-shot generate mode. The harness drives the GEN protocol and T/DONE lines accordingly."
+  ],
+  "implementation": [
+    "scripts/b550_acceptance.py implements read-only identity, CUDA sm86 build/device identity, STRATA_SM86_PERF off/on NLL identity, matched cold off/on control, counter and graph-proof refusal rules, and selected 600K/800K scale controls.",
+    "The live-model driver uses the engine serve protocol because that is where STRATA_LOGPOS and the KV serving hooks execute. It parses contiguous absolute scored positions and the DONE timing/count fields.",
+    "The SSH execution path uses argv lists and quoted remote commands; it checks compute apps before each arm and contains no kill, restart, service, PID, or storage teardown operation.",
+    "A cold arm requires exactly one tier report with nonzero l2_reads and l1_evictions, zero read failures/checksum errors/graph violations, and at least one complete graph window."
+  ],
+  "integrated_into": "integration/kv-b550-implementation",
+  "non_claims": [
+    "No B550 hostname, GPU model, compute capability, CUDA build, device selftest, model run, token ID, NLL, tier counter, eviction, or scale result was observed.",
+    "No Optane model, serial, partition, mount state, or SMART state was observed.",
+    "The unreachable-host result is not a hardware-health diagnosis and the absent host is not treated as a pass.",
+    "The local script tests and quality gate do not compile CUDA on B550, exercise a real model, move a KV byte, or validate remote performance.",
+    "The unit-test fake serve engine proves parsing and decision behavior only; it is not a hardware result.",
+    "The live identity command was re-run on the integration branch and correctly failed with a written receipt: no lane answered, so every identity fact in this file is from the worker's earlier run against the same blocked host."
+  ],
+  "parent_corrections": [
+    "The expected storage model and serial were swapped relative to the recorded receipt (the model is ET000750KWJTF and the serial is PHKS826300DP750BGN); the constants are now named EXPECTED_STORAGE_MODEL and EXPECTED_STORAGE_SERIAL and match the receipt.",
+    "The engine-host restore counter was added to the required-counter set and to the cold-control refusal, so a cold arm that publishes bytes but never reaches the copy the attention reads fails the gate.",
+    "The tier report is now printed by the engine at session shutdown, which is what the harness parses; without that call site the harness could never lawfully pass a cold arm."
+  ],
+  "receipts": {
+    "machine_identity": "build/reports/b550-acceptance/identity.json",
+    "quality": "build/reports/quality/receipt.json"
+  },
+  "recorded_at": "2026-10-20T14:56:04Z",
+  "scope": "Records delivery and host-safe validation of the B550 acceptance harness, plus the live reachability blocker. It does not claim CUDA sm86 execution, engine/runtime identity, a matched NLL control, cold reads, L1 evictions, or 600K/800K results.",
+  "source_dirty": true,
+  "source_revision": "WORKER_BASE_f4095fcd"
+}

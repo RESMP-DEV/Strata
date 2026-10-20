@@ -30,6 +30,7 @@ struct KvReadItem {
     int32_t layer = 0;
     int32_t group = 0;
     int32_t slot = -1;   ///< the L1 slot the group's bytes go into; -1 when the slot is not known yet
+    uint64_t operation = 0; ///< the background read's explicit completion, or 0 for a synchronous item
 };
 
 /// A batch of group reads. The batch owns the deduplication: the same group named twice appears once.
@@ -43,6 +44,12 @@ public:
 
     /// The groups in the batch, in the order they were added.
     const std::vector<KvReadItem>& items() const { return items_; }
+
+    /// Bind a submitted background operation to its batch item. The scheduler owns this linkage; callers read it
+    /// only through the returned batch.
+    void set_operation(size_t index, uint64_t operation) {
+        if (index < items_.size()) items_[index].operation = operation;
+    }
 
     /// How many groups the batch holds.
     size_t size() const { return items_.size(); }

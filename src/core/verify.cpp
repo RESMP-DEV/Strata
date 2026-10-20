@@ -793,7 +793,8 @@ bool Verifier::init(const WeightTable& wt, const ModelGeometry& g, SessionState&
         qfull_ = b.take<float>(T * NH * 2 * HD); qcur_ = b.take<float>(T * NH * HD);
         kcur_ = b.take<float>(T * NKV * HD); vcur_ = b.take<float>(T * NKV * HD);
         idx_raw_L_ = b.take<float>(nQ * T * ID); qidx_ = b.take<float>(T * IQ * ID);
-        scores_ = b.take<float>(T * (uint64_t) max_blocks_); sel_ = b.take<int32_t>(T * (uint64_t) cap_);
+        scores_ = b.take<float>(T * (uint64_t) max_blocks_);
+        sel_ = b.take<int32_t>((uint64_t) nQ * T * (uint64_t) cap_);
         attn_ = b.take<float>(T * NH * HD); attn32_ = b.take<float>(T * NH * HD);
         attn_scratch_ = b.take<float>(T * (uint64_t) attn_scratch_floats_);
         tail_snap_ = b.take<float>(nQ * TS);
@@ -1565,8 +1566,8 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 auto idx_select = [&](cudaStream_t ns) {
                     qsa_block_scores(st.idx_pooled, st.idx_dead, qidx_ + tb * IQ * ID, step_ + tb * kStepCount, n, max_blocks_,
                                      s, scores_ + (size_t) tb * max_blocks_, ns);
-                    qsa_block_topk(scores_ + (size_t) tb * max_blocks_, step_ + tb * kStepCount, n, max_blocks_, cap_, s,
-                                   sel_ + (size_t) tb * cap_, ns);
+                    qsa_block_topk(scores_ + (size_t) tb * max_blocks_, step_ + tb * kStepCount, n, max_blocks_, cap_,
+                                   s, selection_for(qi, tb), ns);
                 };
                 // the attention's queries: the projection (mm on cs, which may read F4's interleaved copy; on a branch
                 // F4's kernel too, its copy written on cs before the fork - bitwise the same), the q/gate
@@ -1725,9 +1726,9 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                     }
                     qsa_block_scores_rows(sr, qidx_ + tb * IQ * ID, step_ + tb * kStepCount, n_rows, max_blocks_, s,
                                           scores_ + (size_t) tb * max_blocks_, cs);
-                    qsa_block_topk(scores_ + (size_t) tb * max_blocks_, step_ + tb * kStepCount, n_rows, max_blocks_, cap_,
-                                   s, sel_ + (size_t) tb * cap_, cs);
-                    qsa_decode_attn_batch_rows(qcur_ + tb * NH * HD, pr, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount,
+                    qsa_block_topk(scores_ + (size_t) tb * max_blocks_, step_ + tb * kStepCount, n_rows, max_blocks_,
+                                   cap_, s, selection_for(qi, tb), cs);
+                    qsa_decode_attn_batch_rows(qcur_ + tb * NH * HD, pr, selection_for(qi, tb), step_ + tb * kStepCount,
                                                cap_, s, attn_scratch_ + (size_t) tb * attn_scratch_floats_,
                                                attn_ + tb * NH * HD, n_rows, cs);
                 } else
@@ -1753,13 +1754,13 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                 qsa_block_scores(pooled[t - t0], dead[t - t0], qidx_ + t * IQ * ID, step_ + t * kStepCount,
                                                  1, max_blocks_, s, scores_ + (size_t) t * max_blocks_, cs);
                         qsa_block_topk(scores_ + (size_t) t0 * max_blocks_, step_ + t0 * kStepCount, m, max_blocks_,
-                                       cap_, s, sel_ + (size_t) t0 * cap_, cs);
-                        if (!qsa_decode_attn_slots(qcur_ + t0 * NH * HD, px, sel_ + (size_t) t0 * cap_,
+                                       cap_, s, selection_for(qi, t0), cs);
+                        if (!qsa_decode_attn_slots(qcur_ + t0 * NH * HD, px, selection_for(qi, t0),
                                                    step_ + t0 * kStepCount, cap_, s,
                                                    attn_scratch_ + (size_t) t0 * attn_scratch_floats_,
                                                    attn_ + t0 * NH * HD, m, cs))
                             for (int t = t0; t < t0 + m; ++t)
-                                qsa_decode_attn_batch(qcur_ + t * NH * HD, px.p[t - t0], sel_ + (size_t) t * cap_,
+                                qsa_decode_attn_batch(qcur_ + t * NH * HD, px.p[t - t0], selection_for(qi, t),
                                                       step_ + t * kStepCount, cap_, s,
                                                       attn_scratch_ + (size_t) t * attn_scratch_floats_,
                                                       attn_ + t * NH * HD, 1, cs);
@@ -1769,14 +1770,14 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                         const QsaState& sx = slot_ss(t).qsa_states[qi];
                         qsa_block_scores(sx.idx_pooled, sx.idx_dead, qidx_ + t * IQ * ID, step_ + t * kStepCount, 1,
                                          max_blocks_, s, scores_ + (size_t) t * max_blocks_, cs);
-                        qsa_block_topk(scores_ + (size_t) t * max_blocks_, step_ + t * kStepCount, 1, max_blocks_, cap_, s,
-                                       sel_ + (size_t) t * cap_, cs);
+                        qsa_block_topk(scores_ + (size_t) t * max_blocks_, step_ + t * kStepCount, 1, max_blocks_,
+                                       cap_, s, selection_for(qi, t), cs);
                         // The disaggregated KV tier's resolve hook does NOT run here: the selection lives in
                         // DEVICE memory, so reading it from the host would fault, and at capture time the
                         // top-k kernel has not run so the buffer holds no selection at all.
-                        qsa_kv_resolve(sx, *g_, sel_ + (size_t) t * cap_, step_ + t * kStepCount, 1, cap_, cs);
+                        qsa_kv_resolve(sx, *g_, selection_for(qi, t), step_ + t * kStepCount, 1, cap_, cs);
                         const QsaAttnPools px = qsa_attn_pools(sx);
-                        qsa_decode_attn_batch(qcur_ + t * NH * HD, px, sel_ + (size_t) t * cap_, step_ + t * kStepCount,
+                        qsa_decode_attn_batch(qcur_ + t * NH * HD, px, selection_for(qi, t), step_ + t * kStepCount,
                                               cap_, s, attn_scratch_ + (size_t) t * attn_scratch_floats_,
                                               attn_ + t * NH * HD, 1, cs);
                     }
@@ -1792,20 +1793,20 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 }
                 stamp(l, 11, grp);
                 // KV streaming: the n selections' blocks resident (device-side, inside the graph)
-                qsa_kv_resolve(st, *g_, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, n, cap_, cs);
+                qsa_kv_resolve(st, *g_, selection_for(qi, tb), step_ + tb * kStepCount, n, cap_, cs);
                 stamp(l, 12, grp);
                 if (qbr) join(0);   // the query, for attention
                 const QsaAttnPools pools = qsa_attn_pools(st);
                 // STRATA_QSA_SPLIT_ATTN=1: the split tensor-core attention where it applies (int8 KV, sm_80+)
                 static const bool split_attn = [] { const char* v = std::getenv("STRATA_QSA_SPLIT_ATTN"); return v != nullptr && std::atoi(v) != 0; }();
-                if (!(split_attn && qsa_decode_attn_split(qcur_ + tb * NH * HD, pools, sel_ + (size_t) tb * cap_,
+                if (!(split_attn && qsa_decode_attn_split(qcur_ + tb * NH * HD, pools, selection_for(qi, tb),
                                                           step_ + tb * kStepCount, cap_, s,
                                                           attn_scratch_ + (size_t) tb * attn_scratch_floats_,
                 // The disaggregated KV tier's resolve hook does NOT run here: the selection lives in DEVICE
                 // memory, so reading it from the host would fault, and at capture time the top-k kernel has
                 // not run so the buffer holds no selection at all. The hook runs at the commit boundary.
                                                           (uint64_t) n * (uint64_t) attn_scratch_floats_, attn_ + tb * NH * HD, n, cs)))
-                qsa_decode_attn_batch(qcur_ + tb * NH * HD, pools, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, cap_,
+                qsa_decode_attn_batch(qcur_ + tb * NH * HD, pools, selection_for(qi, tb), step_ + tb * kStepCount, cap_,
                                       s, attn_scratch_ + (size_t) tb * attn_scratch_floats_, attn_ + tb * NH * HD, n, cs);
                 }
                 stamp(l, 13, grp);
@@ -3231,29 +3232,42 @@ bool Verifier::commit(int n_keep, std::string& err) {
     // finished, so the selection can be copied to a host buffer and the coordinator can do its work. The same
     // coordinator that served the window publishes the tokens, so there is one policy and no second implicit path.
     if (kv_tier_session_on() && g_->n_qsa_layers() > 0) {
-        const int32_t layer = (int32_t) ss_->qsa_ord0;
+        const int64_t n_qsa = ss_->qsa_alloc;
         std::string tier_error;
-        if (!kv_tier_commit(layer, ss_->qsa_states[layer], *g_, last_pos0_, n_keep, tier_error)) {
-            err = tier_error;
-            return false;
-        }
         // The resolve hook needs the selection on the HOST. The selection lives in device memory, so it is
         // copied into a mapped host buffer first. The copy is a device-to-host copy after the graph, which is
         // exactly the split the architecture's graph-boundary rule asks for.
-        if (last_t_ > 0 && cap_ > 0) {
-            const size_t bytes = (size_t) last_t_ * (size_t) cap_ * sizeof(int32_t);
-            std::vector<int32_t> selection((size_t) last_t_ * (size_t) cap_, 0);
-            if (cudaMemcpy(selection.data(), sel_, bytes, cudaMemcpyDeviceToHost) != cudaSuccess) {
+        std::vector<int32_t> selection;
+        if (last_t_ > 0 && cap_ > 0 && n_qsa > 0) {
+            const size_t row_words = (size_t) last_t_ * (size_t) cap_;
+            selection.resize((size_t) n_qsa * row_words, 0);
+            if (cudaMemcpy2D(selection.data(), row_words * sizeof(int32_t),
+                             selection_for(ss_->qsa_ord0, 0),
+                             (size_t) max_t_ * (size_t) cap_ * sizeof(int32_t),
+                             row_words * sizeof(int32_t), (size_t) n_qsa,
+                             cudaMemcpyDeviceToHost) != cudaSuccess) {
                 err = "verify: the KV tier could not read the selection";
                 return false;
             }
-            KvTierSession::note_phase(kvTierPhaseSelection);
-            KvTierSession::note_phase(kvTierPhaseReadiness);
-            if (!kv_tier_resolve(layer, ss_->qsa_states[layer], *g_, selection.data(), (int64_t) cap_, tier_error)) {
+        }
+        for (int64_t j = 0; j < n_qsa; ++j) {
+            const int32_t layer = (int32_t) (ss_->qsa_ord0 + j);
+            if (!kv_tier_commit(layer, ss_->qsa_states[layer], *g_, last_pos0_, n_keep, tier_error)) {
                 err = tier_error;
                 return false;
             }
-            KvTierSession::note_phase(kvTierPhaseResolve);
+            if (!selection.empty()) {
+                const int32_t* layer_selection =
+                    selection.data() + (size_t) j * (size_t) last_t_ * (size_t) cap_;
+                KvTierSession::note_phase(kvTierPhaseSelection);
+                KvTierSession::note_phase(kvTierPhaseReadiness);
+                if (!kv_tier_resolve(layer, ss_->qsa_states[layer], *g_, layer_selection,
+                                     (int64_t) last_t_ * (int64_t) cap_, tier_error)) {
+                    err = tier_error;
+                    return false;
+                }
+                KvTierSession::note_phase(kvTierPhaseResolve);
+            }
         }
     }
     if (ple_stage())   // stages that share one session must advance it once

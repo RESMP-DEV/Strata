@@ -58,6 +58,128 @@ bool KvMemoryTransport::remove(const std::string& key, std::string& error) {
 
 bool KvMemoryTransport::has(const std::string& key) const { return objects_.find(key) != objects_.end(); }
 
+// ---- KvMooncakePoolTransport ----
+
+void KvMooncakePoolTransport::evict_for_locked(uint64_t incoming_bytes, size_t incoming_objects,
+                                               std::string& error) {
+    const bool byte_quota = options_.quota_bytes != 0;
+    const bool object_quota = options_.max_objects != 0;
+    if (byte_quota && incoming_bytes > options_.quota_bytes) {
+        ++quota_refusals_;
+        error = "kv shared pool: one object exceeds the pool quota";
+        return;
+    }
+    while ((byte_quota && used_bytes_ + incoming_bytes > options_.quota_bytes) ||
+           (object_quota && objects_.size() + incoming_objects > options_.max_objects)) {
+        if (objects_.empty()) break;
+        auto victim = objects_.begin();
+        for (auto it = objects_.begin(); it != objects_.end(); ++it) {
+            if (it->second.stamp < victim->second.stamp) victim = it;
+        }
+        used_bytes_ -= victim->second.payload.size();
+        objects_.erase(victim);
+        ++evictions_;
+    }
+    if ((byte_quota && used_bytes_ + incoming_bytes > options_.quota_bytes) ||
+        (object_quota && objects_.size() + incoming_objects > options_.max_objects)) {
+        ++quota_refusals_;
+        error = "kv shared pool: the quota could not be satisfied";
+    }
+}
+
+bool KvMooncakePoolTransport::put(const std::string& key, const void* data, size_t bytes, std::string& error) {
+    if (data == nullptr || bytes == 0) {
+        error = "kv shared pool: the put has no payload";
+        return false;
+    }
+    const uint8_t* payload = static_cast<const uint8_t*>(data);
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto existing = objects_.find(key);
+    if (existing != objects_.end()) {
+        if (existing->second.payload.size() == bytes &&
+            std::memcmp(existing->second.payload.data(), payload, bytes) == 0) {
+            existing->second.stamp = ++tick_;
+            return true;
+        }
+        ++immutable_refusals_;
+        error = "kv shared pool: an existing object is immutable";
+        return false;
+    }
+
+    std::string quota_error;
+    evict_for_locked((uint64_t) bytes, 1, quota_error);
+    if (!quota_error.empty()) {
+        error = quota_error;
+        return false;
+    }
+    Entry entry;
+    entry.payload.assign(payload, payload + bytes);
+    entry.stamp = ++tick_;
+    objects_[key] = std::move(entry);
+    used_bytes_ += (uint64_t) bytes;
+    ++admissions_;
+    return true;
+}
+
+bool KvMooncakePoolTransport::get(const std::string& key, std::vector<uint8_t>& out, std::string& error) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = objects_.find(key);
+    if (it == objects_.end()) {
+        error = "kv shared pool: the object is absent";
+        return false;
+    }
+    it->second.stamp = ++tick_;
+    out = it->second.payload;
+    return true;
+}
+
+bool KvMooncakePoolTransport::remove(const std::string& key, std::string& error) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = objects_.find(key);
+    if (it == objects_.end()) {
+        error = "kv shared pool: the object is absent";
+        return false;
+    }
+    used_bytes_ -= it->second.payload.size();
+    objects_.erase(it);
+    return true;
+}
+
+bool KvMooncakePoolTransport::has(const std::string& key) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return objects_.find(key) != objects_.end();
+}
+
+uint64_t KvMooncakePoolTransport::used_bytes() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return used_bytes_;
+}
+
+size_t KvMooncakePoolTransport::size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return objects_.size();
+}
+
+uint64_t KvMooncakePoolTransport::admissions() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return admissions_;
+}
+
+uint64_t KvMooncakePoolTransport::evictions() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return evictions_;
+}
+
+uint64_t KvMooncakePoolTransport::quota_refusals() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return quota_refusals_;
+}
+
+uint64_t KvMooncakePoolTransport::immutable_refusals() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return immutable_refusals_;
+}
+
 // ---- KvMooncakeStore ----
 
 KvMooncakeStore::KvMooncakeStore(KvSharedTransport* transport, Options options)

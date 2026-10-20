@@ -11,7 +11,7 @@ LOG="${B550_WATCH_LOG:-/tmp/b550-watch.log}"
 INTERVAL="${B550_WATCH_INTERVAL:-20}"
 MAX_TRIES="${B550_WATCH_MAX_TRIES:-1440}"
 
-log() { printf '%s %s\n' "$(date -Is)" "$*" >>"$LOG"; }
+log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >>"$LOG"; }
 
 capture() {
     ssh -o BatchMode=yes -o ConnectTimeout=25 -o ConnectionAttempts=2 "$1" \

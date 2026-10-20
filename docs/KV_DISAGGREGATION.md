@@ -103,6 +103,14 @@ Strata still owns the QSA block key, page geometry, format fingerprint,
 residency ordering, and validation. Mooncake treats KV bytes as opaque values,
 which is the correct boundary for an adapter.
 
+The dependency-free `KvMooncakePoolTransport` is the reference for the Master
+side Strata can test before deploying a second host: one quota and one LRU
+eviction order are shared across every store identity, replacement of an
+existing object is refused, and an object larger than the pool cannot evict the
+entire pool to admit itself. It does not provide Mooncake's replication,
+placement, RDMA transfer, or standalone Master service; those remain the real
+transport's responsibilities.
+
 ### What the imported engine already provides
 
 The v0.1.45 engine already implements the L0 and L1 tiers for a streamed QSA
@@ -510,13 +518,15 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | K1 `KvBlockStore` ABI and reference store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K2 `KvTierCoordinator` state machine and epoch keys | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K3 serving append boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K4 serving read-plan boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| L2 local file store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K4 serving read-plan and engine-host restore boundary | implemented, not yet run against a model | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
+| L2 per-layer local file store | implemented, host tested | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
 | K5 shared token and prompt path hooks | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K6 graph split proof | implemented, not yet observed on a captured window | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K9 read batch | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K10 Mooncake-compatible store adapter | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K10 Mooncake-compatible store and shared pool reference | implemented, host tested; real Mooncake transport not deployed | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
 | K11 placement policy sweep | policy and matched control implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| Phase C explicit background operations | opt-in coordinator API and background publication implemented, host tested | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
+| B550 acceptance harness | implemented and unit tested; hardware execution blocked by reachability | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
 
 The coordinator is now wired into the serving path behind an opt-in switch:
 `--kv-tier <path>` turns the cold tier on and `--kv-tier-l1 <groups>` sizes
@@ -524,18 +534,18 @@ the L1 group cache per layer. It needs `--kv-resident`, because a cold tier
 publishes the layer's host copy and only a streamed layer has one. With the
 tier off, the serving path costs one branch per window and nothing else.
 
-The hooks sit where the serving path really moves K/V: `verify.cpp`'s
-`kv_append_*` calls and its `qsa_kv_resolve` calls. The append hook reads the
-window's first position from the host-mapped step buffer, because the device
-`step_` buffer cannot be read from the host. The resolve hook maps the
-selection's cells to their blocks, deduplicates the groups, and makes each
-group ready before the attention runs.
+The hooks sit where the serial serving path really moves K/V: `verify.cpp`'s
+commit boundary and its captured QSA selection/resolve phases. A per-layer
+selection matrix preserves each QSA layer's plan, every owned layer gets its own
+coordinator and fixed-layout file, and a serial generate/server request resets
+the process-scoped epoch before rewriting its session. Layer split and batch
+modes are refused until their stage/slot coordinators are wired.
 
-The L2 store is a file of whole groups. A group's payload is durable before
-its valid marker is committed, the header is the only source of truth for the
-layout, a group of another geometry, format, layer, or epoch is absent rather
-than misread, and a partial read is refused because a whole-group checksum
-cannot verify it.
+The L2 store is a directory of one fixed-layout file per QSA layer. A group's
+payload is durable before its valid marker is committed, the header is the only
+source of truth for the layout, a group of another geometry, format, layer, or
+epoch is absent rather than misread, and a partial read is refused because a
+whole-group checksum cannot verify it.
 
 The token path's publish happens at the commit boundary, not inside the
 layer. The token path runs inside a captured graph, and a captured graph cannot
@@ -546,9 +556,9 @@ second implicit path.
 
 The selection's cells are collected into one read batch and deduplicated by
 group, so a token that names hundreds of blocks issues one request per GROUP
-rather than one per block. The batch carries its kind (foreground, prefetch, or
-migration) and a deadline, and a foreground batch may not be starved by prefetch
-traffic.
+rather than one per block. After a group is ready, its bytes are scattered back
+into `QsaState::host`, the pinned host layout the captured `kv_stream_resolve`
+actually reads; `engine_host_restores` counts that consumption boundary.
 
 The graph-split proof counts the phases each captured window went through: a
 captured selection, a host readiness phase, and a captured resolve, in that
@@ -573,10 +583,19 @@ uses it. A policy that does not beat CLOCK in that control is not promoted, and
 a control that a policy wins against itself is a broken control, which the
 contract test refuses.
 
+`--kv-tier-async` opts one coordinator into a single serialized store worker.
+Background publication snapshots immutable bytes, exposes explicit completion,
+and drains before append, read, rewind, reset, or shutdown; cancellation and
+failure never expose bytes as ready. The explicit foreground read API is host
+tested, but the serving resolver still uses the synchronous `read` fallback, so
+no overlap or latency improvement is claimed.
+
 What is not yet true: the hooks have never run against a model. The CUDA
-build, the identity gate, the matched NLL control, the forced cold reads, and
-the 600K and 800K gates are all outstanding, and the cold tier's benefit is
-unmeasured.
+build, the identity gate, the matched NLL control, the forced cold reads, the
+engine-host restore counter, and the 600K and 800K gates are all outstanding.
+The engine still allocates its full pinned host copy, so this is a correctness
+and consumption boundary, not a RAM saving; throughput and capacity benefits
+are unmeasured.
 
 ## Current prototype status
 

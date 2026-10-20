@@ -2,11 +2,15 @@
 #include "strata/core/kv_tier_session.hpp"
 
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 using namespace strata::core;
 
 int main() {
+    std::filesystem::remove_all("/tmp/strata-kv-tier-test");
     // The tier is off by default: the serving path's branch must cost nothing when it is not used.
     if (KvTierSession::enabled()) return 1;
     if (KvTierSession::coordinator(0) != nullptr) return 2;
@@ -47,6 +51,21 @@ int main() {
     if (a == b) return 10;
     if (KvTierSession::coordinator(0) != a) return 11;   // the same layer gives the same coordinator
 
+    // Every layer must be able to publish through its own fixed-layout file. On the old single-store session the
+    // layer-1 coordinator inherited the layer-0 store identity and this completion failed.
+    auto publish_group = [&](KvTierCoordinator* coordinator, int32_t layer) {
+        std::vector<uint8_t> block(64, static_cast<uint8_t>(0x50 + layer));
+        for (int32_t b = 0; b < 4; ++b) {
+            if (!coordinator->append(layer, b, error)) return false;
+            if (!coordinator->write_block(layer, b, block.data(), block.size(), error)) return false;
+            if (!coordinator->complete(layer, b, error)) return false;
+        }
+        return true;
+    };
+    if (!publish_group(a, 0)) { std::printf("layer 0 publish failed: %s\n", error.c_str()); return 17; }
+    if (!publish_group(b, 1)) { std::printf("layer 1 publish failed: %s\n", error.c_str()); return 18; }
+    if (a->published_keys().empty() || b->published_keys().empty()) return 19;
+
     // The counters are summed over the coordinators and start empty.
     const KvTierCounters counters = KvTierSession::counters();
     if (counters.l1_hits != 0 || counters.l2_reads != 0) return 12;
@@ -58,6 +77,7 @@ int main() {
 
     KvTierSession::shutdown();
     if (KvTierSession::enabled()) return 16;
+    std::filesystem::remove_all("/tmp/strata-kv-tier-test");
 
     std::puts("kv tier session: OK");
     return 0;
