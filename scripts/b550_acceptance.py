@@ -29,6 +29,7 @@ EXPECTED_GPU = "NVIDIA GeForce RTX 3090 Ti"
 EXPECTED_COMPUTE_CAPABILITY = "8.6"
 EXPECTED_STORAGE_MODEL = "ET000750KWJTF"
 EXPECTED_STORAGE_SERIAL = "PHKS826300DP750BGN"
+PINNED_LLAMA_CPP_REVISION = "3cf03257f219afbe7334045ff7c6a06ac68c627d"
 CONTROLLED_ENGINE_FLAGS = {
     "--tokens-file",
     "--max-new",
@@ -55,10 +56,15 @@ class Result:
     stdout: str
     stderr: str
     elapsed_seconds: float
+    required: bool = True
 
     @property
     def passed(self) -> bool:
         return self.exit_code == 0
+
+    @property
+    def aggregate_failure(self) -> bool:
+        return self.required and not self.passed
 
     def evidence(self, output_limit: int = 16000) -> dict[str, Any]:
         return {
@@ -66,6 +72,7 @@ class Result:
             "command": self.command,
             "exit_code": self.exit_code,
             "elapsed_seconds": round(self.elapsed_seconds, 3),
+            "required": self.required,
             "stdout": _truncate(self.stdout, output_limit),
             "stderr": _truncate(self.stderr, output_limit),
         }
@@ -108,10 +115,14 @@ class Harness:
     failures: list[str] = field(default_factory=list)
     facts: dict[str, Any] = field(default_factory=dict)
 
-    def local(self, name: str, command: list[str], input: str | None = None) -> Result:
-        return self._execute(name, command, remote=False, input=input)
+    def local(
+        self, name: str, command: list[str], input: str | None = None, required: bool = True
+    ) -> Result:
+        return self._execute(name, command, remote=False, input=input, required=required)
 
-    def remote(self, name: str, command: list[str], input: str | None = None) -> Result:
+    def remote(
+        self, name: str, command: list[str], input: str | None = None, required: bool = True
+    ) -> Result:
         wrapped = [
             "ssh",
             "-o",
@@ -123,9 +134,11 @@ class Harness:
             self.ssh_host,
             *command,
         ]
-        return self._execute(name, wrapped, remote=True, input=input)
+        return self._execute(name, wrapped, remote=True, input=input, required=required)
 
-    def _execute(self, name: str, command: list[str], remote: bool, input: str | None) -> Result:
+    def _execute(
+        self, name: str, command: list[str], remote: bool, input: str | None, required: bool
+    ) -> Result:
         started = time.monotonic()
         runner = self.runner or subprocess.run
         try:
@@ -144,6 +157,7 @@ class Harness:
                 stdout=completed.stdout,
                 stderr=completed.stderr,
                 elapsed_seconds=time.monotonic() - started,
+                required=required,
             )
         except subprocess.TimeoutExpired as error:
             result = Result(
@@ -153,6 +167,7 @@ class Harness:
                 stdout=_text(error.stdout),
                 stderr=_text(error.stderr) + f"\nharness timeout after {self.command_timeout}s\n",
                 elapsed_seconds=time.monotonic() - started,
+                required=required,
             )
         except OSError as error:
             result = Result(
@@ -162,14 +177,16 @@ class Harness:
                 stdout="",
                 stderr=f"{type(error).__name__}: {error}",
                 elapsed_seconds=time.monotonic() - started,
+                required=required,
             )
         self.steps.append(result)
         marker = "REMOTE" if remote else "LOCAL"
         print(
-            f"{'PASS' if result.passed else 'FAIL'} {marker} {name}: exit {result.exit_code}",
+            f"{'PASS' if result.passed else 'FAIL'}{' (optional)' if not result.required else ''} "
+            f"{marker} {name}: exit {result.exit_code}",
             flush=True,
         )
-        if not result.passed:
+        if result.aggregate_failure:
             self.failures.append(
                 f"{marker} {name} exited {result.exit_code}: {result.stderr.strip()}"
             )
@@ -281,23 +298,40 @@ def parse_findmnt(text: str) -> dict[str, Any]:
     }
 
 
+def optane_mount_error(optane: dict[str, Any], mount: dict[str, Any], target: str) -> str | None:
+    if mount.get("target") != target:
+        return f"{target} is not a mount point; findmnt resolved {mount.get('target')!r}"
+    source = str(mount.get("source", ""))
+    disk_path = str(optane.get("path", ""))
+    if not source.startswith(disk_path) or re.fullmatch(r"p\d+", source[len(disk_path) :]) is None:
+        return f"mount source {source!r} is not a partition of Optane {disk_path!r}"
+    return None
+
+
 def probe_reachability(harness: Harness, address: str, zero_tier_address: str) -> dict[str, Any]:
     """Probe every documented lane and record what answered.
 
-    The B550 is reachable by SSH alias, by its LAN address, and by its
-    ZeroTier address.  A failure on the alias alone does not say which lane
-    is down, so each lane is probed and the answer is recorded: reachability is
-    a fact, and a missing host is a blocker, never a pass.
+    The B550 is reachable by SSH alias and by a caller-discovered LAN address,
+    optionally plus a caller-discovered ZeroTier address.  A failure on one
+    lane alone does not say which lane is down, so each requested lane is
+    probed and the answer is recorded: reachability is a fact, and no lane
+    answering is a blocker, never a pass.
     """
     lanes: dict[str, Any] = {}
     for name, target in (("lan", address), ("zero_tier", zero_tier_address)):
-        probe = harness.local(f"reachability-{name}", ["nc", "-G", "5", "-z", target, "22"])
+        if not target:
+            continue
+        probe = harness.local(
+            f"reachability-{name}",
+            ["nc", "-G", "5", "-z", target, "22"],
+            required=False,
+        )
         lanes[name] = {
             "target": target,
             "reachable": probe.passed,
             "exit_code": probe.exit_code,
         }
-    alias = harness.remote("reachability-alias", ["hostname"])
+    alias = harness.remote("reachability-alias", ["hostname"], required=False)
     lanes["ssh_alias"] = {
         "target": harness.ssh_host,
         "reachable": alias.passed,
@@ -381,12 +415,10 @@ def verify_identity(
     else:
         harness.require(False, f"{optane_mount} is not mounted; identity never mounts storage")
     if optane is not None and mount is not None:
-        source = str(mount.get("source", ""))
-        disk_path = str(optane.get("path", ""))
+        failure = optane_mount_error(optane, mount, optane_mount)
         harness.require(
-            source.startswith(disk_path)
-            and re.fullmatch(r"p\d+", source[len(disk_path) :]) is not None,
-            f"mount source {source!r} is not a partition of Optane {disk_path!r}",
+            failure is None,
+            failure or "invalid Optane mount",
         )
 
     facts = {
@@ -409,6 +441,7 @@ def verify_build(
     nvcc: str,
     parallel: int,
     expected_revision: str,
+    ggml_dir: str = "",
     allow_dirty: bool = False,
 ) -> dict[str, Any]:
     """Check out by revision, configure only sm_86, and build the engine/device probes."""
@@ -430,6 +463,22 @@ def verify_build(
             status.passed and not status.stdout.strip(), "remote source has unrelated dirty state"
         )
 
+    if ggml_dir:
+        ggml_revision = harness.remote(
+            "llamacpp-revision", ["git", "-C", ggml_dir, "rev-parse", "HEAD"]
+        )
+        ggml_status = harness.remote(
+            "llamacpp-status", ["git", "-C", ggml_dir, "status", "--porcelain"]
+        )
+        harness.require(
+            ggml_revision.passed and ggml_revision.stdout.strip() == PINNED_LLAMA_CPP_REVISION,
+            "local llama.cpp source differs from the pinned build revision",
+        )
+        harness.require(
+            ggml_status.passed and not ggml_status.stdout.strip(),
+            "local llama.cpp source has unrelated dirty state",
+        )
+
     configure = harness.remote(
         "cuda-sm86-configure",
         [
@@ -446,6 +495,7 @@ def verify_build(
             "-DCMAKE_BUILD_TYPE=Release",
             "-DCMAKE_CUDA_ARCHITECTURES=86",
             f"-DCMAKE_CUDA_COMPILER={nvcc}",
+            *([f"-DSTRATA_GGML_DIR={ggml_dir}"] if ggml_dir else []),
         ],
     )
     build = harness.remote(
@@ -492,6 +542,7 @@ def verify_build(
         "remote_revision": revision.stdout.strip(),
         "remote_dirty": bool(status.stdout.strip()) if status.passed else None,
         "build_dir": build_dir,
+        "ggml_dir": ggml_dir or None,
     }
     harness.facts.update(facts)
     return facts
@@ -1080,7 +1131,7 @@ def receipt(
     started_at: float,
     scope: str,
 ) -> dict[str, Any]:
-    step_failures = [step.name for step in harness.steps if not step.passed]
+    step_failures = [step.name for step in harness.steps if step.aggregate_failure]
     passed = not harness.failures and not step_failures
     return {
         "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -1136,10 +1187,18 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def _identity_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("--address", default="192.168.1.171")
+    parser.add_argument(
+        "--address",
+        required=True,
+        help="address discovered live for this run; never a historical fixed IP",
+    )
     parser.add_argument("--hostname", default="b550")
     parser.add_argument("--optane-mount", default="/mnt/optane")
-    parser.add_argument("--zero-tier-address", default="10.243.130.224")
+    parser.add_argument(
+        "--zero-tier-address",
+        default="",
+        help="optional address discovered live for this run; omit rather than reusing an old IP",
+    )
     return parser
 
 
@@ -1150,6 +1209,11 @@ def _build_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--revision", default=_source_revision())
     parser.add_argument("--nvcc", default="/usr/bin/nvcc")
     parser.add_argument("--parallel", type=int, default=8)
+    parser.add_argument(
+        "--ggml-dir",
+        default="",
+        help="verified pinned llama.cpp checkout to use instead of FetchContent",
+    )
     parser.add_argument("--allow-dirty", action="store_true")
     return parser
 
@@ -1236,6 +1300,7 @@ def _run_gates(arguments: argparse.Namespace) -> tuple[Harness, dict[str, Any]]:
                 nvcc=arguments.nvcc,
                 parallel=arguments.parallel,
                 expected_revision=arguments.revision,
+                ggml_dir=arguments.ggml_dir,
                 allow_dirty=arguments.allow_dirty,
             )
             harness.assert_clean()
@@ -1317,6 +1382,7 @@ def main(argv: list[str] | None = None) -> int:
                 nvcc=arguments.nvcc,
                 parallel=arguments.parallel,
                 expected_revision=arguments.revision,
+                ggml_dir=arguments.ggml_dir,
                 allow_dirty=arguments.allow_dirty,
             )
         elif arguments.command == "acceptance":
@@ -1331,7 +1397,9 @@ def main(argv: list[str] | None = None) -> int:
         harness.failures.append(str(error))
 
     harness.failures.extend(
-        step.name for step in harness.steps if not step.passed and step.name not in harness.failures
+        step.name
+        for step in harness.steps
+        if step.aggregate_failure and step.name not in harness.failures
     )
     report = receipt(harness=harness, gates=gates, started_at=started, scope=scope)
     report["passed"] = not harness.failures

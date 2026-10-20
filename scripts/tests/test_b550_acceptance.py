@@ -68,6 +68,22 @@ class ParsingTest(unittest.TestCase):
         )
         self.assertFalse(mount["read_only"])
 
+    def test_optane_mount_must_be_the_requested_endpoint(self) -> None:
+        optane = {"path": "/dev/nvme0n1"}
+        root = {
+            "source": "/dev/nvme1n1p2",
+            "target": "/",
+            "fstype": "ext4",
+            "options": ["rw"],
+            "read_only": False,
+        }
+        error = acceptance.optane_mount_error(optane, root, "/mnt/optane")
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("is not a mount point", error)
+        mounted = dict(root, source="/dev/nvme0n1p2", target="/mnt/optane")
+        self.assertIsNone(acceptance.optane_mount_error(optane, mounted, "/mnt/optane"))
+
     def test_serve_trace_requires_tokens_and_done(self) -> None:
         text = "INFO context=3\nT 9\nT 8\nDONE 2 3 1.0 2.0 length 0 0 0\n"
         tokens, done = acceptance.parse_serve_output(text, "test")
@@ -173,6 +189,22 @@ class RemoteSafetyTest(unittest.TestCase):
         result = harness.local("probe", ["true"])
         self.assertFalse(result.passed)
         self.assertEqual(harness.failures, ["LOCAL probe exited 255: connection refused"])
+
+    def test_unanswered_optional_lane_does_not_fail_reachability(self) -> None:
+        def runner(command: list[str], **_kwargs: object):
+            if "10.243.130.224" in command:
+                return completed(command, stdout="", stderr="host down", code=1)
+            return completed(command, stdout="b550\n")
+
+        harness = acceptance.Harness(runner=runner)
+        lanes = acceptance.probe_reachability(harness, "10.0.0.2", "10.243.130.224")
+        self.assertTrue(harness.facts["reachability"]["reachable"])
+        self.assertFalse(lanes["zero_tier"]["reachable"])
+        self.assertTrue(lanes["lan"]["reachable"])
+        self.assertEqual(harness.failures, [])
+        self.assertTrue(all(not step.aggregate_failure for step in harness.steps))
+        lanes = acceptance.probe_reachability(harness, "10.0.0.2", "")
+        self.assertNotIn("zero_tier", lanes)
 
     def test_identity_gate_requires_exact_nll_and_tokens(self) -> None:
         state = {"arm": 0, "path": 0}
