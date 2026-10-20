@@ -933,8 +933,13 @@ def _run_engine(
     # The request's seed is fixed: the draft acceptance path samples, and without
     # a fixed seed two arms of the same control can differ in the generated
     # tokens even though their teacher-forced log-probabilities are identical.
+    # The engine's grammar is "GEN <max_new> [key=value ...] <id,id,...>": the
+    # sampling keys come BEFORE the token list.  The request's seed is fixed,
+    # because the draft acceptance path samples, and without a fixed seed two
+    # arms of the same control can differ in the generated tokens even though
+    # their teacher-forced log-probabilities are identical.
     request_body = (
-        f"GEN {max_new} " + ",".join(str(token) for token in tokens) + f" seed={CONTROL_SEED}\n"
+        f"GEN {max_new} seed={CONTROL_SEED} " + ",".join(str(token) for token in tokens) + "\n"
     )
     harness.remote(
         f"request-{arm}",
