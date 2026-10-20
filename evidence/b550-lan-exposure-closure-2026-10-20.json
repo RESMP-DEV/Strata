@@ -1,0 +1,68 @@
+{
+  "recorded_at": "2026-10-20T19:25:00Z",
+  "agent": "Codex parent",
+  "scope": "Records the closure of two exposures found while moving the S-indexer embedding service off B550's GPUs: a stray read-only probe tunnel on the main machine, and a legacy Milvus/MinIO stack on B550 that published four ports on every network interface with the object store's default credentials. It does not claim the stack is needed, and it does not change what the parent's own indexer uses.",
+  "stray_tunnel": {
+    "what": "A read-only SSH forward on 127.0.0.1:12399 to Strix's embedding port, created by an audit worker that could not kill it from its own sandbox.",
+    "action": "kill 89775",
+    "verified": "no listener remains on 127.0.0.1:12399"
+  },
+  "b550_milvus_exposure": {
+    "what": "The deployed /home/kearm/sindexer-stack/milvus-compose.yml published 19530, 9091, 9000 and 9001 on 0.0.0.0 and on IPv6, and set MINIO_ACCESS_KEY and MINIO_SECRET_KEY to the image's default 'minioadmin'.",
+    "why_it_mattered": "Any host on the LAN could reach the vector store and the object store with published default credentials.",
+    "dependence_check": {
+      "established_clients": "none: no established connections on 19530, 9091, 9000 or 9001",
+      "parent_indexer": "uses its own local OrbStack Milvus on 127.0.0.1:19530, with 40 collections and 1,281,865 rows; it does not reference B550's stack",
+      "data_size": "etcd 8.0K, milvus 1.1M, minio 19M"
+    },
+    "change": [
+      "the four ports now bind to 127.0.0.1",
+      "the standalone health port moved from 9091 to 19091 on loopback",
+      "MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_ACCESS_KEY_ID and MINIO_SECRET_ACCESS_KEY now come from an untracked .env with mode 0600"
+    ],
+    "credentials": "a random 24-character secret was generated on the host and written to /home/kearm/sindexer-stack/.env with mode 0600; no credential value is recorded here",
+    "backup": "/home/kearm/sindexer-stack/milvus-compose.yml.pre-loopback-20261020",
+    "verified_after": {
+      "containers": "milvus-standalone, milvus-minio and milvus-etcd all healthy",
+      "listeners": "127.0.0.1:19530, 127.0.0.1:19091, 127.0.0.1:9000, 127.0.0.1:9001",
+      "milvus_healthz": 200,
+      "minio_health": 200,
+      "from_the_mac": "a request to http://192.168.1.171:19530/ no longer connects",
+      "data": "the volumes are unchanged in size after the recreate"
+    }
+  },
+  "checks": [
+    {
+      "command": "lsof -nP -iTCP:12399 -sTCP:LISTEN",
+      "exit": 0,
+      "result": "the tunnel was present, then killed; no listener remains"
+    },
+    {
+      "command": "docker compose -f milvus-compose.yml up -d (on B550)",
+      "exit": 0,
+      "result": "minio and standalone recreated with loopback bindings; all three containers healthy"
+    },
+    {
+      "command": "curl http://127.0.0.1:19091/healthz and http://127.0.0.1:9000/minio/health/live (on B550)",
+      "exit": 0,
+      "result": "both 200"
+    },
+    {
+      "command": "curl http://192.168.1.171:19530/ (from the main machine)",
+      "exit": 7,
+      "result": "no longer connects: the port is loopback-only"
+    },
+    {
+      "command": "curl -fsS http://127.0.0.1:1236/health; sindexer collections; sindexer search (on the main machine)",
+      "exit": 0,
+      "result": "the embedding service reports the RTX 5070, 40 collections are listed, and a semantic search returns live hits through Strix"
+    }
+  ],
+  "non_claims": [
+    "B550's Milvus collection was not migrated, verified row by row, or used by the parent; the stack was made non-exposed, not adopted.",
+    "The new MinIO credentials were not tested against an external client that authenticates; the stack's own health endpoints answered.",
+    "The IPv6 wildcard listeners of the old stack are gone because the containers were recreated with IPv4 loopback bindings; an IPv6-specific client was not tested.",
+    "The parent's own OrbStack Milvus and its data were not touched.",
+    "No B550 service other than the two retired embedding units and this stack's containers was stopped."
+  ]
+}

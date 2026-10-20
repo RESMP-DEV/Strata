@@ -1991,3 +1991,30 @@ positions, but one generated token differs at position 11, because the two arms
 take different expert-arithmetic paths. That is a separate claim from the cold
 control, and it did not pass. The full receipt, including the counters and the
 non-claims, is [the cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json).
+
+### Closing the LAN exposures found by the indexing move, 2026-10-20
+
+Two exposures turned up while the embedding service moved, and both are now
+closed.
+
+The first was a stray read-only SSH forward on the main machine's
+`127.0.0.1:12399`, created by an audit worker that could not kill it from its
+own sandbox. It is gone.
+
+The second mattered more: B550's deployed Milvus compose file published four
+ports (19530, 9091, 9000, 9001) on `0.0.0.0` and on IPv6, and set the
+object store's credentials to the image's default `minioadmin`. Any host on
+the LAN could reach the vector store and the object store with published
+default credentials. Nothing depended on it: the stack had no established
+connections, the parent's indexer uses its own local OrbStack Milvus with 40
+collections and 1,281,865 rows, and the stack's own data is 19 MB in total.
+
+The compose file now binds all four ports to loopback, moves the standalone
+health port to 19091, and takes the object-store credentials from an untracked
+`.env` with mode 0600. The three containers were recreated and are healthy, the
+volumes are unchanged, and a request to `192.168.1.171:19530` from the main
+machine no longer connects. The old file is kept beside it as
+`milvus-compose.yml.pre-loopback-20261020`. The parent's own Milvus and its
+data were not touched, and no B550 service other than the two retired
+embedding units and this stack's containers was stopped. The receipt is
+[the exposure-closure evidence](../evidence/b550-lan-exposure-closure-2026-10-20.json).
