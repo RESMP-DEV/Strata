@@ -278,7 +278,7 @@ target_compile_definitions(strata-dequant PRIVATE STRATA_DEQUANT_SELFTEST)
 # the tests exercise the same objects the engine runs.
 add_library(strata_kv_tier STATIC src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp
                                 src/core/kv_file_store.cpp src/core/kv_tier_hooks.cpp src/core/kv_read_batch.cpp
-                                src/core/kv_mooncake_store.cpp)
+                                src/core/kv_mooncake_store.cpp src/core/kv_placement.cpp)
 target_include_directories(strata_kv_tier PUBLIC include)
 
 if(STRATA_BUILD_TESTS)
@@ -309,6 +309,10 @@ if(STRATA_BUILD_TESTS)
   add_executable(kv_mooncake_store_test src/core/kv_mooncake_store_test.cpp)
   target_link_libraries(kv_mooncake_store_test PRIVATE strata_kv_tier)
   add_test(NAME kv_mooncake_store_test COMMAND kv_mooncake_store_test)
+  # the placement policy's rules and the matched control a promotion needs
+  add_executable(kv_placement_test src/core/kv_placement_test.cpp)
+  target_link_libraries(kv_placement_test PRIVATE strata_kv_tier)
+  add_test(NAME kv_placement_test COMMAND kv_placement_test)
   add_executable(logit_bias_test src/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE include)
   add_test(NAME logit_bias_test COMMAND logit_bias_test)
