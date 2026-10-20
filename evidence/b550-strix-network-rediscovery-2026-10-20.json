@@ -1,0 +1,88 @@
+{
+  "recorded_at": "2026-10-20T17:05:00Z",
+  "agent": "Codex parent, consolidating a read-only CCR network worker and parent login probes",
+  "source_revision": "c466f4518bf97dd8fd73b02e7ba830adb3566086",
+  "source_dirty": true,
+  "scope": "Live identity-based discovery of B550 and Strix after simultaneous reboots, including tests over both Mac Wi-Fi and Mac Ethernet. This records connectivity and identity only; it does not modify either remote host or claim engine health.",
+  "method": {
+    "fixed_ip_policy": "No historical IPv4 address was trusted as identity. Router DNS, live ARP/NDP, SSH host-key fingerprints, reported hostname, and machine IDs supplied the proof.",
+    "mac_links": [
+      {
+        "interface": "en0",
+        "kind": "Wi-Fi",
+        "address": "192.168.1.106/24",
+        "status": "active"
+      },
+      {
+        "interface": "en13",
+        "kind": "USB 2.5GbE",
+        "address": "192.168.1.37/24",
+        "status": "active"
+      }
+    ],
+    "router": {
+      "address_discovered_live": "192.168.1.1",
+      "model": "Spectrum CBE1V1K",
+      "unauthenticated_client_inventory": false
+    }
+  },
+  "hosts": [
+    {
+      "name": "B550",
+      "dns": "b550.lan",
+      "dns_answer_at_probe": "192.168.1.171",
+      "mac": "bc:fc:e7:e9:72:5a",
+      "ssh_ed25519_fingerprint": "SHA256:kg2MU9A0Wsd37W8K/6nChs8giKWB/jzDba9vr5G+E44",
+      "machine_id": "27e232eefb5743a48455b58e0fb997a0",
+      "reported_hostname": "b550",
+      "mac_en0_login": "passed",
+      "mac_en13_login": "passed",
+      "remote_active_link": {
+        "interface": "enp7s0",
+        "kind": "Ethernet",
+        "address": "192.168.1.171/24"
+      },
+      "remote_wifi": "wlp6s0 down"
+    },
+    {
+      "name": "strix",
+      "dns": "strix.lan",
+      "dns_answer_at_probe": "192.168.1.182",
+      "mac": "bc:fc:e7:e4:ef:ab",
+      "ssh_ed25519_fingerprint": "SHA256:fP+8M3ZT4rdDILe1aQ3lXlMv/DbgHFWTh6S7dE0hpnU",
+      "machine_id": "b71b3a116ec74b7a8797f38a0af8168a",
+      "reported_hostname": "strix",
+      "mac_en0_login": "passed",
+      "mac_en13_login": "passed",
+      "remote_active_link": {
+        "interface": "enp130s0",
+        "kind": "Ethernet",
+        "address": "192.168.1.182/24"
+      },
+      "remote_wifi": "wlp129s0f0 down"
+    }
+  ],
+  "checks": [
+    {
+      "command": "dns-sd/dig/ARP/NDP discovery plus ssh-keyscan by the read-only network worker",
+      "exit": 0,
+      "result": "both hosts matched router reverse DNS, current neighbor MACs, and stored SSH keys; alternate ZeroTier candidates did not"
+    },
+    {
+      "command": "ssh -4 -b <live en0/en13 source> <live DNS answer> with HostKeyAlias and BatchMode",
+      "exit": 0,
+      "result": "all four host/link combinations logged in and returned the expected hostname and machine-id"
+    },
+    {
+      "command": "remote ip -br addr, ip route, and /sys/class/net operstate probes",
+      "exit": 0,
+      "result": "each target currently routes through its wired interface; both target Wi-Fi interfaces are down"
+    }
+  ],
+  "non_claims": [
+    "The current IPv4 addresses are observations, not stable identities, and must be rediscovered on every operational run.",
+    "This finding does not prove the remote Wi-Fi radios are defective; they are administratively or driver-level down on the target hosts for this probe.",
+    "No remote network configuration, service, route, or DNS record was changed.",
+    "No Strata engine, GPU, storage, or model-health claim follows from network reachability."
+  ]
+}

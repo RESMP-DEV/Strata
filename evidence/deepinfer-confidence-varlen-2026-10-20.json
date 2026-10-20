@@ -1,0 +1,61 @@
+{
+  "recorded_at": "2026-10-20T17:10:00Z",
+  "agent": "Codex parent after a scoped CCR implementation worker",
+  "source_revision": "f286891ce1c8e2cc16a21075cf9fabd3f8f5e417",
+  "source_dirty": true,
+  "scope": "Records the first portable DeepInfer-inspired slice: a host-only confidence-ranked variable-length draft-row planner. It is not runtime MTP wiring and makes no performance claim.",
+  "upstream_reference": {
+    "repository": "deepseek-ai/DeepInfer",
+    "revision": "774ce244b87cc0eb8d4b94ab9f5de2ab22049f01",
+    "files": [
+      "csrc/engine/mtp_varlen.hpp",
+      "deepinfer/model_executor/layers/tilelang_ops/schedule_mtp_varlen.py"
+    ]
+  },
+  "implementation": {
+    "worker_commit": "388bf21585960d4965c510f819d67f6989ebc5ca1",
+    "merge_commit": "f286891ce1c8e2cc16a21075cf9fabd3f8f5e417",
+    "files": [
+      "include/strata/spec/confidence_varlen.hpp",
+      "src/spec/confidence_varlen.cpp",
+      "src/spec/confidence_varlen_test.cpp",
+      "CMakeLists.txt"
+    ],
+    "contract": [
+      "CSR-style slot-major confidence proposals with monotonic offsets",
+      "one golden row per slot plus bounded draft proposals",
+      "cumulative conditional-confidence priority",
+      "stable slot/position tie order",
+      "zero-confidence cutoff and per-slot maxima",
+      "contiguous row counts, row offsets, and total allocated rows",
+      "invalid confidence, offsets, maxima, and impossible base budgets fail closed"
+    ]
+  },
+  "checks": [
+    {
+      "command": "cmake -S . -B build/confidence-varlen-main -G Ninja -DSTRATA_BUILD_TESTS=ON -DSTRATA_ENABLE_CUDA=OFF -DSTRATA_ENABLE_HIP=OFF -DSTRATA_GGML_DIR=/Users/kearm/Strata/build/kv-main-check/_deps/strata_llamacpp-src && cmake --build build/confidence-varlen-main --target confidence_varlen_test --parallel 4 && ctest --test-dir build/confidence-varlen-main -R '^confidence_varlen_test$' --output-on-failure",
+      "exit": 0,
+      "result": "the merged parent checkout configured, built, and passed the focused host policy test"
+    },
+    {
+      "command": "cmake --build /home/kearm/build/strata-main-c466f451-sm86 --target confidence_varlen_test --parallel 8 && ctest --test-dir /home/kearm/build/strata-main-c466f451-sm86 -R '^confidence_varlen_test$' --output-on-failure",
+      "exit": 0,
+      "result": "the same test compiled and passed in the B550 sm_86 build tree"
+    },
+    {
+      "command": "just quality && git diff --check",
+      "exit": 0,
+      "result": "the merged parent checkout passed the host-safe repository gate and whitespace check"
+    }
+  ],
+  "worker_receipts": {
+    "focused": "ignored worker build/reports/confidence-varlen/receipt.json in .worktrees/deepinfer-confidence-varlen",
+    "quality": "ignored worker build/reports/quality/receipt.json in .worktrees/deepinfer-confidence-varlen"
+  },
+  "non_claims": [
+    "No CLI flag, session, drafter, verifier, GPU kernel, or runtime path consumes the policy yet.",
+    "The default runtime remains byte-identical apart from linking the new host-only strata_spec object.",
+    "No model run, acceptance-rate measurement, throughput measurement, or latency benefit is claimed.",
+    "DeepInfer's Engram tables, Hopper kernels, Ascend kernels, RDMA transport, and model-specific projections were not ported."
+  ]
+}

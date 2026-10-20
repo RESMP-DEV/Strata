@@ -1,0 +1,430 @@
+{
+  "agent": "Codex B550 acceptance harness",
+  "elapsed_seconds": 3.155,
+  "facts": {
+    "build_dir": "/home/kearm/build/strata-main-c466f451-sm86",
+    "ggml_dir": "/home/kearm/strata-llamacpp-git-3cf0325",
+    "gpus": [
+      {
+        "compute_cap": "8.6",
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "pci_bus_id": "00000000:04:00.0",
+        "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308"
+      },
+      {
+        "compute_cap": "8.6",
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "pci_bus_id": "00000000:08:00.0",
+        "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece"
+      }
+    ],
+    "linker_flags": [
+      "-Wl,--no-as-needed",
+      "-Wl,-l:libstdc++.so.6",
+      "-Wl,--as-needed"
+    ],
+    "optane": {
+      "children": [
+        {
+          "fstype": "vfat",
+          "model": null,
+          "mountpoints": [],
+          "name": "nvme0n1p1",
+          "path": "/dev/nvme0n1p1",
+          "serial": null,
+          "size": "200M",
+          "type": "part"
+        },
+        {
+          "fstype": "exfat",
+          "model": null,
+          "mountpoints": [
+            "/mnt/optane"
+          ],
+          "name": "nvme0n1p2",
+          "path": "/dev/nvme0n1p2",
+          "serial": null,
+          "size": "698.4G",
+          "type": "part"
+        }
+      ],
+      "fstype": null,
+      "model": "ET000750KWJTF",
+      "mountpoints": [],
+      "name": "nvme0n1",
+      "path": "/dev/nvme0n1",
+      "serial": "PHKS826300DP750BGN",
+      "size": "698.6G",
+      "type": "disk"
+    },
+    "optane_mount": {
+      "fstype": "exfat",
+      "options": [
+        "rw",
+        "noatime",
+        "uid=1000",
+        "gid=1000",
+        "fmask=0022",
+        "dmask=0022",
+        "iocharset=utf8",
+        "errors=continue"
+      ],
+      "read_only": false,
+      "source": "/dev/nvme0n1p2",
+      "target": "/mnt/optane"
+    },
+    "reachability": {
+      "lanes": {
+        "lan": {
+          "exit_code": 0,
+          "reachable": true,
+          "target": "192.168.1.171"
+        },
+        "ssh_alias": {
+          "error": "",
+          "exit_code": 0,
+          "reachable": true,
+          "target": "B550"
+        }
+      },
+      "reachable": true
+    },
+    "remote_dirty": false,
+    "remote_revision": "f286891ce1c8e2cc16a21075cf9fabd3f8f5e417",
+    "remote_source": "/home/kearm/strata-main-3c3ac7cc",
+    "reported_hostname": "b550",
+    "ssh_alias": "B550",
+    "ssh_config": {
+      "hostname": "192.168.1.171",
+      "port": "22",
+      "user": "kearm"
+    }
+  },
+  "failed_steps": [],
+  "failures": [
+    "GPU compute applications are present; refusing to contend"
+  ],
+  "gates": {},
+  "passed": false,
+  "platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+  "recorded_at": "2026-10-20T17:03:09Z",
+  "scope": "Live B550 identity/build/KV acceptance. It does not diagnose unreachable hardware, prove a host absent from the receipt, or accept missing engine counters. Exact output is bounded; no secret, model payload, or KV bytes are copied.",
+  "source_dirty": false,
+  "source_revision": "f286891ce1c8e2cc16a21075cf9fabd3f8f5e417",
+  "steps": [
+    {
+      "command": [
+        "nc",
+        "-G",
+        "5",
+        "-z",
+        "192.168.1.171",
+        "22"
+      ],
+      "elapsed_seconds": 0.007,
+      "exit_code": 0,
+      "name": "reachability-lan",
+      "required": false,
+      "stderr": "Connection to 192.168.1.171 port 22 [tcp/ssh] succeeded!\n",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "hostname"
+      ],
+      "elapsed_seconds": 0.223,
+      "exit_code": 0,
+      "name": "reachability-alias",
+      "required": false,
+      "stderr": "",
+      "stdout": "b550\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-G",
+        "B550"
+      ],
+      "elapsed_seconds": 0.006,
+      "exit_code": 0,
+      "name": "ssh-alias",
+      "required": true,
+      "stderr": "Pseudo-terminal will not be allocated because stdin is not a terminal.\n",
+      "stdout": "host B550\nuser kearm\nhostname 192.168.1.171\nport 22\naddressfamily any\nbatchmode no\ncanonicalizefallbacklocal yes\ncanonicalizehostname false\ncheckhostip no\ncompression no\ncontrolmaster auto\nenablesshkeysign no\nclearallforwardings no\nexitonforwardfailure no\nfingerprinthash SHA256\nforwardx11 no\nforwardx11trusted no\ngatewayports no\ngssapiauthentication no\ngssapidelegatecredentials no\nhashknownhosts no\nhostbasedauthentication no\nidentitiesonly no\nkbdinteractiveauthentication yes\nnohostauthenticationforlocalhost no\nnohostauthenticationforproxycommand no\npasswordauthentication yes\npermitlocalcommand no\nproxyusefdpass no\npubkeyauthentication true\nrequesttty auto\nsessiontype default\nstdinnull no\nforkafterauthentication no\nstreamlocalbindunlink no\nstricthostkeychecking true\ntcpkeepalive yes\ntunnel false\nverifyhostkeydns false\nvisualhostkey no\nupdatehostkeys true\nenableescapecommandline no\nwarnweakcrypto yes\napplemultipath no\ncanonicalizemaxdots 1\nconnectionattempts 12\nforwardx11timeout 1200\nnumberofpasswordprompts 3\nserveralivecountmax 12\nserveraliveinterval 10\nrequiredrsasize 1024\nobscurekeystroketiming yes\nciphers aes128-gcm@openssh.com,aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr\ncontrolpath /Users/kearm/.ssh/cm-87879b198c89fb56d381f4150f20ab1277d8598d\nhostkeyalgorithms ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,sk-ssh-ed25519-cert-v01@openssh.com,sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,webauthn-sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com,rsa-sha2-512,rsa-sha2-256\nhostkeyalias b550\nhostbasedacceptedalgorithms ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,sk-ssh-ed25519-cert-v01@openssh.com,sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,webauthn-sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com,rsa-sha2-512,rsa-sha2-256\nkexalgorithms ecdh-sha2-nistp256,mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256\ncasignaturealgorithms ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com,rsa-sha2-512,rsa-sha2-256\nloglevel INFO\nmacs hmac-sha2-256-etm@openssh.com,hmac-sha2-256,umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-512,hmac-sha1\nsecuritykeyprovider $SSH_SK_PROVIDER\npreferredauthentications publickey\npubkeyacceptedalgorithms ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,sk-ssh-ed25519-cert-v01@openssh.com,sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,webauthn-sk-ecdsa-sha2-nistp256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com,rsa-sha2-512,rsa-sha2-256\nxauthlocation /usr/X11R6/bin/xauth\nidentityfile ~/.ssh/id_ed25519\ncanonicaldomains none\nglobalknownhostsfile /etc/ssh/ssh_known_hosts /etc/ssh/ssh_known_hosts2\nuserknownhostsfile /Users/kearm/.ssh/known_hosts\nrevokedhostkeys none\nsendenv LANG\nsendenv LC_*\nlogverbose none\nchanneltimeout none\npermitremoteopen any\naddkeystoagent false\nforwardagent no\nconnecttimeout 5\ntunneldevice any:any\ncanonicalizePermittedcnames none\ncontrolpersist 14400\nescapechar ~\nipqos ef cs0\nrekeylimit 0 0\nstreamlocalbindmask 0177\nsyslogfacility USER\nproxycommand /bin/sh -c 'if nc -G 2 -z %h %p 2>/dev/null; then exec nc -G 10 %h %p; else exec nc -G 10 10.243.130.224 %p; fi'\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "hostname"
+      ],
+      "elapsed_seconds": 0.043,
+      "exit_code": 0,
+      "name": "reported-hostname",
+      "required": true,
+      "stderr": "",
+      "stdout": "b550\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "nvidia-smi --query-gpu=name,uuid,pci.bus_id,compute_cap --format=csv,noheader,nounits"
+      ],
+      "elapsed_seconds": 0.098,
+      "exit_code": 0,
+      "name": "gpu-identity",
+      "required": true,
+      "stderr": "",
+      "stdout": "NVIDIA GeForce RTX 3090 Ti, GPU-e9401801-96fd-7936-9985-c104d7081308, 00000000:04:00.0, 8.6\nNVIDIA GeForce RTX 3090 Ti, GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece, 00000000:08:00.0, 8.6\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "lsblk -J -o NAME,PATH,TYPE,MODEL,SERIAL,SIZE,FSTYPE,MOUNTPOINTS"
+      ],
+      "elapsed_seconds": 0.062,
+      "exit_code": 0,
+      "name": "optane-identity",
+      "required": true,
+      "stderr": "",
+      "stdout": "{\n   \"blockdevices\": [\n      {\n         \"name\": \"loop0\",\n         \"path\": \"/dev/loop0\",\n         \"type\": \"loop\",\n         \"model\": null,\n         \"serial\": null,\n         \"size\": \"66.8M\",\n         \"fstype\": \"squashfs\",\n         \"mountpoints\": [\n             \"/snap/core24/2124\"\n         ]\n      },{\n         \"name\": \"loop1\",\n         \"path\": \"/dev/loop1\",\n         \"type\": \"loop\",\n         \"model\": null,\n         \"serial\": null,\n         \"size\": \"66.8M\",\n         \"fstype\": \"squashfs\",\n         \"mountpoints\": [\n             \"/snap/core24/1643\"\n         ]\n      },{\n         \"name\": \"loop2\",\n         \"path\": \"/dev/loop2\",\n         \"type\": \"loop\",\n         \"model\": null,\n         \"serial\": null,\n         \"size\": \"50.3M\",\n         \"fstype\": \"squashfs\",\n         \"mountpoints\": [\n             \"/snap/snapd/27738\"\n         ]\n      },{\n         \"name\": \"loop3\",\n         \"path\": \"/dev/loop3\",\n         \"type\": \"loop\",\n         \"model\": null,\n         \"serial\": null,\n         \"size\": \"1.5M\",\n         \"fstype\": \"squashfs\",\n         \"mountpoints\": [\n             \"/snap/hwctl/123\"\n         ]\n      },{\n         \"name\": \"loop4\",\n         \"path\": \"/dev/loop4\",\n         \"type\": \"loop\",\n         \"model\": null,\n         \"serial\": null,\n         \"size\": \"44.7M\",\n         \"fstype\": \"squashfs\",\n         \"mountpoints\": [\n             \"/snap/snapd/28254\"\n         ]\n      },{\n         \"name\": \"loop5\",\n         \"path\": \"/dev/loop5\",\n         \"type\": \"loop\",\n         \"model\": null,\n         \"serial\": null,\n         \"size\": \"1.5M\",\n         \"fstype\": \"squashfs\",\n         \"mountpoints\": [\n             \"/snap/hwctl/131\"\n         ]\n      },{\n         \"name\": \"sda\",\n         \"path\": \"/dev/sda\",\n         \"type\": \"disk\",\n         \"model\": \"Sabrent Disk Dev\",\n         \"serial\": \"0000V2993TP6\",\n         \"size\": \"21.8T\",\n         \"fstype\": null,\n         \"mountpoints\": [],\n         \"children\": [\n            {\n               \"name\": \"sda1\",\n               \"path\": \"/dev/sda1\",\n               \"type\": \"part\",\n               \"model\": null,\n               \"serial\": null,\n               \"size\": \"21.8T\",\n               \"fstype\": \"ext4\",\n               \"mountpoints\": [\n                   \"/mnt/resmp-24tb\"\n               ]\n            }\n         ]\n      },{\n         \"name\": \"nvme0n1\",\n         \"path\": \"/dev/nvme0n1\",\n         \"type\": \"disk\",\n         \"model\": \"ET000750KWJTF\",\n         \"serial\": \"PHKS826300DP750BGN\",\n         \"size\": \"698.6G\",\n         \"fstype\": null,\n         \"mountpoints\": [],\n         \"children\": [\n            {\n               \"name\": \"nvme0n1p1\",\n               \"path\": \"/dev/nvme0n1p1\",\n               \"type\": \"part\",\n               \"model\": null,\n               \"serial\": null,\n               \"size\": \"200M\",\n               \"fstype\": \"vfat\",\n               \"mountpoints\": []\n            },{\n               \"name\": \"nvme0n1p2\",\n               \"path\": \"/dev/nvme0n1p2\",\n               \"type\": \"part\",\n               \"model\": null,\n               \"serial\": null,\n               \"size\": \"698.4G\",\n               \"fstype\": \"exfat\",\n               \"mountpoints\": [\n                   \"/mnt/optane\"\n               ]\n            }\n         ]\n      },{\n         \"name\": \"nvme1n1\",\n         \"path\": \"/dev/nvme1n1\",\n         \"type\": \"disk\",\n         \"model\": \"CT4000P3PSSD8\",\n         \"serial\": \"2429E8BBB72E\",\n         \"size\": \"3.6T\",\n         \"fstype\": null,\n         \"mountpoints\": [],\n         \"children\": [\n            {\n               \"name\": \"nvme1n1p1\",\n               \"path\": \"/dev/nvme1n1p1\",\n               \"type\": \"part\",\n               \"model\": null,\n               \"serial\": null,\n               \"size\": \"1G\",\n               \"fstype\": \"vfat\",\n               \"mountpoints\": [\n                   \"/boot/efi\"\n               ]\n            },{\n               \"name\": \"nvme1n1p2\",\n               \"path\": \"/dev/nvme1n1p2\",\n               \"type\": \"part\",\n               \"model\": null,\n               \"serial\": null,\n               \"size\": \"3.6T\",\n               \"fstype\": \"ext4\",\n               \"mountpoints\": [\n                   \"/\"\n               ]\n            }\n         ]\n      }\n   ]\n}\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "findmnt -J -T /mnt/optane"
+      ],
+      "elapsed_seconds": 0.055,
+      "exit_code": 0,
+      "name": "optane-mount",
+      "required": true,
+      "stderr": "",
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/optane\",\n         \"source\": \"/dev/nvme0n1p2\",\n         \"fstype\": \"exfat\",\n         \"options\": \"rw,noatime,uid=1000,gid=1000,fmask=0022,dmask=0022,iocharset=utf8,errors=continue\"\n      }\n   ]\n}\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "git -C /home/kearm/strata-main-3c3ac7cc rev-parse --show-toplevel"
+      ],
+      "elapsed_seconds": 0.053,
+      "exit_code": 0,
+      "name": "remote-source",
+      "required": true,
+      "stderr": "",
+      "stdout": "/home/kearm/strata-main-3c3ac7cc\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "git -C /home/kearm/strata-main-3c3ac7cc rev-parse HEAD"
+      ],
+      "elapsed_seconds": 0.05,
+      "exit_code": 0,
+      "name": "remote-revision",
+      "required": true,
+      "stderr": "",
+      "stdout": "f286891ce1c8e2cc16a21075cf9fabd3f8f5e417\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "git -C /home/kearm/strata-main-3c3ac7cc status --porcelain"
+      ],
+      "elapsed_seconds": 0.064,
+      "exit_code": 0,
+      "name": "remote-status",
+      "required": true,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "git -C /home/kearm/strata-llamacpp-git-3cf0325 rev-parse HEAD"
+      ],
+      "elapsed_seconds": 0.054,
+      "exit_code": 0,
+      "name": "llamacpp-revision",
+      "required": true,
+      "stderr": "",
+      "stdout": "3cf03257f219afbe7334045ff7c6a06ac68c627d\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "git -C /home/kearm/strata-llamacpp-git-3cf0325 status --porcelain"
+      ],
+      "elapsed_seconds": 0.085,
+      "exit_code": 0,
+      "name": "llamacpp-status",
+      "required": true,
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "cmake -S /home/kearm/strata-main-3c3ac7cc -B /home/kearm/build/strata-main-c466f451-sm86 -G Ninja -DSTRATA_ENABLE_CUDA=ON -DSTRATA_BUILD_TESTS=ON -DSTRATA_PORTABLE=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=86 -DCMAKE_CUDA_COMPILER=/usr/bin/nvcc -DSTRATA_GGML_DIR=/home/kearm/strata-llamacpp-git-3cf0325 '-DCMAKE_EXE_LINKER_FLAGS=-Wl,--no-as-needed -Wl,-l:libstdc++.so.6 -Wl,--as-needed'"
+      ],
+      "elapsed_seconds": 0.741,
+      "exit_code": 0,
+      "name": "cuda-sm86-configure",
+      "required": true,
+      "stderr": "",
+      "stdout": "-- Strata: CUDA enabled, arch 86\n-- strata: pack/full/experts.bin absent - the expert arena load test is NOT registered\n-- ccache found, compilation results will be cached. Disable with GGML_CCACHE=OFF.\n-- CMAKE_SYSTEM_PROCESSOR: x86_64\n-- GGML_SYSTEM_ARCH: x86\n-- Including CPU backend\n-- x86 detected\n-- Adding CPU backend variant ggml-cpu: -msse4.2;-mf16c;-mfma;-mbmi2;-mavx;-mavx2 GGML_SSE42;GGML_F16C;GGML_FMA;GGML_BMI2;GGML_AVX;GGML_AVX2\n-- ggml version: 0.24.0\n-- ggml commit:  3cf03257f\n-- Configuring done (0.5s)\n-- Generating done (0.2s)\n-- Build files have been written to: /home/kearm/build/strata-main-c466f451-sm86\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "cmake --build /home/kearm/build/strata-main-c466f451-sm86 --target strata strata-device --parallel 8"
+      ],
+      "elapsed_seconds": 1.177,
+      "exit_code": 0,
+      "name": "cuda-sm86-build",
+      "required": true,
+      "stderr": "",
+      "stdout": "[1/3] Building CXX object CMakeFiles/strata_spec.dir/src/spec/confidence_varlen.cpp.o\n[2/3] Linking CXX static library libstrata_spec.a\n[3/3] Linking CXX executable strata\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits"
+      ],
+      "elapsed_seconds": 0.058,
+      "exit_code": 0,
+      "name": "gpu-idle-device-identity",
+      "required": true,
+      "stderr": "",
+      "stdout": "20933, /home/kearm/services/rust-indexer/.venv/bin/python, 1446\n20932, /home/kearm/services/rust-indexer/.venv/bin/python, 1400\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "/home/kearm/build/strata-main-c466f451-sm86/strata-device --selftest"
+      ],
+      "elapsed_seconds": 0.302,
+      "exit_code": 0,
+      "name": "strata-device-identity",
+      "required": true,
+      "stderr": "",
+      "stdout": "device 0: NVIDIA GeForce RTX 3090 Ti\n  compute capability  8.6   (sm_86)\n  multiprocessors     84\n  VRAM total / free   23.549 GiB (25285623808 B) / 21.867 GiB (23479517184 B)\n  driver / runtime    13020 / 12080\n\nmemory plan  --max-context 20480\n  KV + indexer keys   0.267387 GB\n  recurrent state     0.000000 GB  (GDN recurrence + conv history, NOT evictable)\n  expert cache        5.675613 GB  (4105 slots of 1,382,400 B)\n  VRAM pool           5.943000 GB\n  expert arena (DRAM) 0.000000 GB\n  card free           21.867 GiB (23479517184 B)\n  plan + KV vs free   FITS\n\nselftest: arena 0.062 GiB (67108864 B), used 0.002 GiB (2097152 B) after two 1 MiB allocations\nselftest: over-allocation refused as required\nstrata-device selftest OK\n"
+    },
+    {
+      "command": [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        "B550",
+        "/home/kearm/build/strata-main-c466f451-sm86/strata-device --list-devices"
+      ],
+      "elapsed_seconds": 0.074,
+      "exit_code": 0,
+      "name": "strata-device-list",
+      "required": true,
+      "stderr": "",
+      "stdout": "device 0: NVIDIA GeForce RTX 3090 Ti\n  compute capability 8.6, 23.5 GiB\ndevice 1: NVIDIA GeForce RTX 3090 Ti\n  compute capability 8.6, 23.5 GiB\n"
+    }
+  ]
+}

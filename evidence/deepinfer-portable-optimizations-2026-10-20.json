@@ -1,0 +1,78 @@
+{
+  "recorded_at": "2026-10-20T09:30:00-07:00",
+  "platform": "macOS host, static audit only",
+  "source_revision": "3c3ac7cccbb6f7e832919b65a098ae454e4f6a4b",
+  "source_dirty": false,
+  "scope": "Static portability audit of DeepInfer main 774ce244b87cc0eb8d4b94ab9f5de2ab22049f01 into Strata. It inventories and ranks mechanisms and evidence; it does not compile, execute, benchmark, or port code.",
+  "upstream_revision": "774ce244b87cc0eb8d4b94ab9f5de2ab22049f01",
+  "upstream_branch": "main",
+  "upstream_commit_date": "2026-10-20T19:03:13+08:00",
+  "upstream_subject": "update Q&A EN doc",
+  "clone": {
+    "path": "/Users/kearm/Strata/build/engines/DeepInfer",
+    "depth": 1,
+    "fetch_url": "https://github.com/deepseek-ai/DeepInfer",
+    "push_url": "DISABLED_NO_PUSH",
+    "size_bytes": 8178895,
+    "sha256_bytes_774ce24": "f3794c51e53bd05864e7c43927c8a62a04c6db77a236e94d19a9736c53ce8e95"
+  },
+  "checks": [
+    {
+      "name": "clone_head",
+      "command": "git clone --depth 1 https://github.com/deepseek-ai/DeepInfer build/engines/DeepInfer && git rev-parse HEAD",
+      "exit": 0
+    },
+    {
+      "name": "clone_integrity",
+      "command": "cd build/engines/DeepInfer && git fsck --no-dangling",
+      "exit": 0
+    },
+    {
+      "name": "read_only_remote",
+      "command": "git remote set-url --push origin DISABLED_NO_PUSH && git remote get-url --push origin",
+      "exit": 0
+    },
+    {
+      "name": "host_worktree_state",
+      "command": "git status --short",
+      "exit": 0,
+      "result": "clean except ignored build/"
+    }
+  ],
+  "evidence_reviewed": [
+    "csrc/engine/zos.cpp and csrc/engine/zos.hpp: pinned CPU extraction and fresh-versus-previous remap",
+    "deepinfer/worker/worker.py and worker/zos_status.py: one-step forward/sample/post-process overlap",
+    "deepinfer/worker/model_runner.py, utils.py, and tests/test_cuda_sync_guards.py: launch-phase sync guards",
+    "deepinfer/model_executor/input_metadata/prepare_tensor_input_zos.py and CUDA graph runner: reusable device metadata and stacked-prefix views",
+    "csrc/engine/scheduler.hpp and block_manager.hpp: chunked prefill, LCFS preemption, CoW clones, dual object pools",
+    "csrc/engine/mtp_varlen.hpp and schedule_mtp_varlen.py: measured-cost confidence scheduling",
+    "deepinfer/model_executor/models/v4_modules/engram*.py and gather_engram_tokens_zos.py: compressed n-gram table and incremental input assembly",
+    "deepinfer/ve/multimodal_processor.py, deepinfer/shared_memory.py, and distributed/shm_broadcast.py: CPU preprocessing and host transfer paths",
+    "examples/benchmark.py, examples/README.md, and doc/inference_deployment_qa.md: published benchmark and architecture descriptions"
+  ],
+  "test_and_benchmark_map": {
+    "claim": "Identified from source at the audit revision; tests and benchmarks were not executed in this audit.",
+    "tests": [
+      "tests/test_cuda_sync_guards.py: host-safe unit coverage and CUDA-marked end-to-end guard coverage",
+      "tests/engine/test_sequence.py: compressed-token mapping boundary and sentinel cases",
+      "tests/worker/test_state_cache_ops.py: state-cache layout, store/restore, and CE transfer slices",
+      "tests/distributed/test_shm_broadcast.py and tests/worker/test_userbuffer.py: host ring and communication-buffer lifecycle",
+      "tests/engine/test_mm_overwrite_prompt.py: prompt expansion and cache-aware binary stripping",
+      "deepinfer/model_executor/layers/tilelang_ops/gather_engram_tokens_zos.py and schedule_mtp_varlen.py: GPU-vs-reference parity plus benchmark functions, requiring CUDA when run",
+      "tests/models/test_offline_inference.py and test_batch_invariant.py: model-dependent PPL and batch-invariance regression"
+    ],
+    "benchmarks": [
+      "examples/benchmark.py: steady prefill/decode windows, ZOS tag in output name, optional torch profiler",
+      "examples/sweep/run_sweep.sh plus plot_pareto.py: throughput-latency Pareto sweeps",
+      "examples/README.md: named hardware, warmup/measurement windows, profiler-overhead warnings"
+    ]
+  },
+  "non_claims": [
+    "No DeepInfer test, model run, profiler, or benchmark was executed.",
+    "No portability ranking proves runtime speed or memory improvement on Strata hardware.",
+    "No upstream repository was modified, pushed to, opened against, or downloaded beyond the requested shallow source clone.",
+    "The DeepInfer Engram tables and tokenizer are model-specific artifacts; this audit does not make them compatible with Strata's qwen4exp PLE table.",
+    "The clone contains submodule references but vendor submodules were not initialized."
+  ],
+  "aggregate_passed": true
+}

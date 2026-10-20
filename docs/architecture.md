@@ -1854,3 +1854,63 @@ and every touched host KV translation unit compiled with warnings enabled. No
 CUDA backend or model ran. The separate one-hour async worker timed out with a
 hanging partial implementation and was not integrated. Full evidence is in
 [review repair evidence](../evidence/kv-b550-review-repairs-2026-10-20.json).
+
+### B550 and Strix identity rediscovery, 2026-10-20
+
+The fixed-IP rule is now operational rather than aspirational. A read-only
+network worker rediscovered both hosts from current ARP/NDP, router DNS, SSH
+banners, and exact host-key fingerprints; it rejected alternate overlay
+addresses whose keys did not match. Parent logins then succeeded over both Mac
+links, Wi-Fi `en0` and USB 2.5GbE `en13`, and verified B550 machine-id
+`27e232eefb5743a48455b58e0fb997a0` and Strix machine-id
+`b71b3a116ec74b7a8797f38a0af8168a`. Both targets currently route through their
+wired interfaces; their Wi-Fi interfaces are down. The current IPv4 answers are
+observations in the receipt, never identities for a later run. Full evidence is
+in [network rediscovery](../evidence/b550-strix-network-rediscovery-2026-10-20.json).
+
+The B550 acceptance harness also stopped carrying historical addresses. Its
+`--address` is now required and documented as live-discovered, ZeroTier is
+optional, lane probes that answer on another lane are evidence rather than an
+automatic aggregate failure, and remote arguments are shell-quoted so CMake
+values with spaces cannot be split. The Optane check now requires the requested
+mount endpoint rather than accepting the root filesystem that `findmnt -T`
+falls back to when the tier is unmounted. A local pinned llama.cpp checkout can
+be verified and supplied to avoid a redundant fetch. These repairs, plus the
+missing `bench/gdn_chunk_bench.cpp` source restored from the already-fetched
+commit that introduced it, made current main configurable on B550.
+
+Live re-identification found the designated 750 GB device at `/dev/nvme0n1`
+this boot, not the prior `/dev/nvme1n1`. SMART passed with 0% used and zero
+media/data-integrity errors, the exFAT survey was clean, and the data partition
+was mounted at `/mnt/optane` with `noatime` and `errors=continue`. At merged
+revision `f286891c`, B550 configured and built the sm_86 engine, `strata-device`
+passed its selftest and enumerated both RTX 3090 Ti cards, and the new
+confidence test passed in the same backend tree. The aggregate build receipt
+still fails closed because two unrelated `rust-indexer` Python processes hold
+1,446 MiB and 1,400 MiB CUDA contexts; they were not signalled or restarted.
+Therefore no model, NLL identity, cold-read, 600K, or 800K gate ran. Full
+commands and the deliberate failure are in
+[sm86 build evidence](../evidence/b550-sm86-build-2026-10-20.json).
+
+### DeepInfer portable scheduling intake, 2026-10-20
+
+The fetch-only DeepInfer clone is pinned at
+`774ce244b87cc0eb8d4b94ab9f5de2ab22049f01`, with its push URL disabled and no
+submodules initialized. The portable mechanisms are confidence-scheduled
+variable-length MTP, one-step CPU/GPU overlap, incremental token/metadata
+assembly, launch-phase sync guards, budgeted prefill/decode scheduling, and
+copy-on-write state. DeepEP/RDMA buffers, SM100/Hopper kernels, Ascend kernels,
+cluster load balancing, and the model-specific Engram tables are not Strata
+ports for the current Qwen path. The complete ranked map and non-claims are in
+[DeepInfer audit evidence](../evidence/deepinfer-portable-optimizations-2026-10-20.json).
+
+The first safe slice is implemented at merge `f286891c`:
+`plan_confidence_varlen` is a host-only policy that gives every slot its golden
+row, ranks cumulative conditional-confidence prefixes under a global row
+budget, honors per-slot maxima and zero-confidence cutoffs, preserves stable
+slot/position ties, and emits contiguous row counts and offsets. It has no CLI,
+session, drafter, verifier, or GPU-kernel caller. The focused test passed in the
+parent macOS build and the B550 sm_86 tree, and `just quality` passed after
+integration. This establishes a planning contract only; it is not exercised
+runtime MTP and makes no acceptance or performance claim. Full evidence is in
+[confidence varlen evidence](../evidence/deepinfer-confidence-varlen-2026-10-20.json).
