@@ -48,13 +48,14 @@ def _local_references(path: Path) -> list[tuple[str, str]]:
 
 
 def _heading_slugs(path: Path) -> set[str]:
-    slugs: list[str] = []
+    slugs: set[str] = set()
+    seen: dict[str, int] = {}
     for heading in re.findall(r"^#{1,6}\s+(.+?)\s*$", path.read_text(encoding="utf-8"), re.M):
         slug = re.sub(r"[^\w\s-]", "", heading.lower(), flags=re.UNICODE)
         slug = re.sub(r"\s", "-", slug)
-        if slugs.count(slug):
-            slug = f"{slug}-{slugs.count(slug)}"
-        slugs.append(slug)
+        count = seen.get(slug, 0)
+        seen[slug] = count + 1
+        slugs.add(slug if count == 0 else f"{slug}-{count}")
     return set(slugs)
 
 

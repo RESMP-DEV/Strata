@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-20T23:07:57Z",
+  "agent": "Codex parent",
+  "source_revision": "2fb5f7b23e4831d636c452e9f7a52cd8c0bf02df",
+  "source_dirty": true,
+  "pull_request": "https://github.com/RESMP-DEV/Strata/pull/13",
+  "reviewer": "CodeRabbit",
+  "reviewed_revision": "2fb5f7b23e4831d636c452e9f7a52cd8c0bf02df",
+  "repairs": [
+    {
+      "finding": "Routed-expert element counts for 64, 128 and 256 experts per layer were inconsistent with the byte accounting.",
+      "change": "Corrected docs/PREFILLER.md to 15,099,494,400; 30,198,988,800; and 60,397,977,600 elements. Byte values were already correct."
+    },
+    {
+      "finding": "Weighted router coverage treated zero weights as unit activations, mixing serve-mode activation counts into router-weight share.",
+      "change": "Weighted mode now rejects a zero weight and directs the user to --unweighted; unweighted mode still counts activations."
+    },
+    {
+      "finding": "Duplicate-heading anchor suffixes could repeat after a third heading with the same text.",
+      "change": "Heading slug generation now tracks each base slug independently so GitHub-style -1 and -2 suffixes remain unique."
+    }
+  ],
+  "tests_added": [
+    "zero router weight is rejected in weighted mode and counted in unweighted mode",
+    "third duplicate Markdown heading produces the -2 GitHub suffix"
+  ],
+  "validation": [
+    {
+      "command": "python3 -m unittest tools.test_prefiller_plan scripts.tests.test_check_docs -v",
+      "exit": 0,
+      "result": "14 focused tests passed"
+    },
+    {
+      "command": "python3 scripts/check_docs.py",
+      "exit": 0,
+      "result": "all four documentation checks passed"
+    },
+    {
+      "command": "ruff check tools/prefiller_plan.py tools/test_prefiller_plan.py scripts/check_docs.py scripts/tests/test_check_docs.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "ruff format --check tools/prefiller_plan.py tools/test_prefiller_plan.py scripts/check_docs.py scripts/tests/test_check_docs.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed=true at 2026-10-20T23:07:51Z; all checks exit 0",
+      "receipt": "build/reports/quality/receipt.json"
+    }
+  ],
+  "non_claims": [
+    "The corrected element counts are metadata arithmetic, not a new model run or benchmark.",
+    "No engine, trainer, accelerator or runtime behavior changed.",
+    "CodeRabbit ast-grep subprocess warnings on test argv lists were not repaired because the tests use argv lists without a shell; this is recorded as reviewer tooling noise, not an accepted code defect."
+  ]
+}

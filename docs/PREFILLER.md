@@ -66,9 +66,9 @@ following candidate sizes. MXFP4 counts 17 bytes per 32-element group.
 | Component | Elements | MXFP4 size |
 | --- | ---: | ---: |
 | 684 dense/shared state tensors | 3,571,384,320 | 1.767 GiB |
-| 64 routed experts per layer | 15,728,640,000 | 7.471 GiB |
-| 128 routed experts per layer | 31,457,280,000 | 14.941 GiB |
-| 256 routed experts per layer | 62,914,560,000 | 29.883 GiB |
+| 64 routed experts per layer | 15,099,494,400 | 7.471 GiB |
+| 128 routed experts per layer | 30,198,988,800 | 14.941 GiB |
+| 256 routed experts per layer | 60,397,977,600 | 29.883 GiB |
 | all 512 routed experts per layer | 120,795,955,200 | 59.766 GiB |
 
 A dense-only first artifact is small, but its quality reach is unknown. A full

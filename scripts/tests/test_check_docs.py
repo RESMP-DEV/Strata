@@ -90,6 +90,12 @@ class CheckDocsTest(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIn("exceeds", result.detail)
 
+    def test_third_duplicate_heading_uses_github_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "document.md"
+            path.write_text("## Same\n## Same\n## Same\n", encoding="utf-8")
+            self.assertIn("same-2", check_docs._heading_slugs(path))
+
     def test_parallel_status_page_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

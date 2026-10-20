@@ -248,6 +248,14 @@ class PrefillerPlanTest(unittest.TestCase):
         self.assertEqual(out.read_text(encoding="utf-8"), "previous\n")
         self.assertFalse(list(self.root.glob(".plan.json.*.tmp")))
 
+    def test_zero_weight_is_rejected_weighted_and_counted_unweighted(self) -> None:
+        trace = self.root / "serve.bin"
+        write_complete_trace(trace, {0: ([1, *range(100, 109)], [0.0, *([0.1] * 9)])})
+        with self.assertRaisesRegex(ValueError, "zero router weight.*--unweighted"):
+            MODULE.read_trace_scores_exact([trace], weighted=True)
+        unweighted, _ = MODULE.read_trace_scores_exact([trace], weighted=False)
+        self.assertEqual(unweighted[(0, 1)], 1)
+
     def test_dense_only_manifest_is_allowed(self) -> None:
         index, native = write_inputs(self.root)
         trace = self.root / "route.bin"

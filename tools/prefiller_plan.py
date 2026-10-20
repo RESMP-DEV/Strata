@@ -382,7 +382,11 @@ def read_trace_scores_exact(
                     raise ValueError(f"{path}: duplicate expert {expert} at layer {layer}")
                 seen_experts.add(expert)
                 exact = Fraction.from_float(weight)
-                scores[(layer, expert)] += Fraction(1) if not weighted or exact == 0 else exact
+                if weighted and exact == 0:
+                    raise ValueError(
+                        f"{path}: zero router weight at layer {layer}; use --unweighted"
+                    )
+                scores[(layer, expert)] += exact if weighted else Fraction(1)
         if observed_layers != set(range(N_LAYERS)):
             missing = sorted(set(range(N_LAYERS)) - observed_layers)
             raise ValueError(f"{path}: trace does not contain all 48 layers; missing {missing[:8]}")
