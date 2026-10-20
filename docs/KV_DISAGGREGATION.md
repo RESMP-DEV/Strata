@@ -517,16 +517,16 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | --- | --- | --- |
 | K1 `KvBlockStore` ABI and reference store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K2 `KvTierCoordinator` state machine and epoch keys | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K3 serving append boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K4 serving read-plan and engine-host restore boundary | implemented, not yet run against a model | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
+| K3 serving append boundary | implemented and run against a model on B550 | [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json) |
+| K4 serving read-plan and engine-host restore boundary | implemented and observed: 794,873 engine host restores | [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json) |
 | L2 per-layer local file store | implemented, host tested | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
 | K5 shared token and prompt path hooks | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K6 graph split proof | implemented, not yet observed on a captured window | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K6 graph split proof | implemented and observed: 24,660 windows, zero split violations | [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json) |
 | K9 read batch | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K10 Mooncake-compatible store and shared pool reference | implemented, host tested; real Mooncake transport not deployed | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
-| K11 placement policy sweep | policy and matched control implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K11 placement policy sweep | policy and matched control implemented, host tested; not swept on hardware | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | Phase C explicit background operations | opt-in coordinator API and background publication implemented, host tested | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
-| B550 acceptance harness | implemented and unit tested; hardware execution blocked by reachability | [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json) |
+| B550 acceptance harness | implemented and run on hardware: the matched cold control passes | [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json) |
 
 The coordinator is now wired into the serving path behind an opt-in switch:
 `--kv-tier <path>` turns the cold tier on and `--kv-tier-l1 <groups>` sizes
@@ -610,3 +610,35 @@ The existing experimental pager has useful primitives:
 It is not the target architecture and is not serving-path accepted. Its group
 format and tests may be absorbed into Phase A; its integration points must be
 replaced.
+
+### The first hardware control
+
+The matched cold control has run on B550 against the designated 750 GB device.
+The tier off and the tier on, with the same engine, model, 8,192-token
+real-source prompt and fixed seed, produced the same 16 output token ids, the
+same 8,191 scored positions, a mean NLL delta of exactly 0.0 and a maximum
+absolute log-probability delta of exactly 0.0. The cold arm reported 24,660
+graph-split windows with zero split violations, 794,873 engine host restores,
+756,560 L2 reads covering 102,262,702,080 bytes, 756,560 L1 evictions, and zero
+read failures and zero checksum errors.
+
+The tier was slower for that workload, not faster: about 14.8x on the prompt
+read and about 29x on the decode. With 8 L1 groups per layer and 768 published
+groups, nearly every group read missed the cache and came from the device, and
+every one waited for the readiness phase. The L1 size is the knob that trades
+device reads for host memory, and that trade has not been swept. The engine's
+pinned host allocation is still not reduced, because the restore path
+repopulates the copy the attention reads.
+
+The gate also found the defect that only a hardware run exposes: the
+coordinator published each group with an FNV-1a checksum while the file store
+verified with its own CRC-32, so every group read back from a store was
+refused. The tiers now share one checksum function.
+
+Two operational facts belong here. The device is exFAT, so it cannot hold a
+0700 directory: the mode is synthesized from the mount's `dmask`, and the
+property that does hold is that other users cannot write the tier. And a cold
+tier needs a context larger than the resident window, or the layer is fully in
+VRAM and there is no host copy to publish. The receipt, the counters and the
+non-claims are in
+[the cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json).

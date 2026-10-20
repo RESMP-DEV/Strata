@@ -1,0 +1,128 @@
+{
+  "recorded_at": "2026-10-20T10:45:00Z",
+  "agent": "Codex parent",
+  "scope": "Records the migration of the S-indexer Jina MXFP4 embedding service from the B550's two RTX 3090 Ti cards to the Strix laptop's RTX 5070, the local consumer cutover, the retirement of the B550 GPU units, and the measured parity and latency of the new path. It does not claim that the B550's cold KV tier is faster, and it does not measure the indexer's throughput at scale.",
+  "identity": {
+    "b550": {
+      "hostname": "b550",
+      "machine_id": "27e232eefb5743a48455b58e0fb997a0",
+      "resolved_by": "router DNS b550.lan, host key alias B550, machine-id check"
+    },
+    "strix": {
+      "hostname": "strix",
+      "machine_id": "b71b3a116ec74b7a8797f38a0af8168a",
+      "resolved_by": "router DNS strix.lan, host key alias strix, machine-id check"
+    }
+  },
+  "artifacts": {
+    "model_sha256": "9cadd568e6757e15358d960e4688bb0792a7edcd9889ef3d37f2361f4db6b756",
+    "server_sha256": "177dfee617d5b260fb4d9abbfb6fd7b9fca6962393a896694ad714a569c13ae7",
+    "model_path": "/home/kearm/services/rust-indexer/models/jina-code-mxfp4-a328a7f",
+    "server_path": "/home/kearm/services/rust-indexer/runtime/cuda_embed_server.py",
+    "note": "The model weights and the server source are byte-identical on both hosts (the same SHA-256 on B550 and on Strix)."
+  },
+  "deployment": {
+    "strix_unit": "/etc/systemd/system/sindexer-embed-gpu.service",
+    "strix_unit_state": "enabled and active",
+    "strix_interpreter": "/home/kearm/.probe-mxfp4-sm120/bin/python",
+    "strix_interpreter_version": "CPython 3.12.14, torch 2.14.1+cu130, transformers 5.17.0",
+    "strix_bind": "127.0.0.1:1236",
+    "strix_gpu": "NVIDIA GeForce RTX 5070 Laptop GPU, 1302 MiB used of 8151 MiB",
+    "b550_units_retired": [
+      "sindexer-embed-gpu@0.service (GPU 0, port 1236)",
+      "sindexer-embed-gpu@1.service (GPU 1, port 1237)"
+    ],
+    "b550_retirement_state": "disabled and stopped, removed from multi-user.target.wants",
+    "b550_nginx_balancer": "/etc/nginx/conf.d/sindexer-jina-upstream.conf moved to /etc/nginx/sindexer-jina-upstream.conf.retired-20261020; nginx reloaded and its default site still answers 200; no listener remains on 1236, 1237, or 1238",
+    "b550_gpus_after": "GPU 0: 1 MiB used, GPU 1: 33 MiB used, no compute applications",
+    "b550_unrelated_service_untouched": "llama-embedding.service (the CPU Qwen3-Embedding-0.6B server on port 1235) was left running and unmodified"
+  },
+  "local_consumer_cutover": {
+    "launch_agent": "dev.resmp.sindexer-b550-embed-tunnel",
+    "script": "/Users/kearm/.local/bin/sindexer-b550-embed-tunnel",
+    "forwards": {
+      "127.0.0.1:1236": "Strix's 127.0.0.1:1236, the Jina MXFP4 embedding service",
+      "127.0.0.1:2222": "B550's 127.0.0.1:22, the B550 SSH relay",
+      "127.0.0.1:2223": "Strix's 127.0.0.1:22, the Strix SSH relay"
+    },
+    "consumer_endpoint": "http://127.0.0.1:1236/v1 (unchanged, as configured in ~/.context/.env)",
+    "ssh_config_change": "The B550 and strix SSH aliases now resolve through their DNS names with a ProxyCommand that resolves the name through the live router at connection time, because macOS's resolver could not resolve these scoped names while the router's DNS server answered them.",
+    "backups": [
+      "~/.ssh/config.pre-strix-indexing-20261020",
+      "~/.local/bin/sindexer-b550-embed-tunnel.pre-strix-indexing-20261020",
+      "~/.local/bin/sindexer-b550-embed-tunnel.pre-router-dns-proxy-20261020",
+      "~/.local/bin/router-dns-proxy.pre-python-20261020"
+    ]
+  },
+  "parity": {
+    "probe_text": "Strix migration parity probe: KV tier acceptance and indexing cutover",
+    "dimensions": 1536,
+    "cosine_similarity": 0.999915587659,
+    "max_abs_delta": 0.002639271318912506,
+    "b550_latency_ms": 107.11572499985778,
+    "strix_latency_ms": 2984.651068999483,
+    "note": "The first Strix call included the model's warm-up; the warm figures below are the steady-state numbers."
+  },
+  "warm_latency_ms": {
+    "b550_through_nginx_balancer": [
+      94.71,
+      85.87,
+      85.92,
+      177.11,
+      86.01
+    ],
+    "strix_direct": [
+      33.21,
+      32.14,
+      31.49,
+      32.3,
+      31.39
+    ],
+    "strix_through_the_local_tunnel": 42.05,
+    "note": "Single request, same text, warm model. The B550 figures are the two-GPU nginx balancer; the Strix figures are one GPU. This is a latency observation on one request shape, not a throughput benchmark."
+  },
+  "consumer_path_proof": {
+    "command": "sindexer search /Users/kearm/Strata 'KV tier coordinator cold group restore' --limit 3",
+    "result": "3 results returned with live semantic scores after the cutover",
+    "embedding_probe_after_cutover_ms": 81.01
+  },
+  "checks": [
+    {
+      "command": "ssh strix 'systemctl is-enabled sindexer-embed-gpu.service; systemctl is-active sindexer-embed-gpu.service'",
+      "exit": 0,
+      "result": "enabled and active"
+    },
+    {
+      "command": "curl -fsS http://127.0.0.1:1236/health (on Strix)",
+      "exit": 0,
+      "result": "healthy, cuda-mxfp4 runtime, 1536 dimensions, RTX 5070 Laptop GPU"
+    },
+    {
+      "command": "sha256sum model.safetensors and cuda_embed_server.py (on both hosts)",
+      "exit": 0,
+      "result": "identical digests on B550 and Strix"
+    },
+    {
+      "command": "sudo systemctl disable --now sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service (on B550)",
+      "exit": 0,
+      "result": "both units stopped and disabled; B550 GPUs released to 1 MiB and 33 MiB"
+    },
+    {
+      "command": "curl -fsS http://127.0.0.1:1236/health (from the main machine, through the tunnel)",
+      "exit": 0,
+      "result": "healthy through the new forward"
+    },
+    {
+      "command": "sindexer search /Users/kearm/Strata 'KV tier coordinator cold group restore' --limit 3",
+      "exit": 0,
+      "result": "three live semantic results"
+    }
+  ],
+  "non_claims": [
+    "No indexer throughput, batch, or scale measurement was made; the latency figures are single warm requests.",
+    "The embedding parity is a cosine similarity over one probe text, not a distributional equivalence proof.",
+    "The B550's CPU llama-embedding service was not moved, tested, or altered.",
+    "No B550 KV-tier performance was measured in this receipt.",
+    "The Strix service is a new systemd unit; it was not proven to survive a reboot of the Strix host."
+  ]
+}

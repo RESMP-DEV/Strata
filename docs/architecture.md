@@ -1914,3 +1914,80 @@ parent macOS build and the B550 sm_86 tree, and `just quality` passed after
 integration. This establishes a planning contract only; it is not exercised
 runtime MTP and makes no acceptance or performance claim. Full evidence is in
 [confidence varlen evidence](../evidence/deepinfer-confidence-varlen-2026-10-20.json).
+
+### Optane cold-KV control on B550, and the indexing move to Strix, 2026-10-20
+
+The cold tier has now run against a model. The blocker before this session was
+not the tier: it was that the S-indexer's Jina MXFP4 embedding service held
+both of B550's RTX 3090 Ti cards, and the acceptance harness refuses to measure
+a model on a contended card. The service moved to the Strix laptop's RTX 5070
+instead, which freed B550's GPUs and made the hardware gate possible.
+
+The migration is a straight move of the same service, not a reimplementation.
+Strix already had the byte-identical model weights and server source, and a
+previously validated SM120 Python environment. The new systemd unit
+`/etc/systemd/system/sindexer-embed-gpu.service` runs the same
+`cuda_embed_server:app` on Strix's loopback port 1236, and the local consumer
+endpoint `127.0.0.1:1236` is unchanged. The two B550 units
+`sindexer-embed-gpu@0.service` and `sindexer-embed-gpu@1.service` are disabled
+and stopped, and the now-dead nginx balancer on B550's port 1238 is retired.
+B550's unrelated CPU embedding service was left alone. The measured embedding
+parity is a cosine similarity of 0.999916 over 1,536 dimensions, and the warm
+single-request latency is about 32 ms on Strix against about 86 ms on B550's
+two-GPU balancer. The Strix unit was not proven to survive a reboot of that
+host, and no indexer throughput was measured. The full receipt is
+[the indexing migration evidence](../evidence/indexing-migration-to-strix-2026-10-20.json).
+
+Getting there needed the identity rule to be repaired first. The host's
+addresses are not stable, and macOS's resolver could not resolve the
+router-served `.lan` names at all, even though the router's DNS server answered
+them. The SSH aliases now resolve through the live gateway at connection time
+and keep their host-key checks, and the acceptance harness compares the
+address the alias actually reaches rather than the string it is configured
+with. A fixed LAN address is never an identity.
+
+The matched cold control passed on the hardware. The same engine, the same
+model, the same 8,192-token real-source prompt, the same fixed seed, and the
+same Optane device, with the tier off and then on, produced the same 16 output
+token ids, the same 8,191 scored positions, a mean NLL delta of exactly 0.0 and
+a maximum absolute log-probability delta of exactly 0.0. The cold arm's
+counters are the proof that the tier was in the serving path: 24,660
+graph-split windows with 24,660 selection, readiness and resolve phases and
+zero split violations, 794,873 engine host restores, 756,560 L2 reads covering
+102,262,702,080 bytes, 756,560 L1 evictions, and zero read failures and zero
+checksum errors.
+
+The result is not a speed claim, and the numbers point the other way. The
+prompt read took 1,086,512.9 ms with the tier against 73,222.8 ms without it,
+about 14.8x slower, and the decode took 7,049.2 ms against 243.3 ms, about 29x
+slower. The cause is visible in the counters: with 8 L1 groups per layer and 768
+published groups, 756,560 of 794,873 group reads missed the cache and came from
+the device, and every one of them waited for the readiness phase. The tier
+traded a device read for host memory on every selection. The engine's pinned
+host allocation is still not reduced, because the restore path repopulates the
+copy the attention reads. The 600K and 800K scale gates did not run, and the
+8,192-token prompt is far shorter than the 262,144-cell context, so the tier's
+behaviour at a long context is not covered.
+
+The gate also found a real defect, which is the kind only a hardware run
+exposes. The coordinator published each group with an FNV-1a checksum while the
+file store verified with its own CRC-32, so every group read back from a store
+was refused with a checksum mismatch: the cold read could never succeed. The
+tiers now share one checksum function, and the file-store test pins that the
+file store, the shared store and the coordinator agree.
+
+Two harness defects were repaired along the way, both found by running it. A
+512-token prompt took the batched prefill path, which neither writes the
+teacher-forced log-probabilities the control compares nor runs the tier's
+hooks, so the harness now owns `--short-read` and a longer real-source prompt
+keeps the measurement on the verify-window path. And exFAT cannot express a
+0700 directory: the mode is synthesized from the mount's `dmask`, so the gate
+now checks the achievable property, that other users cannot write the tier,
+instead of a mode the filesystem cannot hold.
+
+The sm86 identity gate is still open. With the sm86 performance stack on and
+off, the teacher-forced log-probabilities are bit-identical over 511 scored
+positions, but one generated token differs at position 11, because the two arms
+take different expert-arithmetic paths. That is a separate claim from the cold
+control, and it did not pass. The full receipt, including the counters and the
+non-claims, is [the cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json).
