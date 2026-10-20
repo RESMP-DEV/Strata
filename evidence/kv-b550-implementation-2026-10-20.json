@@ -64,7 +64,7 @@
     "The B550 hardware gate did not run: the CUDA sm86 build, the identity gate, the matched NLL control, the forced cold reads, the 600K and 800K scale gates, and any cold-tier benefit measurement are all unrun.",
     "The shared pool is a reference implementation over the narrow transport interface, not a deployed Mooncake client. No Mooncake binary, library, or service was installed, started, or contacted.",
     "The Mooncake semantics were read from the upstream design documentation over the network, not from a vendored source tree, and no upstream repository was cloned, modified, or pushed.",
-    "The device the repository calls the Optane is recorded as HPE OEM Intel ET000750KWJTF, and no live SMART read in this session confirmed whether it is 3D XPoint. The Optane-class naming is unverified.",
+    "The device's name was wrong in this receipt: it is an HPE P4800X 750 GB NVMe Gen3 write-intensive TLC SSD (model ET000750KWJTF, serial PHKS826300DP750BGN), not an Optane and not 3D XPoint. The corrected identity, with the live SMART state, is in [the device identity receipt](b550-p4800x-device-identity-2026-10-20.json).",
     "The layer-split and batch modes of the cold tier are refused, not supported. The coordinator's stage and slot scoping is not implemented.",
     "The harness's Optane mount, GPU occupancy, and build steps have never executed against the real host, so only their unit-tested parsing and control flow are proven."
   ]

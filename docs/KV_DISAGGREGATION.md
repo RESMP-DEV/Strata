@@ -8,7 +8,7 @@ verify path, and must not be treated as accepted.
 ## Goal
 
 Serve extremely long agentic coding sessions with a hot KV window in VRAM, a
-bounded working set in pinned host RAM, and a cold tail on local Optane/NVMe
+bounded working set in pinned host RAM, and a cold tail on local fast NVMe
 or a remote KV store. The target context envelope is 600K cells initially and
 800K cells next. The MTP drafter ring and model experts remain outside this
 tier.
@@ -37,7 +37,7 @@ own placement, I/O, metadata, validation, and observability as one system.
       +-----------------+-----------------+------------------+
       |                 |                 |                  |
   L0 VRAM hot       L1 host cache     L2 local store     L3 shared store
-  existing CLOCK    pinned, bounded   Optane/NVMe        optional Mooncake
+  existing CLOCK    pinned, bounded   P4800X NVMe       optional Mooncake
   resident pages    working set       append-only groups replicated pool
       |                 |                 |                  |
       +-------- KvBlockStore ABI ------ KvBlockStore ------ KvBlockStore
@@ -64,7 +64,7 @@ pool. Each slot has:
 The host cache is deliberately sized by bytes and working-set behavior. It is
 not assumed to be "realistic" at any particular fraction of the context.
 
-### L2: local Optane/NVMe store
+### L2: local fast NVMe store
 
 Local storage uses immutable, fixed-size groups. A group is the smallest
 write, checksum, read, and validity unit. The payload is a pure byte object;

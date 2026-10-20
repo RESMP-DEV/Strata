@@ -1,0 +1,52 @@
+{
+  "recorded_at": "2026-10-20T19:40:00Z",
+  "agent": "Codex parent",
+  "scope": "Records the identity of B550's designated fast storage device, which the repository had wrongly called an Optane, and the two corrections that follow from the real identity: the device is a TLC flash SSD with a finite endurance budget, and its enumeration path is not stable across reboots. It does not change any measured performance result and does not claim a storage benchmark.",
+  "correction": {
+    "wrong_name": "Optane (implying 3D XPoint)",
+    "right_name": "HPE P4800X 750 GB NVMe Gen3 write-intensive TLC SSD",
+    "model": "ET000750KWJTF",
+    "serial": "PHKS826300DP750BGN",
+    "firmware": "4ICSHPK3",
+    "pci_vendor": "0x8086 (Intel)",
+    "pci_subsystem": "0x1590",
+    "ieee_oui": "0x5cd2e4 (Intel Corporate)",
+    "capacity": "750,156,374,016 bytes (750 GB)",
+    "media": "Triple-Level Cell flash, not 3D XPoint",
+    "published_specification": {
+      "endurance": "10 DWPD",
+      "random_read_iops": 575000,
+      "random_write_iops": 580000,
+      "max_transfer_rate": "16 Gb/s",
+      "form_factor": "HHHL add-in card"
+    },
+    "evidence": [
+      "live smartctl -x on the host: model, serial, firmware, PCI ids, IEEE OUI, and the SMART log",
+      "the OUI 5c:d2:e4 resolves to Intel Corporate",
+      "the HPE store listing for this part names the P4800X",
+      "two independent reseller listings for the same SKU give TLC, 10 DWPD, 575K/580K IOPS"
+    ]
+  },
+  "live_smart_state": {
+    "overall_health": "PASSED",
+    "percentage_used": 0,
+    "available_spare": "100%",
+    "media_and_data_integrity_errors": 0,
+    "error_information_log_entries": 0,
+    "temperature_celsius": 37,
+    "power_on_hours": 51172,
+    "data_units_written": "1.49 PB",
+    "data_units_read": "1.03 PB",
+    "unsafe_shutdowns": 99
+  },
+  "what_the_correction_changes": [
+    "The device is no longer named Optane anywhere it is a claim about the hardware. The mount point /mnt/optane keeps its name so the operational procedures, the service units, and the recorded paths stay continuous.",
+    "The endurance budget is now a stated constraint: 10 DWPD is finite, so the cold tier's write volume has to be accounted against it. The live state is 0% used, so nothing has been spent against it yet.",
+    "The device path is not stable. The same part was /dev/nvme1n1 before B550's 2026-10-20 reboot and /dev/nvme0n1 after it, with the root NVMe moving the other way. The operating procedure therefore identifies the device by model and serial, and the harness already does exactly that."
+  ],
+  "non_claims": [
+    "No storage benchmark was run: the device's sustained write throughput, its read latency under a cold-tier workload, and its endurance under the tier's write pattern are unmeasured here.",
+    "The published specification comes from vendor and reseller listings, not from a device datasheet supplied by the owner; the live SMART log is the authoritative observation.",
+    "This correction does not change any measured throughput, latency, or correctness result recorded for the cold-KV control."
+  ]
+}

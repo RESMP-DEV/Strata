@@ -149,7 +149,7 @@
     "No 600K or 800K scale gate ran.",
     "The L1 group cache was deliberately small (8 groups per layer) to force cold reads; a larger L1 would trade device reads for host memory, and that trade was not measured.",
     "The 8192-token prompt is far shorter than the 262,144-cell context, so the tier's behaviour at a long context is not covered.",
-    "The Optane-class name of the device is unverified: it is recorded as HPE OEM Intel ET000750KWJTF, and the live SMART read does not state whether the media is 3D XPoint.",
+    "The device's name was wrong in this receipt: it is an HPE P4800X 750 GB NVMe Gen3 write-intensive TLC SSD (model ET000750KWJTF, serial PHKS826300DP750BGN), not an Optane and not 3D XPoint. The corrected identity, with the live SMART state, is in [the device identity receipt](b550-p4800x-device-identity-2026-10-20.json).",
     "The device is exFAT, so the tier's files carry no POSIX permissions; the tier's directory mode is synthesized from the mount's dmask.",
     "The sm86 identity gate still reports a difference: with the sm86 performance stack on and off, the teacher-forced log-probabilities are bit-identical over 511 scored positions, but one generated token differs at position 11, because the two arms take different expert-arithmetic paths. That gate is a separate claim and it did not pass."
   ]

@@ -1,9 +1,33 @@
-# Operating the Optane KV tier (B550)
+# Operating the fast NVMe KV tier (B550)
 
-The B550's operationally named Optane partition carries two different kinds of state: Strata session
+The B550's operationally named partition carries two different kinds of state: Strata session
 files (`slot_save_path`) and the cold KV disk tier (`--kv-tier`). Both are
 *derived* state that the engine can rebuild from the model and the prompt, which
 is the single most important fact behind every rule here.
+
+## What the device actually is
+
+The mount point is still called `/mnt/optane`, and the older repository text
+called the device "Optane". That name was wrong, and it is retired here.
+
+The device is an **HPE P4800X 750 GB NVMe Gen3 write-intensive TLC SSD**:
+model `ET000750KWJTF`, serial `PHKS826300DP750BGN`, firmware `4ICSHPK3`,
+PCI vendor `0x8086` with subsystem `0x1590` and IEEE OUI `0x5cd2e4` (Intel
+Corporate). The published specification for that part number is 10 DWPD
+endurance, 575,000 random read IOPS, 580,000 random write IOPS, and 16 Gb/s
+maximum transfer rate.
+
+It is **not** 3D XPoint and it is **not** an Optane-class device. It is a
+conventional TLC flash SSD with high endurance, which is why it suits a
+write-heavy derived-state workload. The distinction matters for two reasons: an
+endurance budget of 10 DWPD is a real budget that the tier's write volume must
+stay inside, and random-read latency is flash latency rather than the
+lower-latency media a 3D XPoint part would give. The live SMART read reports
+0% used, 100% available spare, zero media and data integrity errors, and zero
+error log entries after 51,172 power-on hours and 2.9 PB written.
+
+The mount point keeps its name so that the operational procedures, the service
+units, and the recorded paths stay continuous. The device is the P4800X.
 
 This is operational procedure. What the tier is and what it does not do lives in
 `architecture.md`; the measurements live in `evidence/`.
@@ -15,11 +39,14 @@ and a 21.8 TB HDD, and enumeration order is not stable.
 
 ```bash
 lsblk -o NAME,PATH,MODEL,SERIAL,SIZE,FSTYPE,MOUNTPOINTS   # expect ET000750KWJTF / PHKS826300DP750BGN
-sudo -n smartctl -H -A /dev/nvme1n1                          # PASSED, 0% used, 0 media/data-integrity errors
+sudo -n smartctl -H -A /dev/nvme0n1                          # PASSED, 0% used, 0 media/data-integrity errors
 ```
 
 If the model or serial is not the designated device, stop. Everything below is written
-against `/dev/nvme1n1p2` only because that is what this host enumerates today.
+against a device path, not a fixed one, because the enumeration order is not stable: on
+2026-10-20 the same part was `/dev/nvme1n1` in the morning and `/dev/nvme0n1` after the
+host's reboot, and the root NVMe moved the other way. Find the partition by model and
+serial, then use the path that probe returned.
 
 ## Mount for the workload, not for convenience
 
@@ -27,7 +54,7 @@ A cold KV tier is a long-lived service, so the mount is long-lived too. The
 defaults that make a data disk convenient are wrong for it.
 
 ```bash
-sudo -n mount -o uid=$(id -u),gid=$(id -g),noatime /dev/nvme1n1p2 /mnt/optane
+sudo -n mount -o uid=$(id -u),gid=$(id -g),noatime /dev/nvme0n1p2 /mnt/optane
 ```
 
 - `uid=`/`gid=` so the engine writes as itself without a second sudo dance.
@@ -50,14 +77,14 @@ point.
 
 ## Unmount cleanly, every time, and check afterwards
 
-The kernel logged `exFAT-fs (nvme1n1p2): Volume was not properly unmounted` five
+The kernel logged an `exFAT-fs` "Volume was not properly unmounted" message five
 times in one session. exFAT has no journal, so an unclean unmount can lose or
 corrupt the directory structure, and the corruption shows up later as data loss
 in files that were written correctly.
 
 ```bash
 sudo -n sync && sudo -n umount /mnt/optane
-findmnt -T /mnt/optane | tail -1          # must NOT list /dev/nvme1n1p2
+findmnt -T /mnt/optane | tail -1          # must NOT list the P4800X partition
 sudo -n dmesg -T | grep -i exfat | tail -3   # must show nothing new
 ```
 
@@ -72,7 +99,7 @@ A dirty-flagged exFAT volume still mounts, and reads from it still return data.
 That is the failure mode to rule out before a measurement.
 
 ```bash
-sudo -n fsck.exfat -n /dev/nvme1n1p2     # read-only survey; expect "clean"
+sudo -n fsck.exfat -n /dev/nvme0n1p2     # read-only survey; expect "clean"
 ```
 
 Run the survey after any unclean unmount and before a cold-tier measurement. On
@@ -139,8 +166,8 @@ context whose payload arithmetic is the same figure but a different measure).
 ## Health check
 
 ```bash
-lsblk -o NAME,MODEL,SERIAL,FSTYPE,MOUNTPOINTS /dev/nvme1n1     # mounted as expected
-sudo -n smartctl -H -A /dev/nvme1n1 | grep -E "Percentage Used|Media and Data|Temperature"
+lsblk -o NAME,MODEL,SERIAL,FSTYPE,MOUNTPOINTS /dev/nvme0n1     # mounted as expected
+sudo -n smartctl -H -A /dev/nvme0n1 | grep -E "Percentage Used|Media and Data|Temperature"
 sudo -n dmesg -T | grep -icE "exFAT.*not properly unmounted"   # should not increase
 df -h /mnt/optane
 ```
