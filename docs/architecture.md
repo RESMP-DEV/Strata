@@ -39,6 +39,7 @@ change did not modify runtime behavior.
 | Verification state | `build/reports/`, `evidence/` | Generated receipts are transient; durable evidence is tracked | Receipts must bind revision, dirty state, scope, commands, and non-claims |
 | Remote hardware | SSH aliases `B550`/`compute` and `strix` | B550 owns bounded heavy-CUDA execution; Strix owns bounded heterogeneous NVIDIA/NPU/CPU validation | The main machine remains authoritative; select remotes by alias and verify identity live |
 | Strix host watcher | deployed `strata-watch.service`, source `tools/strix_watch.py` | Persistent PSI/disk/SSH/journald sampling is enabled on Strix even when interactive SSH is unavailable | A hardware failure claim requires watcher evidence plus live SMART/controller/journal state |
+| Flash-Next phase-specialized prefiller | [prefiller architecture](PREFILLER.md), planner `tools/prefiller_plan.py` | The 27B checkpoint/paper are templates only; a host-only planner binds exact Flash-Next dense and hot-expert MXFP4 sizes to deployed pack metadata, with no trainer or runtime path | Training and runtime promotion require real routing traces, phase-masked QADD controls, state-handoff parity, opt-in engine integration, and many-agent mixed-hit serving evidence |
 
 ## Current quantization surface
 
@@ -97,6 +98,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
 | GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight, `tools/reap_mask_from_traces.py`, and the tiny Qwen4-Exp/RCO CPU plus Modal-L4 compatibility probes. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
+| Flash-Next auxiliary prefiller | Target is a Qwen3.8-Flash-Next prompt-state model trained against the frozen served low-bit decoder; MXFP4 is acceptable and the dense 27B NVFP4 artifact is reference-only. The metadata planner and architecture are implemented host-side, while routing-trace capture, training, artifact generation, and runtime swapping remain unbuilt | Start with dense/shared adapters plus measured hot experts; require phase-masked QADD, GDN/QSA/PLE handoff parity, default-path byte identity when disabled, and many-agent mixed-hit controls before any runtime or quality claim |
 | Disaggregated KV tier | Target design is [KV disaggregation](KV_DISAGGREGATION.md): a coordinator owns L0 VRAM, L1 pinned host slots, L2 local fast NVMe groups (B550's HPE P4800X), and optional L3 shared storage through one `KvBlockStore` ABI. The current `--kv-disk` prototype is quarantined experimental code, not serving-path acceptance | Phase A must move append/read hooks into the actual verify path and support all KV formats; live acceptance requires zero argmax mismatches, mean NLL within `1e-4`, nonzero forced cold reads/evictions, then 600K and 800K matched controls |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
@@ -2028,3 +2030,21 @@ machine no longer connects. The old file is kept beside it as
 data were not touched, and no B550 service other than the two retired
 embedding units and this stack's containers was stopped. The receipt is
 [the exposure-closure evidence](../evidence/b550-lan-exposure-closure-2026-10-20.json).
+
+### Flash-Next prefiller direction corrected, 2026-10-20
+
+The Qwen3.8-27B NVFP4 release and disaggregated-quantization paper are now
+canonical templates, not runtime model families. The target is an auxiliary
+Qwen3.8-Flash-Next prompt-state model trained against the frozen low-bit
+decoder: prompt positions construct GDN, QSA and PLE state with auxiliary
+weights, then response positions continue unchanged on the deployed decoder.
+The first host-only planner selects 684 dense/shared state tensors and a
+per-layer hot-expert set, estimates MXFP4 bytes from deployed metadata, binds
+inputs by hash, and refuses the 27B checkpoint as a decoder.
+
+Focused planner tests and lint passed. Against read-only metadata from the
+real B550 split pack, the 64-expert profile-rank plan is 9.238 GiB MXFP4:
+1.767 GiB dense plus 7.471 GiB routed experts. Its coverage is null because
+the shipped profile records ranking only. No trace was captured, no model or
+trainer ran, and no runtime or quality effect is claimed. Full evidence is in
+[prefiller planning](../evidence/flash-next-prefiller-plan-2026-10-20.json).
