@@ -512,8 +512,9 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | K3 serving append boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K4 serving read-plan boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | L2 local file store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K5 shared token and prompt path hooks | not started | - |
-| K6 graph split proof | not started | - |
+| K5 shared token and prompt path hooks | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K6 graph split proof | implemented, not yet observed on a captured window | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K9 read batch | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 
 The coordinator is now wired into the serving path behind an opt-in switch:
 `--kv-tier <path>` turns the cold tier on and `--kv-tier-l1 <groups>` sizes
@@ -533,6 +534,26 @@ its valid marker is committed, the header is the only source of truth for the
 layout, a group of another geometry, format, layer, or epoch is absent rather
 than misread, and a partial read is refused because a whole-group checksum
 cannot verify it.
+
+The token path's publish happens at the commit boundary, not inside the
+layer. The token path runs inside a captured graph, and a captured graph cannot
+do host I/O or update a host cache from a CPU thread. The commit boundary is
+where the window's writes have become host-visible, and the same coordinator
+that serves the window publishes the tokens, so there is one policy and not a
+second implicit path.
+
+The selection's cells are collected into one read batch and deduplicated by
+group, so a token that names hundreds of blocks issues one request per GROUP
+rather than one per block. The batch carries its kind (foreground, prefetch, or
+migration) and a deadline, and a foreground batch may not be starved by prefetch
+traffic.
+
+The graph-split proof counts the phases each captured window went through: a
+captured selection, a host readiness phase, and a captured resolve, in that
+order. A resolve with no preceding host readiness is a split violation, because
+that means the graph tried to do host work. The counts, the batch statistics, and
+the cold-read counters all appear in the tier's report line, so a run that
+claims the cold tier is in the serving path can show it.
 
 What is not yet true: the hooks have never run against a model. The CUDA
 build, the identity gate, the matched NLL control, the forced cold reads, and

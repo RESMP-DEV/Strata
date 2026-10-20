@@ -1,24 +1,24 @@
 {
-  "recorded_at": "2026-10-20T07:47:36Z",
+  "recorded_at": "2026-10-20T07:52:11Z",
   "agent": "Codex",
-  "source_revision": "0b7ce6955902e3a42f43b23c3b5d55dfb4f96e2a",
+  "source_revision": "9c19ea2b00e048571bfe28b1cc82dafd38744697",
   "source_dirty": false,
-  "scope": "Records the Phase A build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, and the serving-path hooks in verify.cpp behind an opt-in switch. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
+  "scope": "Records the Phase A build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, the read batch, the serving-path append, resolve, and token-path hooks behind an opt-in switch, and the graph-split proof. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
   "checks": [
     {
       "command": "just quality",
       "exit": 0,
-      "result": "aggregate_passed=true; the kv-coordinator check runs the coordinator, session, and file-store contract tests; receipt build/reports/quality/receipt.json"
+      "result": "aggregate_passed=true; the kv-coordinator check runs five contract suites; receipt build/reports/quality/receipt.json"
     },
     {
-      "command": "ctest --test-dir build/kv-coordinator-check -R '^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test)$' --output-on-failure",
+      "command": "ctest --test-dir build/kv-coordinator-check -R '^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test|kv_tier_graph_test|kv_read_batch_test)$' --output-on-failure",
       "exit": 0,
-      "result": "3/3 passed: nine coordinator cases, sixteen session cases, eight file-store cases"
+      "result": "5/5 passed: 9 coordinator cases, 16 session cases, 8 file-store cases, 11 graph-split cases, 5 read-batch cases"
     },
     {
       "command": "c++ -std=c++17 -Wall -Wextra -Iinclude -fsyntax-only src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp",
       "exit": 0,
-      "result": "all four new sources compile clean with warnings enabled"
+      "result": "all the KV tier's host sources compile clean with warnings enabled, and the engine links them through one static library so the tests exercise the same objects the engine runs"
     }
   ],
   "findings": [
@@ -27,12 +27,15 @@
     "A cold-read counter that moves only on success cannot prove a foreground cold read when the read is refused. The counter now moves when the read is issued, and a separate counter records the refusals.",
     "The serving path's `step_` buffer is device memory, so the append hook cannot read the window's first position from it. The hook reads the host-mapped `h_step_` buffer instead, which holds the same values.",
     "A file store that mixes the layer and the group into its file index grows the file without bound. The store holds one layer, so the index is the group number and a key of another layer is refused by identity.",
-    "A group checksum that covers the whole group cannot verify a partial read. The store refuses a partial read outright, because an unverifiable read is exactly the torn read the valid marker exists to prevent."
+    "A group checksum that covers the whole group cannot verify a partial read. The store refuses a partial read outright, because an unverifiable read is exactly the torn read the valid marker exists to prevent.",
+    "The token path runs inside a CAPTURED graph and cannot do host I/O, so the token path's publish belongs at the commit boundary, where the window's writes have become host-visible. The same coordinator that serves the window publishes the tokens, so there is one policy rather than a second implicit path.",
+    "The selection's cells are collected into one read batch and deduplicated by group, so a token that names hundreds of blocks issues one request per GROUP rather than one per block. The batch statistics report both the requested and the deduplicated counts."
   ],
   "non_claims": [
     "No KV byte has moved between tiers in a real engine: the store under test is the local file store, exercised without a model.",
     "The serving-path hooks are compiled but have never run against a model. The CUDA build, the identity gate, the NLL control, and the 600K/800K gates are all outstanding.",
     "No CUDA backend was compiled and no performance, latency, or context figure is claimed.",
-    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session, so no hardware acceptance gate ran. Its ZeroTier node appeared once as a relay peer and then left the peer list again."
+    "The captured-window phase counters, the read-batch statistics, and the cold-read counters are implemented and unit tested, but no captured window has run yet, so the graph-split proof has not been observed on real hardware.",
+    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session. Its ZeroTier node appeared once as a relay peer and then left the peer list again, so no hardware acceptance gate ran."
   ]
 }
