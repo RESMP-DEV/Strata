@@ -123,6 +123,7 @@ class Harness:
     def remote(
         self, name: str, command: list[str], input: str | None = None, required: bool = True
     ) -> Result:
+        quoted = " ".join(shlex.quote(part) for part in command)
         wrapped = [
             "ssh",
             "-o",
@@ -132,7 +133,7 @@ class Harness:
             "-o",
             "StrictHostKeyChecking=accept-new",
             self.ssh_host,
-            *command,
+            quoted,
         ]
         return self._execute(name, wrapped, remote=True, input=input, required=required)
 

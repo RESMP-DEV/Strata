@@ -166,6 +166,17 @@ class RemoteSafetyTest(unittest.TestCase):
         self.assertIn("/path/engine --pack '/a b/pack'", seen[0][0][-1])
         self.assertEqual(seen[0][1], "GEN")
 
+    def test_remote_command_preserves_argument_boundaries(self) -> None:
+        seen: list[list[str]] = []
+
+        def runner(command: list[str], **_kwargs: object):
+            seen.append(command)
+            return completed(command, stdout="")
+
+        harness = acceptance.Harness(runner=runner)
+        harness.remote("configure", ["cmake", "-DCMAKE_EXE_LINKER_FLAGS=-Wl,a -Wl,b"])
+        self.assertEqual(seen[0][-1], "cmake '-DCMAKE_EXE_LINKER_FLAGS=-Wl,a -Wl,b'")
+
     def test_engine_arguments_may_not_override_controlled_flags(self) -> None:
         with self.assertRaises(ValueError):
             acceptance._validate_engine_args(["--kv-resident", "32768", "--kv-tier", "/bad"], 32768)
