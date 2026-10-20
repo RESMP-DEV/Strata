@@ -287,6 +287,11 @@ if(STRATA_BUILD_TESTS)
                                       src/core/kv_tier_session.cpp)
   target_include_directories(kv_tier_session_test PRIVATE include)
   add_test(NAME kv_tier_session_test COMMAND kv_tier_session_test)
+  # the L2 file store's durability, identity, and refusal contracts
+  add_executable(kv_file_store_test src/core/kv_file_store_test.cpp src/core/kv_coordinator.cpp
+                                    src/core/kv_file_store.cpp)
+  target_include_directories(kv_file_store_test PRIVATE include)
+  add_test(NAME kv_file_store_test COMMAND kv_file_store_test)
   add_executable(logit_bias_test src/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE include)
   add_test(NAME logit_bias_test COMMAND logit_bias_test)
@@ -595,7 +600,7 @@ if(STRATA_ENABLE_CUDA OR STRATA_ENABLE_HIP)
     src/core/expert_cache.cpp src/core/native_head.cpp src/core/native_dense.cpp src/core/verify.cpp src/core/mtp.cpp
     src/core/conversation_snapshot.cpp src/core/conversation_state.cpp src/core/conversation_memory.cpp src/core/peer_experts.cpp
     src/core/arch_defaults.cpp src/core/nv_defaults.cpp src/core/vmm.cpp src/core/conversation_file.cpp
-    src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp)
+    src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp)
   target_include_directories(strata_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(strata_engine PUBLIC strata_core strata_kernels strata_kernels_cpu ${_strata_gpu_runtime_target})
   if(STRATA_BUILD_TESTS AND STRATA_ENABLE_CUDA AND NOT STRATA_HIP_GFX906)

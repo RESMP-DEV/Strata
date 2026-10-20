@@ -23,13 +23,21 @@ def main() -> int:
     generator = ["-G", "Ninja"] if shutil.which("ninja") is not None else []
     commands = (
         [cmake, "-S", str(ROOT), "-B", str(BUILD), *generator, "-DSTRATA_BUILD_TESTS=ON"],
-        [cmake, "--build", str(BUILD), "--target", "kv_coordinator_test", "kv_tier_session_test"],
+        [
+            cmake,
+            "--build",
+            str(BUILD),
+            "--target",
+            "kv_coordinator_test",
+            "kv_tier_session_test",
+            "kv_file_store_test",
+        ],
         [
             "ctest",
             "--test-dir",
             str(BUILD),
             "-R",
-            "^(kv_coordinator_test|kv_tier_session_test)$",
+            "^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test)$",
             "--output-on-failure",
         ],
     )
@@ -46,7 +54,7 @@ def main() -> int:
 def quick_commands() -> tuple[str, ...]:
     return (
         "cmake --build build/kv-coordinator-check --target kv_coordinator_test"
-        " kv_tier_session_test",
+        " kv_tier_session_test kv_file_store_test",
         "python3 scripts/check_kv_coordinator.py",
     )
 

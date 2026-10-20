@@ -37,7 +37,20 @@ bool KvTierSession::enable(const KvTierSessionConfig& config, std::string& error
         return false;
     }
     session.config_ = config;
-    session.store_ = new KvMemoryStore();   // the local file store arrives with the L2 adapter
+
+    // The L2 store is a file: it holds whole groups, commits a group's valid marker only after its payload is
+    // durable, and refuses a key of another geometry, format, layer, or epoch.
+    KvFileStore::Identity identity;
+    identity.session_id = config.geometry_id;   // the store's session identity is the geometry it was sized for
+    identity.geometry_id = config.geometry_id;
+    identity.format_id = config.format_id;
+    identity.layer = config.layer;
+    identity.blocks_per_group = config.blocks_per_group;
+    uint64_t block_bytes = 0;
+    for (const auto& run : config.runs) block_bytes += run.bytes;
+    identity.group_bytes = block_bytes * (uint64_t) config.blocks_per_group;
+    if (!session.store_.open(config.store_path, identity, config.runs, error)) return false;
+    session.store_open_ = true;
     session.enabled_ = true;
     return true;
 }
@@ -62,7 +75,7 @@ KvTierCoordinator* KvTierSession::coordinator_for(int32_t layer) {
     options.block_bytes = session.config_.block_bytes;
     options.runs = session.config_.runs;
     session.coordinators_.push_back(std::make_unique<KvTierCoordinator>(
-        KvCoordinatorScope{(uint64_t) layer, 0, 0}, options, session.store_));
+        KvCoordinatorScope{(uint64_t) layer, 0, 0}, options, &session.store_));
     return session.coordinators_.back().get();
 }
 
@@ -131,8 +144,8 @@ void KvTierSession::shutdown() {
     std::lock_guard<std::mutex> lock(g_mutex);
     KvTierSession& session = instance();
     session.coordinators_.clear();
-    delete session.store_;
-    session.store_ = nullptr;
+    if (session.store_open_) session.store_.close();
+    session.store_open_ = false;
     session.enabled_ = false;
 }
 

@@ -1690,9 +1690,14 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 // appended are complete enough to publish. The hook is a no-op unless the cold tier is on, and
                 // a store failure fails the window rather than silently continuing without a cold tier.
                 if (kv_tier_session_on()) {
-                    const int64_t first_block = (int64_t) (step_[(size_t) tb * kStepCount] / (s.idx_block > 0 ? s.idx_block : 1));
+                    // The window's first cell position, from the HOST-mapped step buffer: `step_` is device
+                    // memory and must not be read from the host. The window's cells are the rows [tb, te).
+                    const int32_t first_pos = h_step_[(size_t) tb * kStepCount + strata::kernels::kStepPos];
+                    const int64_t cells_per_block = s.idx_block > 0 ? s.idx_block : 1;
+                    const int64_t first_block = (int64_t) first_pos / cells_per_block;
+                    const int64_t n_rows = te - tb;
                     std::string tier_error;
-                    if (!kv_tier_append((int32_t) qi, st, *g_, first_block, n, tier_error)) {
+                    if (!kv_tier_append((int32_t) qi, st, *g_, first_block, n_rows, tier_error)) {
                         err = tier_error;
                         return false;
                     }

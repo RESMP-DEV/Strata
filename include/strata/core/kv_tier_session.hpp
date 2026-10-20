@@ -10,6 +10,7 @@
 #pragma once
 
 #include "strata/core/kv_coordinator.hpp"
+#include "strata/core/kv_file_store.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -22,6 +23,7 @@ namespace strata::core {
 /// own streaming path is untouched.
 struct KvTierSessionConfig {
     std::string store_path;         ///< the local store's path; empty means no cold tier
+    int32_t layer = 0;              ///< the QSA layer the store holds
     int32_t l1_groups_per_layer = 0;///< how many groups the L1 cache holds per layer; 0 means no L1 cache
     uint64_t geometry_id = 0;
     uint64_t format_id = 0;
@@ -63,7 +65,8 @@ private:
     static KvTierSession& instance();
     KvTierCoordinator* coordinator_for(int32_t layer);
     KvTierSessionConfig config_;
-    KvBlockStore* store_ = nullptr;
+    KvFileStore store_;              ///< the L2 local file store
+    bool store_open_ = false;
     std::vector<std::unique_ptr<KvTierCoordinator>> coordinators_;
     bool enabled_ = false;
 };
