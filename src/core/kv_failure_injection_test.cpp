@@ -126,6 +126,7 @@ int main() {
         identity.layer = 0;
         identity.blocks_per_group = 4;
         identity.group_bytes = 256;
+        identity.max_groups = 64;   // the directory's capacity
         KvFileStore store;
         std::string error;
         if (!store.open(path, identity, {KvBlockRun{32}, KvBlockRun{32}}, error)) return 30;

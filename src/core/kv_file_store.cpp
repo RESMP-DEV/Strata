@@ -10,8 +10,6 @@
 #ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
-#else
-#include <io.h>
 #endif
 
 namespace strata::core {
@@ -46,6 +44,7 @@ struct Header {
     uint64_t block_bytes;
     uint64_t group_bytes;
     uint64_t run_count;
+    uint64_t max_groups;
     uint64_t groups;
     uint64_t entries_offset;
     uint64_t payload_offset;
@@ -54,7 +53,7 @@ struct Header {
     uint64_t checksum;
 };
 #pragma pack(pop)
-static_assert(sizeof(Header) == 148, "the KV file header layout changed");
+static_assert(sizeof(Header) == 156, "the KV file header layout changed");
 
 #pragma pack(push, 1)
 struct GroupEntry {
@@ -84,6 +83,16 @@ void KvFileStore::close() {
 bool KvFileStore::open(const std::string& path, const Identity& identity, const std::vector<KvBlockRun>& runs,
                        std::string& error) {
     close();
+#ifdef _WIN32
+    // The store uses POSIX file calls (pread, pwrite, ftruncate). The Windows equivalents are not provided yet,
+    // so the store refuses to open rather than compiling a path it cannot run. The tier is opt-in and off on
+    // Windows until this changes.
+    (void) path;
+    (void) identity;
+    (void) runs;
+    error = "kv file store: the local file store is not available on this platform";
+    return false;
+#else
     path_ = path;
     identity_ = identity;
     runs_ = runs;
@@ -165,7 +174,9 @@ bool KvFileStore::open(const std::string& path, const Identity& identity, const 
         return false;
     }
     entries_offset_ = kHeaderSize;
-    payload_offset_ = align_up(entries_offset_ + kEntryBytes, 4096);
+    // The directory is a FIXED area, sized for every group the store can ever hold. A directory that grew with
+    // the group count would put a later group's entry into an earlier group's payload.
+    payload_offset_ = align_up(entries_offset_ + identity.max_groups * kEntryBytes, 4096);
     group_count_ = 0;   // the store grows as groups are written
     std::memcpy(header.magic, "STRATKV1", 8);
     header.version = kFormatVersion;
@@ -178,6 +189,7 @@ bool KvFileStore::open(const std::string& path, const Identity& identity, const 
     header.block_bytes = block_bytes_;
     header.group_bytes = group_bytes_;
     header.run_count = runs_.size();
+    header.max_groups = identity.max_groups;
     header.groups = group_count_;
     header.entries_offset = entries_offset_;
     header.payload_offset = payload_offset_;
@@ -189,6 +201,7 @@ bool KvFileStore::open(const std::string& path, const Identity& identity, const 
         return false;
     }
     return true;
+#endif
 }
 
 bool KvFileStore::matches(const KvBlockKey& key) const {
@@ -315,6 +328,10 @@ bool KvFileStore::put(const KvBlockPut& put_request, std::string& error) {
         return false;
     }
     const uint64_t group = group_index(put_request.key);
+    if (identity_.max_groups == 0 || group >= identity_.max_groups) {
+        error = "kv file store: the group is past the store's directory capacity";
+        return false;
+    }
     if (group + 1 > group_count_) {
         // The store grows: the group directory and the payload area follow.
         const uint64_t old_groups = group_count_;

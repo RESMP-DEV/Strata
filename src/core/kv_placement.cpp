@@ -34,21 +34,19 @@ KvPlacementDecision KvPlacementPolicyState::victim() const {
     if (facts_.empty()) return decision;
     int32_t best_group = -1;
     uint64_t best_key = std::numeric_limits<uint64_t>::max();
+    uint64_t best_recency = std::numeric_limits<uint64_t>::max();
     for (const auto& entry : facts_) {
         if (entry.second.pinned) continue;   // the open tail is never a victim
-        uint64_t key = 0;
-        if (policy_ == KvPlacementPolicy::kFrequency) {
-            // The least frequently read group. The read count is the primary key and the recency breaks the
-            // tie, so a group that was never read is the first candidate.
-            key = entry.second.read_count;
-            if (best_group >= 0 && key > best_key) continue;
-            if (best_group >= 0 && key == best_key && entry.second.last_used >= best_key) continue;
-        } else {
-            key = entry.second.last_used;
-        }
+        // kFrequency: the read count is the primary key and the recency breaks the tie. kClock: the recency is
+        // the key itself. The recency is a SEPARATE variable, because comparing it against the read count would
+        // compare a timestamp with a count and every tie would take the same branch.
+        const uint64_t key = policy_ == KvPlacementPolicy::kFrequency ? entry.second.read_count : entry.second.last_used;
+        const uint64_t recency = entry.second.last_used;
         if (best_group < 0 || key < best_key ||
-            (key == best_key && entry.first < best_group)) {
+            (key == best_key && (recency < best_recency ||
+                                 (recency == best_recency && entry.first < best_group)))) {
             best_key = key;
+            best_recency = recency;
             best_group = entry.first;
         }
     }
@@ -61,10 +59,15 @@ KvPlacementDecision KvPlacementPolicyState::victim() const {
 
 namespace {
 
-/// The deterministic access pattern: a hot prefix that is read every step, and a scan of the working set behind
-/// it. It is the shape a long attention session has: a small hot region and a mostly sequential scan.
+/// The deterministic access pattern: every eighth step reads the next group of the hot prefix, and the other
+/// steps scan the working set. It is the shape a long attention session has: a small hot region and a mostly
+/// sequential scan.
+///
+/// The hot region is indexed by the HOT-ACCESS COUNT, not by the raw step. Indexing it by the step would make
+/// every hot access a multiple of gcd(8, hot_prefix), so a hot prefix of 4 would read only group 0 and the
+/// control would model one hot group rather than a hot region.
 int32_t pattern_group(uint64_t step, int32_t working_set, int32_t hot_prefix) {
-    if (hot_prefix > 0 && (step % 8) == 0) return (int32_t) (step % (uint64_t) hot_prefix);
+    if (hot_prefix > 0 && (step % 8) == 0) return (int32_t) ((step / 8) % (uint64_t) hot_prefix);
     return (int32_t) (step % (uint64_t) working_set);
 }
 

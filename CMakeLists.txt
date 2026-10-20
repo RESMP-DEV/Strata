@@ -276,6 +276,10 @@ target_link_libraries(strata-dequant PRIVATE strata_artifact)
 target_compile_definitions(strata-dequant PRIVATE STRATA_DEQUANT_SELFTEST)
 # The disaggregated KV tier's host sources. The engine links this library, and so does every contract test, so
 # the tests exercise the same objects the engine runs.
+#
+# Only the L2 FILE STORE is platform-specific: it uses POSIX file calls (pread, pwrite, ftruncate). The rest of
+# the tier is portable and the engine calls the hooks on every platform, so the library is built everywhere and
+# the file store's platform guard lives in its own source.
 add_library(strata_kv_tier STATIC src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp
                                 src/core/kv_file_store.cpp src/core/kv_tier_hooks.cpp src/core/kv_read_batch.cpp
                                 src/core/kv_mooncake_store.cpp src/core/kv_placement.cpp)

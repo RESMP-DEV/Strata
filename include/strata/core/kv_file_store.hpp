@@ -33,6 +33,9 @@ public:
         int32_t layer = -1;        ///< the layer the store holds; a key of another layer is refused
         int32_t blocks_per_group = kKvGroupBlocks;
         uint64_t group_bytes = 0;
+        /// How many groups the store's directory can hold. The directory is a FIXED area, so a group at or beyond
+        /// this count is refused rather than writing its entry into a payload.
+        uint64_t max_groups = 0;
     };
 
     /// Open (or create) the store at `path`. The file is truncated and rewritten when it does not match the

@@ -8,12 +8,16 @@ namespace strata::core {
 
 namespace {
 
+}  // namespace
+
 std::string key_string(const KvBlockKey& key) {
     std::ostringstream out;
     out << key.session_id << '/' << key.geometry_id << '/' << key.format_id << '/' << key.layer << '/'
         << key.group << '/' << key.epoch;
     return out.str();
 }
+
+namespace {
 
 uint64_t fnv1a(const void* data, size_t bytes);
 
@@ -26,8 +30,6 @@ uint64_t fnv1a(const void* data, size_t bytes) {
     }
     return h;
 }
-
-uint64_t checksum_of(const void* data, size_t bytes) { return fnv1a(data, bytes); }
 
 }  // namespace
 
@@ -99,6 +101,9 @@ bool KvMemoryStore::invalidate(const KvBlockKey& key, std::string& error) {
 
 KvTierCoordinator::KvTierCoordinator(KvCoordinatorScope scope, Options options, KvBlockStore* store)
     : scope_(scope), options_(std::move(options)), store_(store) {
+    // The coordinator's layer is its own: the scope names the session, the stage, and the slot, and the layer is
+    // a separate dimension because two layers of the same session never share a coordinator.
+    layer_ = options_.layer;
     if (options_.l1_groups < 0) options_.l1_groups = 0;
     if (options_.blocks_per_group <= 0) options_.blocks_per_group = kKvGroupBlocks;
     slots_.resize((size_t) options_.l1_groups);
@@ -164,6 +169,16 @@ uint64_t KvTierCoordinator::group_checksum(int32_t layer, int32_t group) const {
 
 bool KvTierCoordinator::rewind(std::string& error) {
     (void) error;
+    if (store_ != nullptr) {
+        // The store's groups of the old epoch are invalidated BEFORE the epoch advances, so a stale group can
+        // never be read as current data and the store's quota is not consumed by an epoch nobody may read.
+        for (const KvBlockKey& key : published_) {
+            std::string ignored;
+            (void) store_->invalidate(key, ignored);
+        }
+    }
+    published_.clear();
+    published_checksums_.clear();
     ++epoch_;
     for (auto& slot : slots_) {
         slot.group = -1;
@@ -173,7 +188,6 @@ bool KvTierCoordinator::rewind(std::string& error) {
         slot.pins = 0;
     }
     completed_.clear();
-    published_.clear();
     stamp_ = 0;
     return true;
 }
@@ -187,7 +201,6 @@ bool KvTierCoordinator::reset(std::string& error) {
             store_->invalidate(key, ignored);
         }
     }
-    published_.clear();
     const bool ok = rewind(error);
     completed_.clear();
     return ok;
@@ -320,6 +333,7 @@ bool KvTierCoordinator::store_group(int32_t layer, int32_t group, std::string& e
     ++counters_.published_groups;
     counters_.l2_write_bytes += bytes;
     published_.push_back(key);
+    published_checksums_[key_string(key)] = put_request.checksum;
 
     // The group's blocks are no longer open: the tail is released and the slot becomes evictable.
     auto& bits = completed_[layer];
@@ -347,8 +361,10 @@ bool KvTierCoordinator::load_group(int32_t layer, int32_t group, int32_t slot, s
     request.offset = 0;
     request.bytes = bytes;
     request.dst = slot_bytes_.data() + (size_t) slot * (size_t) bytes;
-    // The coordinator names the checksum it expects, so a store that can verify what it received does.
-    request.checksum = checksum_of(slot_bytes_.data() + (size_t) slot * (size_t) bytes, (size_t) bytes);
+    // The coordinator names the checksum of the group it PUBLISHED, so a store that can verify what it received
+    // does. The L1 slot holds whatever was there before, so its bytes are not the group's bytes.
+    const auto published = published_checksums_.find(key_string(key));
+    request.checksum = published == published_checksums_.end() ? 0 : published->second;
 
     // The counters move when the read is ISSUED, not when it succeeds: a run that claims to have used the cold
     // tier must show a foreground cold read, and a refused read is still a cold read.

@@ -13,7 +13,10 @@ int main() {
 
     KvTierSessionConfig config;
     config.store_path = "/tmp/strata-kv-tier-test";
+    config.session_id = 1;
+    config.layer = 0;
     config.l1_groups_per_layer = 2;
+    config.max_groups = 16;
     config.geometry_id = 0xabc;
     config.format_id = 0xdef;
     config.blocks_per_group = 4;

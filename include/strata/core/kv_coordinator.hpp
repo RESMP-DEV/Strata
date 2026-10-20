@@ -158,6 +158,7 @@ struct KvL1Slot {
 class KvTierCoordinator {
 public:
     struct Options {
+        int32_t layer = 0;          ///< the QSA layer this coordinator owns
         int32_t l1_groups = 0;      ///< how many groups the L1 cache holds
         uint64_t geometry_id = 0;
         uint64_t format_id = 0;
@@ -174,6 +175,10 @@ public:
 
     /// The scope this coordinator owns. Two coordinators with different scopes never share state.
     const KvCoordinatorScope& scope() const { return scope_; }
+
+    /// The layer this coordinator owns. The layers have different stores and different geometry identities, so a
+    /// layer must never share a coordinator with another one.
+    int32_t layer() const { return layer_; }
 
     /// The current epoch. A rewind or a reset advances it, so every earlier key becomes unreachable.
     uint32_t epoch() const { return epoch_; }
@@ -241,6 +246,7 @@ private:
     int32_t group_of(int32_t block) const { return block / options_.blocks_per_group; }
 
     KvCoordinatorScope scope_;
+    int32_t layer_ = 0;
     Options options_;
     KvBlockStore* store_;
     uint32_t epoch_ = 0;
@@ -253,6 +259,9 @@ private:
     std::map<int32_t, std::vector<uint8_t>> completed_;
     /// The groups this coordinator published in the current epoch, so a reset can invalidate exactly them.
     std::vector<KvBlockKey> published_;
+    /// The checksum of each published group, so a cold read can name the checksum it expects. The coordinator must
+    /// send the checksum of the group it PUBLISHED, not the bytes of whatever the L1 slot happens to hold.
+    std::map<std::string, uint64_t> published_checksums_;
     KvTierCounters counters_;
 };
 

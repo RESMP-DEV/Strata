@@ -49,6 +49,63 @@ uint64_t total_bytes(const std::vector<KvBlockRun>& runs) {
     return sum;
 }
 
+/// The layer's host copy, gathered as the per-run source pointers and their per-block lengths, in the same run
+/// order the coordinator stores. The engine's own layout is the only layout: there is no second one.
+struct HostRuns {
+    const uint8_t* sources[4] = {nullptr, nullptr, nullptr, nullptr};
+    uint64_t lengths[4] = {0, 0, 0, 0};
+    int count = 0;
+};
+
+HostRuns host_runs(const QsaState& st, const ModelGeometry& g) {
+    const auto s = qsa_shapes(g);
+    const int fmt = qsa_kv_format(st);
+    const uint64_t rows = (uint64_t) (s.n_head_kv * s.page_size);
+    const uint64_t q4 = rows * strata::kernels::kv_q4_bytes_per_head((int) s.head_dim);
+    const uint64_t scales = rows * (uint64_t) (s.head_dim / strata::kernels::KV_Q8_GROUP) * 2;
+    HostRuns runs;
+    if (fmt == strata::kernels::kKvHybrid) {
+        runs.sources[0] = (const uint8_t*) st.host.k_q;     runs.lengths[0] = rows * (uint64_t) s.head_dim;
+        runs.sources[1] = (const uint8_t*) st.host.k_scale; runs.lengths[1] = scales;
+        runs.sources[2] = (const uint8_t*) st.host.v_q4;    runs.lengths[2] = q4;
+        runs.count = 3;
+    } else if (fmt == strata::kernels::kKvQ4) {
+        runs.sources[0] = (const uint8_t*) st.host.k_q4; runs.lengths[0] = q4;
+        runs.sources[1] = (const uint8_t*) st.host.v_q4; runs.lengths[1] = q4;
+        runs.count = 2;
+    } else if (fmt == strata::kernels::kKvInt8) {
+        runs.sources[0] = (const uint8_t*) st.host.k_q;     runs.lengths[0] = rows * (uint64_t) s.head_dim;
+        runs.sources[1] = (const uint8_t*) st.host.v_q;     runs.lengths[1] = runs.lengths[0];
+        runs.sources[2] = (const uint8_t*) st.host.k_scale; runs.lengths[2] = scales;
+        runs.sources[3] = (const uint8_t*) st.host.v_scale; runs.lengths[3] = scales;
+        runs.count = 4;
+    } else {
+        runs.sources[0] = (const uint8_t*) st.host.k_pool; runs.lengths[0] = rows * (uint64_t) s.head_dim * 2;
+        runs.sources[1] = (const uint8_t*) st.host.v_pool; runs.lengths[1] = runs.lengths[0];
+        runs.count = 2;
+    }
+    return runs;
+}
+
+/// Gather one block's bytes from the engine's host copy, in layout order.
+bool gather_block(const HostRuns& runs, int64_t block, std::vector<uint8_t>& out, uint64_t block_bytes,
+                  std::string& error) {
+    out.clear();
+    for (int r = 0; r < runs.count; ++r) {
+        if (runs.sources[r] == nullptr) {
+            error = "kv tier: the layer has no host copy for this run";
+            return false;
+        }
+        const uint64_t offset = (uint64_t) block * runs.lengths[r];
+        out.insert(out.end(), runs.sources[r] + offset, runs.sources[r] + offset + runs.lengths[r]);
+    }
+    if (out.size() != block_bytes) {
+        error = "kv tier: the block's bytes do not match the geometry";
+        return false;
+    }
+    return true;
+}
+
 }  // namespace
 
 bool kv_tier_session_on() { return KvTierSession::enabled(); }
@@ -69,57 +126,17 @@ bool kv_tier_append(int32_t layer, const QsaState& st, const ModelGeometry& g, i
     if (coordinator == nullptr) return true;
 
     const KvTierLayerGeometry geometry = kv_tier_geometry(st, g);
-    if (geometry.block_bytes == 0) {
-        error = "kv tier: the layer's block geometry is empty";
-        return false;
-    }
+    if (geometry.block_bytes == 0) return true;
+    const HostRuns runs = host_runs(st, g);
+    if (runs.count == 0) return true;   // not a streamed layer: the engine's own path owns it
 
-    // The bytes the engine holds for this layer's host copy, in the same run order the coordinator stores.
-    const int fmt = qsa_kv_format(st);
-    const uint64_t rows = (uint64_t) (qsa_shapes(g).n_head_kv * qsa_shapes(g).page_size);
-    const uint8_t* sources[4] = {nullptr, nullptr, nullptr, nullptr};
-    uint64_t lengths[4] = {0, 0, 0, 0};
-    int n_sources = 0;
-    const uint64_t q4 = rows * strata::kernels::kv_q4_bytes_per_head((int) qsa_shapes(g).head_dim);
-    const uint64_t scales = rows * (uint64_t) (qsa_shapes(g).head_dim / strata::kernels::KV_Q8_GROUP) * 2;
-    if (fmt == strata::kernels::kKvHybrid) {
-        sources[0] = (const uint8_t*) st.host.k_q;     lengths[0] = rows * (uint64_t) qsa_shapes(g).head_dim;
-        sources[1] = (const uint8_t*) st.host.k_scale; lengths[1] = scales;
-        sources[2] = (const uint8_t*) st.host.v_q4;    lengths[2] = q4;
-        n_sources = 3;
-    } else if (fmt == strata::kernels::kKvQ4) {
-        sources[0] = (const uint8_t*) st.host.k_q4; lengths[0] = q4;
-        sources[1] = (const uint8_t*) st.host.v_q4; lengths[1] = q4;
-        n_sources = 2;
-    } else if (fmt == strata::kernels::kKvInt8) {
-        sources[0] = (const uint8_t*) st.host.k_q;     lengths[0] = rows * (uint64_t) qsa_shapes(g).head_dim;
-        sources[1] = (const uint8_t*) st.host.v_q;     lengths[1] = lengths[0];
-        sources[2] = (const uint8_t*) st.host.k_scale; lengths[2] = scales;
-        sources[3] = (const uint8_t*) st.host.v_scale; lengths[3] = scales;
-        n_sources = 4;
-    } else {
-        sources[0] = (const uint8_t*) st.host.k_pool; lengths[0] = rows * (uint64_t) qsa_shapes(g).head_dim * 2;
-        sources[1] = (const uint8_t*) st.host.v_pool; lengths[1] = lengths[0];
-        n_sources = 2;
-    }
-    if (n_sources == 0 || sources[0] == nullptr) return true;   // not a streamed layer: the engine's own path owns it
-
-    // The blocks this window appended.
+    // The blocks this window appended. The block's BYTES go into the coordinator's L1 slot before the block is
+    // completed, because a group published without its bytes would store another group's payload.
+    std::vector<uint8_t> block_bytes;
     for (int64_t i = 0; i < n_blocks; ++i) {
         const int64_t block = first_block + i;
         if (!coordinator->append(layer, (int32_t) block, error)) return false;
-
-        // The block's bytes, gathered from the engine's host copy runs, in layout order.
-        std::vector<uint8_t> block_bytes;
-        block_bytes.reserve((size_t) geometry.block_bytes);
-        for (int r = 0; r < n_sources; ++r) {
-            const uint64_t offset = (uint64_t) block * lengths[r];
-            block_bytes.insert(block_bytes.end(), sources[r] + offset, sources[r] + offset + lengths[r]);
-        }
-        if (block_bytes.size() != geometry.block_bytes) {
-            error = "kv tier: the block's bytes do not match the geometry";
-            return false;
-        }
+        if (!gather_block(runs, block, block_bytes, geometry.block_bytes, error)) return false;
         if (!coordinator->write_block(layer, (int32_t) block, block_bytes.data(), geometry.block_bytes, error))
             return false;
         if (!coordinator->complete(layer, (int32_t) block, error)) return false;
@@ -134,21 +151,23 @@ bool kv_tier_commit(int32_t layer, const QsaState& st, const ModelGeometry& g, i
     if (coordinator == nullptr) return true;
     if (n_cells <= 0) return true;
 
-    // The token path's cells are the ones the committed window appended. The blocks that are COMPLETE are the
-    // ones the group can be published from; a block that is still open stays pinned.
     const int64_t cells_per_block = qsa_shapes(g).idx_block;
     if (cells_per_block <= 0) return true;
-    const int64_t first_block = first_pos / cells_per_block;
-    const int64_t last_block = (first_pos + n_cells - 1) / cells_per_block;
-
     const KvTierLayerGeometry geometry = kv_tier_geometry(st, g);
     if (geometry.block_bytes == 0) return true;
+    const HostRuns runs = host_runs(st, g);
+    if (runs.count == 0) return true;
 
+    const int64_t first_block = first_pos / cells_per_block;
+    const int64_t last_block = (first_pos + n_cells - 1) / cells_per_block;
+    std::vector<uint8_t> block_bytes;
     for (int64_t block = first_block; block <= last_block; ++block) {
         const int32_t block_index = (int32_t) block;
         if (!coordinator->append(layer, block_index, error)) return false;
-        // Only a block whose cells are all written is complete. The engine's own count says how many blocks
-        // have completed, and the tail block is the one still being filled.
+        // The block's BYTES go in before the block is completed, for the same reason as in the append hook.
+        if (!gather_block(runs, block, block_bytes, geometry.block_bytes, error)) return false;
+        if (!coordinator->write_block(layer, block_index, block_bytes.data(), geometry.block_bytes, error)) return false;
+        // Only a block whose cells are all written is complete. The tail block is the one still being filled.
         const int64_t block_end = (block + 1) * cells_per_block;
         if (block_end <= first_pos + n_cells) {
             if (!coordinator->complete(layer, block_index, error)) return false;

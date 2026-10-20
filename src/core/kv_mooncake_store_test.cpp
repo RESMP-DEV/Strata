@@ -190,6 +190,52 @@ int main() {
         if (coordinator.epoch() != 1) return 56;
     }
 
+    // 7. A COLD read through the shared store works: the group is evicted from L1 first, so the read really
+    //    goes to the store. The coordinator must send the checksum of the group it PUBLISHED, not the bytes of
+    //    whatever the L1 slot holds, or every cold read fails.
+    {
+        KvMemoryTransport transport;
+        KvMooncakeStore store(&transport, options());
+        KvTierCoordinator::Options tier_options;
+        tier_options.layer = 0;
+        tier_options.l1_groups = 1;
+        tier_options.geometry_id = 0x1111;
+        tier_options.format_id = 0x2222;
+        tier_options.blocks_per_group = 4;
+        tier_options.block_bytes = 64;
+        tier_options.runs = {KvBlockRun{32}, KvBlockRun{32}};
+        KvTierCoordinator coordinator({7, 0, 0}, tier_options, &store);
+        std::string error;
+        // The two groups hold DIFFERENT bytes. If the coordinator sent the checksum of whatever the L1 slot
+        // holds, the second group's bytes would be the ones the store would verify against, and the cold read
+        // of the FIRST group would fail.
+        std::vector<uint8_t> first(64, 0x77);
+        std::vector<uint8_t> second(64, 0x88);
+        for (int32_t b = 0; b < 4; ++b) {
+            if (!coordinator.append(0, b, error)) return 70;
+            if (!coordinator.write_block(0, b, first.data(), first.size(), error)) return 71;
+            if (!coordinator.complete(0, b, error)) return 72;
+        }
+        // A second group evicts the first from L1, so the next read of group 0 is a COLD read.
+        for (int32_t b = 4; b < 8; ++b) {
+            if (!coordinator.append(0, b, error)) return 73;
+            if (!coordinator.write_block(0, b, second.data(), second.size(), error)) return 74;
+            if (!coordinator.complete(0, b, error)) return 75;
+        }
+        if (coordinator.slot_of(0, 0) >= 0) return 76;   // group 0 is gone from L1
+        if (!coordinator.read(0, 0, error)) {
+            std::printf("the cold read failed: %s\n", error.c_str());
+            return 77;
+        }
+        if (coordinator.counters().l2_reads != 1) return 78;
+        if (coordinator.counters().checksum_errors != 0) return 79;
+        if (store.checksum_errors() != 0) return 80;
+        // The bytes that came back are the FIRST group's, not the second group's.
+        std::vector<uint8_t> out(64, 0);
+        if (!coordinator.read_block(0, 0, out.data(), out.size(), error)) return 81;
+        if (out != first) return 82;
+    }
+
     std::puts("kv mooncake store: OK");
     return 0;
 }

@@ -11,8 +11,10 @@ using namespace strata::core;
 namespace {
 
 /// The byte offset of the header's payload_offset field. The header is written by the store; the test reads the
-/// field it needs instead of transcribing the whole layout.
-constexpr size_t kPayloadOffsetField = 8 + 4 + 4 + 8 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8;
+/// field it needs instead of transcribing the whole layout. The layout is: magic 8, version 4, header_size 4,
+/// session_id 8, layer 4, geometry_id 8, format_id 8, blocks_per_group 8, block_bytes 8, group_bytes 8,
+/// run_count 8, max_groups 8, groups 8, entries_offset 8, payload_offset 8.
+constexpr size_t kPayloadOffsetField = 8 + 4 + 4 + 8 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8;
 
 KvFileStore::Identity identity() {
     KvFileStore::Identity id;
@@ -22,6 +24,7 @@ KvFileStore::Identity identity() {
     id.layer = 0;
     id.blocks_per_group = 4;
     id.group_bytes = 4 * 64;   // four blocks of 64 bytes
+    id.max_groups = 64;        // the directory's capacity
     return id;
 }
 
@@ -176,8 +179,10 @@ int main() {
         if (std::fwrite(header.data(), 1, header.size(), file) != header.size()) return 34;
         std::fclose(file);
 
+        // The header's own checksum does not cover the payload, so the file reopens and the CORRUPTED GROUP is
+        // the thing that is refused: the corruption is in the payload, not in the header.
         KvFileStore reopened;
-        if (!reopened.open(path, identity(), runs(), error)) return 35;
+        if (!reopened.open(path, identity(), runs(), error)) { std::printf("reopen failed: %s\n", error.c_str()); return 35; }
         std::vector<uint8_t> out(256, 0);
         KvBlockRequest request;
         request.key = key(0, 0);

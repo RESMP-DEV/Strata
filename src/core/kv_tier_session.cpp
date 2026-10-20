@@ -45,7 +45,10 @@ bool KvTierSession::enable(const KvTierSessionConfig& config, std::string& error
     // The L2 store is a file: it holds whole groups, commits a group's valid marker only after its payload is
     // durable, and refuses a key of another geometry, format, layer, or epoch.
     KvFileStore::Identity identity;
-    identity.session_id = config.geometry_id;   // the store's session identity is the geometry it was sized for
+    // The store's session identity is the SESSION's, not the geometry's: the coordinator's scope carries the same
+    // value, so the key the coordinator writes is the key the store accepts. A store whose identity is a
+    // different number from the coordinator's scope refuses every publish.
+    identity.session_id = config.session_id;
     identity.geometry_id = config.geometry_id;
     identity.format_id = config.format_id;
     identity.layer = config.layer;
@@ -53,6 +56,9 @@ bool KvTierSession::enable(const KvTierSessionConfig& config, std::string& error
     uint64_t block_bytes = 0;
     for (const auto& run : config.runs) block_bytes += run.bytes;
     identity.group_bytes = block_bytes * (uint64_t) config.blocks_per_group;
+    // The directory is a FIXED area, so the store must be told how many groups it may ever hold. It is sized from
+    // the context: the number of blocks the layer can hold, over the group's blocks.
+    identity.max_groups = config.max_groups;
     if (!session.store_.open(config.store_path, identity, config.runs, error)) return false;
     session.store_open_ = true;
     session.enabled_ = true;
@@ -66,12 +72,16 @@ bool KvTierSession::enabled() {
 
 KvTierCoordinator* KvTierSession::coordinator_for(int32_t layer) {
     KvTierSession& session = instance();
+    // One coordinator per LAYER: the layers have different stores and different geometry identities, so a layer
+    // must never share a coordinator with another one.
     for (auto& coordinator : session.coordinators_) {
         if (coordinator->scope().stage == 0 && coordinator->scope().slot == 0 &&
-            coordinator->scope().session_id == (uint64_t) layer)
+            coordinator->scope().session_id == session.config_.session_id &&
+            coordinator->layer() == layer)
             return coordinator.get();
     }
     KvTierCoordinator::Options options;
+    options.layer = layer;
     options.l1_groups = session.config_.l1_groups_per_layer;
     options.geometry_id = session.config_.geometry_id;
     options.format_id = session.config_.format_id;
@@ -79,7 +89,7 @@ KvTierCoordinator* KvTierSession::coordinator_for(int32_t layer) {
     options.block_bytes = session.config_.block_bytes;
     options.runs = session.config_.runs;
     session.coordinators_.push_back(std::make_unique<KvTierCoordinator>(
-        KvCoordinatorScope{(uint64_t) layer, 0, 0}, options, &session.store_));
+        KvCoordinatorScope{session.config_.session_id, 0, 0}, options, &session.store_));
     return session.coordinators_.back().get();
 }
 

@@ -5043,6 +5043,12 @@ int main(int argc, char** argv) {
             tier_config.blocks_per_group = strata::core::kKvGroupBlocks;
             tier_config.block_bytes = tier_geometry.block_bytes;
             tier_config.runs = tier_geometry.runs;
+            // The store's directory is a FIXED area, so it is sized for the whole context: the layer's blocks
+            // over the group's blocks. A group past the capacity is refused, never written over a payload.
+            const int64_t blocks_per_group_cells = strata::core::qsa_shapes(g).idx_block;
+            const int64_t layer_blocks = (o.max_context + blocks_per_group_cells - 1) / blocks_per_group_cells;
+            tier_config.max_groups = (uint64_t) ((layer_blocks + strata::core::kKvGroupBlocks - 1) /
+                                                 strata::core::kKvGroupBlocks);
             std::string tier_error;
             if (!strata::core::KvTierSession::enable(tier_config, tier_error)) {
                 std::fprintf(stderr, "strata generate: the KV cold tier could not be enabled: %s\n", tier_error.c_str());

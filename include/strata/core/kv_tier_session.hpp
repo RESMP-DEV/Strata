@@ -23,12 +23,14 @@ namespace strata::core {
 /// own streaming path is untouched.
 struct KvTierSessionConfig {
     std::string store_path;         ///< the local store's path; empty means no cold tier
+    uint64_t session_id = 0;        ///< the session's identity; the store and the coordinators share it
     int32_t layer = 0;              ///< the QSA layer the store holds
     int32_t l1_groups_per_layer = 0;///< how many groups the L1 cache holds per layer; 0 means no L1 cache
     uint64_t geometry_id = 0;
     uint64_t format_id = 0;
     int32_t blocks_per_group = kKvGroupBlocks;
     uint64_t block_bytes = 0;
+    uint64_t max_groups = 0;    ///< how many groups the store's directory may hold; 0 refuses every write
     std::vector<KvBlockRun> runs;
 };
 

@@ -1686,22 +1686,10 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                         kv_append_step(st.k_pool, st.v_pool, st.page_table, step_t, kcur_ + t * NKV * HD,
                                        vcur_ + t * NKV * HD, s, cs, &st.host);
                 }
-                // The disaggregated KV tier: the engine has written the window's cells, so the blocks it
-                // appended are complete enough to publish. The hook is a no-op unless the cold tier is on, and
-                // a store failure fails the window rather than silently continuing without a cold tier.
-                if (kv_tier_session_on()) {
-                    // The window's first cell position, from the HOST-mapped step buffer: `step_` is device
-                    // memory and must not be read from the host. The window's cells are the rows [tb, te).
-                    const int32_t first_pos = h_step_[(size_t) tb * kStepCount + strata::kernels::kStepPos];
-                    const int64_t cells_per_block = s.idx_block > 0 ? s.idx_block : 1;
-                    const int64_t first_block = (int64_t) first_pos / cells_per_block;
-                    const int64_t n_rows = te - tb;
-                    std::string tier_error;
-                    if (!kv_tier_append((int32_t) qi, st, *g_, first_block, n_rows, tier_error)) {
-                        err = tier_error;
-                        return false;
-                    }
-                }
+                // The disaggregated KV tier's append hook does NOT run here. This code runs while the graph is
+                // CAPTURED, and a capture happens once per window size: the hook would run once per capture
+                // instead of once per window, and the host copy would not yet hold the window's cells. The hook
+                // runs at the commit boundary instead, after the graph has run.
                 if (!sidem) idx_append(cs);
                 stamp(l, 9, grp);
                 if (qbr) {
@@ -1783,13 +1771,9 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                          max_blocks_, s, scores_ + (size_t) t * max_blocks_, cs);
                         qsa_block_topk(scores_ + (size_t) t * max_blocks_, step_ + t * kStepCount, 1, max_blocks_, cap_, s,
                                        sel_ + (size_t) t * cap_, cs);
-                        if (kv_tier_session_on()) {
-                            std::string tier_error;
-                            if (!kv_tier_resolve((int32_t) qi, sx, *g_, sel_ + (size_t) t * cap_, cap_, tier_error)) {
-                                err = tier_error;
-                                return false;
-                            }
-                        }
+                        // The disaggregated KV tier's resolve hook does NOT run here: the selection lives in
+                        // DEVICE memory, so reading it from the host would fault, and at capture time the
+                        // top-k kernel has not run so the buffer holds no selection at all.
                         qsa_kv_resolve(sx, *g_, sel_ + (size_t) t * cap_, step_ + t * kStepCount, 1, cap_, cs);
                         const QsaAttnPools px = qsa_attn_pools(sx);
                         qsa_decode_attn_batch(qcur_ + t * NH * HD, px, sel_ + (size_t) t * cap_, step_ + t * kStepCount,
@@ -1797,8 +1781,6 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                               attn_ + t * NH * HD, 1, cs);
                     }
                 } else {
-                // The graph-split proof: the captured selection is the phase that produces the read plan.
-                if (kv_tier_session_on()) KvTierSession::note_phase(kKvTierPhaseSelection);
                 if (!sidem) idx_select(cs);
                 else if (cudaStreamWaitEvent(cs, mjoin_, 0) != cudaSuccess) {
                     err = "verify: the indexer's branch could not join";
@@ -1810,17 +1792,6 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 }
                 stamp(l, 11, grp);
                 // KV streaming: the n selections' blocks resident (device-side, inside the graph)
-                if (kv_tier_session_on()) {
-                    std::string tier_error;
-                    // The host boundary: the coordinator makes the plan's groups ready HERE, between the
-                    // captured selection and the captured resolve. A graph cannot do this work itself.
-                    KvTierSession::note_phase(kKvTierPhaseReadiness);
-                    if (!kv_tier_resolve((int32_t) qi, st, *g_, sel_ + (size_t) tb * cap_, cap_, tier_error)) {
-                        err = tier_error;
-                        return false;
-                    }
-                    KvTierSession::note_phase(kKvTierPhaseResolve);
-                }
                 qsa_kv_resolve(st, *g_, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, n, cap_, cs);
                 stamp(l, 12, grp);
                 if (qbr) join(0);   // the query, for attention
@@ -1830,6 +1801,9 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 if (!(split_attn && qsa_decode_attn_split(qcur_ + tb * NH * HD, pools, sel_ + (size_t) tb * cap_,
                                                           step_ + tb * kStepCount, cap_, s,
                                                           attn_scratch_ + (size_t) tb * attn_scratch_floats_,
+                // The disaggregated KV tier's resolve hook does NOT run here: the selection lives in DEVICE
+                // memory, so reading it from the host would fault, and at capture time the top-k kernel has
+                // not run so the buffer holds no selection at all. The hook runs at the commit boundary.
                                                           (uint64_t) n * (uint64_t) attn_scratch_floats_, attn_ + tb * NH * HD, n, cs)))
                 qsa_decode_attn_batch(qcur_ + tb * NH * HD, pools, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, cap_,
                                       s, attn_scratch_ + (size_t) tb * attn_scratch_floats_, attn_ + tb * NH * HD, n, cs);
@@ -3249,16 +3223,37 @@ bool Verifier::commit(int n_keep, std::string& err) {
             commit_pending_ = true;
         }
     }
-    // The disaggregated KV tier's token-path hook. The token path itself runs inside a CAPTURED graph and
-    // cannot do host I/O, so the publish happens here: the commit boundary is where the window's writes have
-    // become visible to the host. The same coordinator that served the window publishes the tokens, so there is
-    // one policy and no second implicit path.
+    // The disaggregated KV tier's hooks. They run HERE, at the commit boundary, and not inside the captured
+    // graph: a capture happens once per window size, so a hook inside it would run once per capture instead of
+    // once per window, and the host copy would not yet hold the window's cells.
+    //
+    // The commit boundary is where the window's writes have become visible to the host, and where the graph has
+    // finished, so the selection can be copied to a host buffer and the coordinator can do its work. The same
+    // coordinator that served the window publishes the tokens, so there is one policy and no second implicit path.
     if (kv_tier_session_on() && g_->n_qsa_layers() > 0) {
         const int32_t layer = (int32_t) ss_->qsa_ord0;
         std::string tier_error;
         if (!kv_tier_commit(layer, ss_->qsa_states[layer], *g_, last_pos0_, n_keep, tier_error)) {
             err = tier_error;
             return false;
+        }
+        // The resolve hook needs the selection on the HOST. The selection lives in device memory, so it is
+        // copied into a mapped host buffer first. The copy is a device-to-host copy after the graph, which is
+        // exactly the split the architecture's graph-boundary rule asks for.
+        if (last_t_ > 0 && cap_ > 0) {
+            const size_t bytes = (size_t) last_t_ * (size_t) cap_ * sizeof(int32_t);
+            std::vector<int32_t> selection((size_t) last_t_ * (size_t) cap_, 0);
+            if (cudaMemcpy(selection.data(), sel_, bytes, cudaMemcpyDeviceToHost) != cudaSuccess) {
+                err = "verify: the KV tier could not read the selection";
+                return false;
+            }
+            KvTierSession::note_phase(kvTierPhaseSelection);
+            KvTierSession::note_phase(kvTierPhaseReadiness);
+            if (!kv_tier_resolve(layer, ss_->qsa_states[layer], *g_, selection.data(), (int64_t) cap_, tier_error)) {
+                err = tier_error;
+                return false;
+            }
+            KvTierSession::note_phase(kvTierPhaseResolve);
         }
     }
     if (ple_stage())   // stages that share one session must advance it once

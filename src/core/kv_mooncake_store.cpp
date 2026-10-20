@@ -146,22 +146,24 @@ bool KvMooncakeStore::put(const KvBlockPut& put_request, std::string& error) {
     const std::string key = object_key(put_request.key);
 
     // The quota is checked BEFORE the write, so a full pool refuses the write rather than filling and then
-    // reporting the overflow.
+    // reporting the overflow. The count moves only AFTER the transport write succeeds: a failed write must not
+    // leave the pool's accounting short of what it holds, or a later invalidate would subtract the same bytes
+    // twice and the count would wrap.
+    uint64_t current = 0;
     if (options_.quota_bytes != 0) {
         const auto it = sizes_.find(key);
-        const uint64_t current = it == sizes_.end() ? 0 : it->second;
+        current = it == sizes_.end() ? 0 : it->second;
         if (used_bytes_ - current + put_request.bytes > options_.quota_bytes) {
             ++quota_refusals_;
             error = "kv shared store: the quota would be exceeded";
             return false;
         }
-        used_bytes_ -= current;
     }
 
     if (!transport_->put(key, put_request.src, (size_t) put_request.bytes, error)) return false;
     if (options_.quota_bytes != 0) {
         sizes_[key] = put_request.bytes;
-        used_bytes_ += put_request.bytes;
+        used_bytes_ = used_bytes_ - current + put_request.bytes;
     }
     ++writes_;
     return true;
