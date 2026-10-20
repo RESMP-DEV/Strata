@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <memory>
 #include <string>
 #include <vector>
@@ -111,6 +112,51 @@ private:
     std::map<std::string, std::vector<uint8_t>> objects_;
     std::string corrupt_;
     bool has_corrupt_ = false;
+};
+
+/// A reference implementation of the pool semantics a Mooncake Master owns: one quota and one eviction order
+/// across every object identity, not one budget per Strata store. It is intentionally in-process and dependency
+/// free. A real Mooncake client remains the transport for cross-host placement, replication, and batch RDMA.
+class KvMooncakePoolTransport : public KvSharedTransport {
+public:
+    struct Options {
+        uint64_t quota_bytes = 0;   ///< zero means unbounded
+        size_t max_objects = 0;     ///< zero means unbounded
+    };
+
+    KvMooncakePoolTransport() = default;
+    explicit KvMooncakePoolTransport(Options options) : options_(options) {}
+
+    bool put(const std::string& key, const void* data, size_t bytes, std::string& error) override;
+    bool get(const std::string& key, std::vector<uint8_t>& out, std::string& error) override;
+    bool remove(const std::string& key, std::string& error) override;
+    bool has(const std::string& key) const override;
+
+    uint64_t used_bytes() const;
+    uint64_t quota_bytes() const { return options_.quota_bytes; }
+    size_t size() const;
+    uint64_t admissions() const;
+    uint64_t evictions() const;
+    uint64_t quota_refusals() const;
+    uint64_t immutable_refusals() const;
+
+private:
+    struct Entry {
+        std::vector<uint8_t> payload;
+        uint64_t stamp = 0;
+    };
+
+    void evict_for_locked(uint64_t incoming_bytes, size_t incoming_objects, std::string& error);
+
+    Options options_;
+    mutable std::mutex mutex_;
+    std::map<std::string, Entry> objects_;
+    uint64_t used_bytes_ = 0;
+    uint64_t tick_ = 0;
+    uint64_t admissions_ = 0;
+    uint64_t evictions_ = 0;
+    uint64_t quota_refusals_ = 0;
+    uint64_t immutable_refusals_ = 0;
 };
 
 }  // namespace strata::core

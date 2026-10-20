@@ -22,6 +22,8 @@
 
 namespace strata::core {
 
+class KvReadBatch;
+
 /// One immutable group of K/V blocks. `epoch` changes on a rewind or a conversation reset; a new epoch never
 /// reinterprets the bytes of an older one, so a stale key can never be served as current data.
 struct KvBlockKey {
@@ -134,6 +136,7 @@ struct KvTierCounters {
     uint64_t l2_read_bytes = 0;
     uint64_t l3_reads = 0;
     uint64_t l3_write_bytes = 0;
+    uint64_t engine_host_restores = 0;   ///< cold groups scattered back into the engine's pinned host copy
     uint64_t published_groups = 0;
     uint64_t checksum_errors = 0;
     uint64_t readiness_waits = 0;
@@ -242,28 +245,7 @@ public:
 
     /// Submit the missing groups in a foreground batch. A duplicate group maps to one operation and no second
     /// store read. Every missing group owns a reserved L1 slot until its completion is consumed.
-    bool submit_read(const KvReadBatch& batch, std::string& error);
-
-    /// Consume one explicit read: wait until it succeeds, fails, or is canceled. A failed or canceled read
-    /// releases its slot and does not expose bytes. A group already in L1 succeeds without touching the store.
-    bool wait_read(uint64_t operation, int32_t layer, int32_t group, std::string& error);
-
-    /// Consume every operation in the batch, even after a failure, so a foreground resolver never leaves I/O
-    /// running behind it. The first error is reported.
-    bool wait_read(const KvReadBatch& batch, std::string& error);
-
-    /// Cancel a read cooperatively: queued work never runs; running work is discarded when the store returns.
-    bool cancel_read(uint64_t operation, std::string& error);
-
-    /// Poll an operation without blocking.
-    bool completion(uint64_t operation, KvAsyncCompletion& state) const;
-
-    /// Wait for one background operation. Failure and cancellation are explicit errors.
-    bool wait(uint64_t operation, std::string& error);
-
-    /// Submit the missing groups in a foreground batch. A duplicate group maps to one operation and no second
-    /// store read. Every missing group owns a reserved L1 slot until its completion is consumed.
-    bool submit_read(const KvReadBatch& batch, std::string& error);
+    bool submit_read(KvReadBatch& batch, std::string& error);
 
     /// Consume one explicit read: wait until it succeeds, fails, or is canceled. A failed or canceled read
     /// releases its slot and does not expose bytes. A group already in L1 succeeds without touching the store.
@@ -300,6 +282,12 @@ public:
 
     /// Is opt-in Phase C background I/O enabled? False is the synchronous compatibility path.
     bool async_io() const { return async_enabled_; }
+
+    /// Wait for and consume every background completion. A failure names the first failed store operation.
+    bool flush(std::string& error);
+
+    /// Proof that a ready group was scattered into the engine host copy that the CUDA resolver reads.
+    void note_engine_host_restore() { ++counters_.engine_host_restores; }
 
     /// The number of blocks in a group.
     int32_t blocks_per_group() const { return options_.blocks_per_group; }
@@ -366,6 +354,9 @@ private:
         int32_t layer = 0;
         int32_t group = 0;
         int32_t slot = -1;
+        KvBlockKey key;
+        uint64_t checksum = 0;
+        std::vector<uint8_t> payload;
         std::string error;
         bool cancel_requested = false;
     };

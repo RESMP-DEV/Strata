@@ -79,7 +79,8 @@ class ParsingTest(unittest.TestCase):
     def test_tier_report_requires_all_guard_counters(self) -> None:
         line = (
             "strata kv tier (control): l1_evictions=1 l2_reads=2 l2_read_failures=0 "
-            "checksum_errors=0 selection=1 readiness=1 resolve=1 windows=1 violations=0\n"
+            "checksum_errors=0 readiness_waits=1 engine_host_restores=2 selection=1 readiness=1 "
+            "resolve=1 windows=1 violations=0\n"
         )
         values = acceptance.parse_tier_report(line, "test")
         self.assertEqual(values["l2_reads"], 2)

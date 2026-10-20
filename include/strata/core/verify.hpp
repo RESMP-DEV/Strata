@@ -372,6 +372,11 @@ private:
     uint64_t bm_tick_ = 0;
     size_t batch_graph_limit_ = 0;         ///< 0: keep every captured batch graph (0.1.39); N: LRU-evict beyond N layouts
     int last_rows_[8] = {};                ///< the slots of the last batch window's rows
+    /// The selection matrix is [QSA layer][window row][selection width]. Layers execute sequentially but own
+    /// different selections, and the commit boundary must still make every layer's next plan ready.
+    int32_t* selection_for(int64_t qsa_index, int64_t row) const {
+        return sel_ + ((size_t) qsa_index * (size_t) max_t_ + (size_t) row) * (size_t) cap_;
+    }
     std::vector<int> bkey(const int* rows, int S, int hbase) const {   // #871: the doorbell variant has its own graphs
         std::vector<int> k = batch_key(rows, S, hbase);
         k.push_back(ar_off_ ? 1 : 0);

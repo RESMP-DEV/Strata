@@ -26,8 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "build" / "reports" / "b550-acceptance" / "receipt.json"
 EXPECTED_GPU = "NVIDIA GeForce RTX 3090 Ti"
 EXPECTED_COMPUTE_CAPABILITY = "8.6"
-EXPECTED_OPTANE_MODEL = "PHKS826300DP750BGN"
-EXPECTED_OPTANE_SERIAL = "ET000750KWJTF"
+EXPECTED_OPTANE_MODEL = "ET000750KWJTF"
+EXPECTED_OPTANE_SERIAL = "PHKS826300DP750BGN"
 CONTROLLED_ENGINE_FLAGS = {
     "--tokens-file",
     "--max-new",
@@ -512,6 +512,7 @@ def parse_tier_report(stderr: str, arm: str) -> dict[str, int]:
         "resolve",
         "windows",
         "violations",
+        "engine_host_restores",
     )
     missing = [key for key in required if key not in values]
     if missing:
@@ -820,6 +821,7 @@ def run_cold_control(
         "checksum_errors": counters.get("checksum_errors", -1),
         "graph_violations": counters.get("violations", -1),
         "graph_windows": counters.get("windows", 0),
+        "engine_host_restores": counters.get("engine_host_restores", -1),
     }
     if counters.get("l2_reads", 0) <= 0:
         result["failures"].append("gate: the engine reported no L2 cold read")
@@ -839,6 +841,10 @@ def run_cold_control(
         )
     if counters.get("windows", 0) <= 0:
         result["failures"].append("gate: no complete graph-split window was reported")
+    if counters.get("engine_host_restores", 0) <= 0:
+        result["failures"].append(
+            "gate: no cold group reached the engine host copy consumed by kv_stream_resolve"
+        )
     result["artifacts"] = _artifact_hashes(
         harness,
         engine=engine,

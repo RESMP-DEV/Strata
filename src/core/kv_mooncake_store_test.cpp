@@ -10,12 +10,12 @@ using namespace strata::core;
 
 namespace {
 
-KvMooncakeStore::Options options(uint64_t quota = 0) {
+KvMooncakeStore::Options options(uint64_t quota = 0, int32_t layer = 0) {
     KvMooncakeStore::Options o;
     o.session_id = 7;
     o.geometry_id = 0x1111;
     o.format_id = 0x2222;
-    o.layer = 0;
+    o.layer = layer;
     o.blocks_per_group = 4;
     o.group_bytes = 256;
     o.quota_bytes = quota;
@@ -234,6 +234,49 @@ int main() {
         std::vector<uint8_t> out(64, 0);
         if (!coordinator.read_block(0, 0, out.data(), out.size(), error)) return 81;
         if (out != first) return 82;
+    }
+
+    // 8. The quota and eviction order belong to the POOL, not to each store: two layer identities share one
+    //    bounded object set, exactly as Mooncake's Master-side admission does.
+    {
+        KvMooncakePoolTransport::Options pool_options;
+        pool_options.quota_bytes = 512;
+        pool_options.max_objects = 2;
+        KvMooncakePoolTransport transport(pool_options);
+        KvMooncakeStore layer0(&transport, options(0, 0));
+        KvMooncakeStore layer1(&transport, options(0, 1));
+        std::string error;
+
+        auto put = [&](KvMooncakeStore& store, int32_t layer, int32_t group, uint8_t value) {
+            std::vector<uint8_t> payload(256, value);
+            KvBlockPut request;
+            request.key = key(layer, group);
+            request.src = payload.data();
+            request.bytes = payload.size();
+            request.checksum = checksum_of(payload);
+            return store.put(request, error);
+        };
+        if (!put(layer0, 0, 0, 0x66)) return 90;
+        if (!put(layer1, 1, 0, 0x77)) return 91;
+        if (transport.size() != 2 || transport.used_bytes() != 512) return 92;
+
+        // A third admission evicts the first object even though it came through another store identity.
+        if (!put(layer1, 1, 1, 0x88)) return 93;
+        if (transport.size() != 2 || transport.evictions() != 1) return 94;
+        if (layer0.contains(key(0, 0))) return 95;
+        if (!layer1.contains(key(1, 0)) || !layer1.contains(key(1, 1))) return 96;
+
+        // Objects are immutable. A same-key payload change is refused and does not reset the eviction age.
+        if (put(layer1, 1, 1, 0x99)) return 97;
+        if (transport.immutable_refusals() != 1 || transport.size() != 2) return 98;
+
+        // An object larger than the whole pool is refused before eviction, so it cannot wipe the pool.
+        KvMooncakePoolTransport::Options tiny;
+        tiny.quota_bytes = 128;
+        KvMooncakePoolTransport tiny_pool(tiny);
+        KvMooncakeStore tiny_store(&tiny_pool, options());
+        if (put(tiny_store, 0, 0, 0xaa)) return 99;
+        if (tiny_pool.quota_refusals() != 1 || tiny_pool.size() != 0) return 100;
     }
 
     std::puts("kv mooncake store: OK");

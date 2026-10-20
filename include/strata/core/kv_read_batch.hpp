@@ -45,6 +45,12 @@ public:
     /// The groups in the batch, in the order they were added.
     const std::vector<KvReadItem>& items() const { return items_; }
 
+    /// Bind a submitted background operation to its batch item. The scheduler owns this linkage; callers read it
+    /// only through the returned batch.
+    void set_operation(size_t index, uint64_t operation) {
+        if (index < items_.size()) items_[index].operation = operation;
+    }
+
     /// How many groups the batch holds.
     size_t size() const { return items_.size(); }
     bool empty() const { return items_.empty(); }

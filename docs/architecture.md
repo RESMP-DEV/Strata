@@ -1746,3 +1746,80 @@ reads, the 600K and 800K scale gates, and any measurement of the cold tier's
 benefit. Full evidence is in
 [phase A evidence](../evidence/kv-coordinator-phase-a.json) and
 [B550 reachability evidence](../evidence/b550-reachability-2026-10-20.json).
+
+### Cold KV tier corrections, engine-host restore, and the B550 acceptance harness, 2026-10-20
+
+The merged disaggregated KV tier had four defects that no host test could see,
+because the hooks had never run against a model. A parent audit of the merged
+code found all four, and an independent read-only worker confirmed the two
+serving-boundary ones from its own trace of the same files.
+
+The commit boundary addressed only the stage's first QSA ordinal, so a layer
+split served one layer's cold tier and left the rest untouched. The session
+opened exactly one file store, whose identity was layer 0, and then created a
+coordinator for every layer that asked for one, so a non-primary layer's
+publish was refused by the store's own identity check. The selection matrix
+was one buffer shared by every layer, so each layer's top-k overwrote the
+previous layer's selection, and the resolve hook read one row of a multi-row
+window's selection. The store's path was used as a file prefix, which put the
+per-layer files beside the tier directory instead of inside it, outside the
+mode-0700 directory the operations procedure requires.
+
+The corrections are: one fixed-layout file per QSA layer inside the tier
+directory, a per-layer selection matrix indexed by layer and window row, a
+commit boundary that covers every QSA ordinal the session owns, and a resolve
+that reads every row of the window's selection. The layer-split and batch
+modes are refused explicitly, because the coordinator's key must carry a stage
+and a slot, and the singleton session has neither. The session's identity is a
+random per-process value, so two engines cannot alias each other's object
+keys in one store.
+
+The largest finding was that the tier's own bytes never reached the engine.
+The engine's attention reads the pinned host copy through `kv_stream_resolve`,
+inside the captured graph, and the coordinator's L1 was a parallel copy that
+nothing consumed: the tier was write-only. The resolve hook now scatters each
+ready cold group back into the engine's exact per-run host layout, in the
+same run order the append used, and counts the restores as
+`engine_host_restores`. That counter is the difference between a tier that
+publishes bytes and a tier the attention actually reads, and the B550 harness
+now refuses a cold arm that reports zero restores.
+
+Two more corrections came from the workers. The shared store's quota was
+per-store accounting with a hard refusal, which is not a pool; it is now a
+pool-wide admission with bounded LRU eviction across every layer store, one
+immutable object per key, and a counter for the evictions the admission
+caused, which is the Master-side role the architecture assigns to it. The
+asynchronous slice is now a real implementation rather than declarations: one
+serialized worker owns the store I/O, a read owns its L1 slot until its
+completion is consumed, a put owns an immutable snapshot of the group rather
+than the evictable slot, and a canceled operation never installs bytes.
+
+A bounded acceptance harness is now in the repository at
+`scripts/b550_acceptance.py`. It verifies the host, the two RTX 3090 Ti cards,
+and the designated 750 GB device by live model and serial, builds the CUDA
+engine for sm_86, runs the identity gate, runs the matched cold control with
+the tier off and on, and compares prompt tokens, output tokens, argmax values,
+and mean NLL. It fails closed: a cold arm without real counters, without
+nonzero cold reads, without nonzero L1 evictions, without a complete
+graph-split window, or without an engine host restore is a failed receipt, and
+the receipt is written either way.
+
+B550 was unreachable for the whole session. The main machine's LAN moved to
+192.168.12.0/24, so the home network is unreachable, and the host's ZeroTier
+node was absent from the peer table. One wake-on-LAN packet was sent to the
+known NIC address and a bounded watcher polled both lanes without a login. The
+repository's own watcher had a defect that made it exit before its first
+probe: it stamped its log lines with GNU `date -Is`, which macOS rejects, and
+it now uses a portable format.
+
+What remains unclaimed is unchanged and now larger. The CUDA sm86 build, the
+identity gate, the matched NLL control, the forced cold reads, the 600K and
+800K gates, and any measurement of the cold tier's benefit are all unrun. The
+engine's pinned host allocation is not reduced by this work: the tier's
+restore path repopulates the copy the attention reads, and evicting a group
+from the tier's L1 does not yet free the engine's pinned host bytes. The
+Optane-class naming of the 750 GB device is also unverified: the recorded
+identity is `HPE OEM Intel ET000750KWJTF`, and no live SMART read in this
+session confirmed whether the device is 3D XPoint. Full commands and
+non-claims are in
+[implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json).

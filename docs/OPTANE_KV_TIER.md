@@ -1,7 +1,7 @@
 # Operating the Optane KV tier (B550)
 
-The B550's Optane partition carries two different kinds of state: Strata session
-files (`slot_save_path`) and the cold KV disk tier (`--kv-disk`). Both are
+The B550's operationally named Optane partition carries two different kinds of state: Strata session
+files (`slot_save_path`) and the cold KV disk tier (`--kv-tier`). Both are
 *derived* state that the engine can rebuild from the model and the prompt, which
 is the single most important fact behind every rule here.
 
@@ -10,7 +10,7 @@ This is operational procedure. What the tier is and what it does not do lives in
 
 ## Identify the device every time
 
-Do not trust `/dev/nvmeN` across reboots. The B550 has a root NVMe, an Optane,
+Do not trust `/dev/nvmeN` across reboots. The B550 has a root NVMe, the designated 750 GB device,
 and a 21.8 TB HDD, and enumeration order is not stable.
 
 ```bash
@@ -18,7 +18,7 @@ lsblk -o NAME,PATH,MODEL,SERIAL,SIZE,FSTYPE,MOUNTPOINTS   # expect ET000750KWJTF
 sudo -n smartctl -H -A /dev/nvme1n1                          # PASSED, 0% used, 0 media/data-integrity errors
 ```
 
-If the model or serial is not the Optane, stop. Everything below is written
+If the model or serial is not the designated device, stop. Everything below is written
 against `/dev/nvme1n1p2` only because that is what this host enumerates today.
 
 ## Mount for the workload, not for convenience
@@ -41,9 +41,12 @@ the tier to read-only, so the engine keeps answering from a tier that is no
 longer being written, and the first sign is a checksum failure rather than a
 clear "this disk is read-only" error.
 
-Keep a dedicated, mode-0700 subdirectory per consumer (`strata-kv-disk-*`,
-`strata-sessions`). The partition also holds unrelated directories; a task that
-cleans "its" files must name its own subdirectory, never the mount point.
+Keep a dedicated, mode-0700 subdirectory per consumer (`strata-kv-tier-*`,
+`strata-sessions`). The disaggregated tier treats that directory as its root and
+creates one fixed-layout file per QSA layer; the older one-file pager must keep
+its own separate directory. The partition also holds unrelated directories; a
+task that cleans "its" files must name its own subdirectory, never the mount
+point.
 
 ## Unmount cleanly, every time, and check afterwards
 
@@ -96,15 +99,18 @@ block contents; only a clean unmount protects the directory.
 
 ## Concurrency
 
-One engine process owns one tier directory. The pager opens its file read-write,
-rewrites the header on reset, and relies on its own bookkeeping; two processes on
+One engine process owns one tier directory. Each per-layer file is opened
+read-write, its header adopts the process's random session identity, and a
+server request resets the epoch before rewriting its session; two processes on
 one directory would interleave those writes. A second engine must use a second
 subdirectory.
 
 ## Capacity and headroom
 
-The tier is bounded by two independent budgets: the host cache (`--kv-disk-host-blocks`,
-a RAM budget per QSA layer) and the device (whatever is free on the partition).
+The tier is bounded by two independent budgets: the coordinator's L1 group cache
+(`--kv-tier-l1`, per QSA layer) and the device (whatever is free on the
+partition). The engine's full pinned host allocation remains a separate,
+currently unreduced budget.
 Track both, because a full device fails writes while a full host cache only
 costs throughput.
 

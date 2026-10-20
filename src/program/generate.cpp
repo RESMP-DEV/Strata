@@ -131,6 +131,7 @@ namespace strata::metal_engine { void set_model_shard(const char* shard1); }   /
 #include <charconv>
 #include <cmath>
 #include <limits>
+#include <random>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -483,6 +484,7 @@ struct Options {
     /// byte-identical without it.
     std::string kv_tier;
     int32_t kv_tier_l1 = 0;
+    bool kv_tier_async = false;
     bool kv_grow = false;              ///< the elastic K/V (--kv-grow, STRATA_KV_GROW=1; kvg_ensure)
     std::string dump_residual;
     /// The head input, `bb.mixed`.  It exists so the head can be SPLIT: steps 1-4 (the per-stream norm, the two
@@ -820,6 +822,9 @@ void usage() {
                  "  --kv-resident N      KV streaming: keep N cells of each QSA layer in VRAM (min 20480) and the\n"
                  "                       whole K/V in pinned RAM; the freed VRAM goes to expert slots. 0 (default):\n"
                  "                       all of it in VRAM. A context of N cells or fewer is not streamed\n"
+                 "  --kv-tier PATH       opt-in cold KV store directory (needs --kv-resident; one file per QSA\n"
+                 "                       layer). --kv-tier-l1 N bounds the group cache; --kv-tier-async opts into\n"
+                 "                       the tested background store worker (default: synchronous I/O)\n"
                  "  --kv-grow            the K/V takes VRAM only for the cells the requests reach and the expert\n"
                  "                       cache holds the rest, giving slots back as the context grows (one GPU, with\n"
                  "                       --expert-profile; STRATA_KV_GROW=1/0 also). Default: the whole --max-context\n"
@@ -2346,6 +2351,7 @@ int main(int argc, char** argv) {
         else if (a == "--kv-resident") o.kv_resident = std::atoll(next("--kv-resident"));
         else if (a == "--kv-tier") o.kv_tier = next("--kv-tier");
         else if (a == "--kv-tier-l1") o.kv_tier_l1 = (int32_t) std::atoll(next("--kv-tier-l1"));
+        else if (a == "--kv-tier-async") o.kv_tier_async = true;
         else if (a == "--kv-grow") o.kv_grow = true;
         else if (a == "--no-kv-grow") o.kv_grow = false;
         else if (a == "--stream-token") o.stream_token = true;
@@ -2838,6 +2844,12 @@ int main(int argc, char** argv) {
         }
     }
     bool multi_gpu = !split_devs.empty() && !split_same;   // cleared by --split-skip-if-fits before any stage loads
+    if (!o.kv_tier.empty() && (o.batch > 0 || multi_gpu)) {
+        std::fprintf(stderr, "strata generate: --kv-tier needs the serial single-stage path: its stage/slot-scoped "
+                             "coordinators are not wired for %s yet\n",
+                     multi_gpu ? "--layer-split" : "--batch");
+        return 2;
+    }
     // STRATA_PRIMARY_DEVICE: a later stage's list (`--split-device` values must be > 0) still assumes the
     // primary is device 0 - refuse the combination rather than mis-place a stage.  The peer tier takes the
     // primary into account (peer_experts.cpp).
@@ -3015,6 +3027,10 @@ int main(int argc, char** argv) {
     // The disaggregated KV cold tier (docs/KV_DISAGGREGATION.md). It is opt-in and it needs KV streaming: the
     // cold tier publishes a group of the layer's host copy, so the layer must have one. The L1 cache defaults to
     // one group per layer, which is the smallest bounded cache that can hold a group.
+    if (o.kv_tier_async && o.kv_tier.empty()) {
+        std::fprintf(stderr, "strata generate: --kv-tier-async needs --kv-tier\n");
+        return 2;
+    }
     if (!o.kv_tier.empty()) {
         if (o.kv_resident <= 0) {
             std::fprintf(stderr, "strata generate: --kv-tier needs --kv-resident: the cold tier publishes the "
@@ -3022,8 +3038,9 @@ int main(int argc, char** argv) {
             return 2;
         }
         if (o.kv_tier_l1 <= 0) o.kv_tier_l1 = 1;
-        std::fprintf(stderr, "strata generate: the KV cold tier is on (--kv-tier %s, %d L1 group%s per layer)\n",
-                     o.kv_tier.c_str(), o.kv_tier_l1, o.kv_tier_l1 == 1 ? "" : "s");
+        std::fprintf(stderr, "strata generate: the KV cold tier is on (--kv-tier %s, %d L1 group%s per layer, %s)\n",
+                     o.kv_tier.c_str(), o.kv_tier_l1, o.kv_tier_l1 == 1 ? "" : "s",
+                     o.kv_tier_async ? "async" : "synchronous");
     }
     // Prompt lookup (the suffix drafter, on by default): the MTP keeps its --spec windows and a lookup window may be
     // up to 2 tokens longer; the draft policy (strata/spec/draft_policy.hpp) takes one only where it pays. Code
@@ -5033,6 +5050,7 @@ int main(int argc, char** argv) {
                 strata::core::kv_tier_geometry(qst, g);
             strata::core::KvTierSessionConfig tier_config;
             tier_config.store_path = o.kv_tier;
+            tier_config.session_id = ((uint64_t) std::random_device() << 32) | std::random_device();
             // The store's layer identity is the QSA layer INDEX, the same index the serving path passes to the
             // hooks (the QSA ordinal of a layer within the model's QSA layers), so the two agree.
             tier_config.layer = 0;
@@ -5043,6 +5061,7 @@ int main(int argc, char** argv) {
             tier_config.blocks_per_group = strata::core::kKvGroupBlocks;
             tier_config.block_bytes = tier_geometry.block_bytes;
             tier_config.runs = tier_geometry.runs;
+            tier_config.async_io = o.kv_tier_async;
             // The store's directory is a FIXED area, so it is sized for the whole context: the layer's blocks
             // over the group's blocks. A group past the capacity is refused, never written over a payload.
             const int64_t blocks_per_group_cells = strata::core::qsa_shapes(g).idx_block;
@@ -12395,6 +12414,15 @@ int main(int argc, char** argv) {
                     std::fflush(stdout);
                     return 1;
                 }
+            }
+            if (strata::core::kv_tier_session_on()) {
+                std::string tier_error;
+                if (!strata::core::KvTierSession::reset(tier_error)) {
+                    std::printf("ERR the KV tier could not reset for this request: %s\n", tier_error.c_str());
+                    std::fflush(stdout);
+                    return 1;
+                }
+                strata::core::KvTierSession::reset_counters();
             }
             int64_t reread_to = -1;   // STRATA_CKPT_REREAD only: read [0, reread_to) again instead of restoring
             if (resume == 0) {
