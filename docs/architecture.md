@@ -1405,3 +1405,45 @@ shows the NIC link transition and no OOM, GPU reset, or panic; the experiment
 had completed and its restore trap cleaned up. That NIC flap is an operational
 hazard, not a diagnosed or repaired cause. Full measurements and non-claims are
 in [two-request queueing evidence](../evidence/qwen-b550-c2-queue-topology.json).
+
+### B550 long-session serving at 256K context, 2026-10-20
+
+The short-prompt measurements elsewhere in this log do not cover the workload
+that matters most: an extremely long coding session that prefills a large
+context once and then decodes against it. That case was measured directly on
+B550, with the pinned Qwen IQ2_XS/Q2_0 model, the two-GPU split-30 placement,
+`--max-context 262144`, `--kv int8` and `--kv-resident 32768`. The prompt was
+112,626 tokens of real C++/CUDA engine source (34 files) followed by a review
+question, generated 128 tokens at temperature 0.
+
+The KV cache is handled by splitting it between VRAM and pinned host RAM. There
+are 12 QSA layers (every fourth of 48) and 1,056 bytes per cell in INT8, which
+is 12,672 bytes or 12.375 KiB of KV payload per token, so the whole
+262,144-cell table is 3.09 GiB of payload. With 32,768 hot cells per layer kept
+in VRAM, the engine reported "32768 of 262144 cells per QSA layer in VRAM, the
+K/V in 1.80 GiB of pinned RAM", and 92.14 percent of 740,474 KV block reads
+were served from VRAM. The engine's 1.80 GiB is its measured host allocation
+for the streamed representation, not the 3.09 GiB payload arithmetic, which
+does not model page granularity or the resident-cell representation; host
+planning should reserve at least the measured 1.80 GiB and treat 3.09 GiB as
+the upper bound. The result was a 27.743 s prefill (4059.5 tok/s) and 128
+tokens at 117.1 tok/s, with a 99.5 percent decode expert-cache hit rate.
+
+On the question of whether the host's RAM is being used: it should not be, for
+this workload. B550 has 91 GiB with about 85 GiB available while idle, the KV
+needs 1.80 GiB of it, and the expert arena needs about 32 GiB. RAM is not the
+constraint. Using more of it actively hurt: `--ple-io ram` locked the 28.8 GiB
+n-gram table in 18.2 s and then prefilled 2.52x slower (1609.2 against 4059.5
+tok/s) and decoded 1.89x slower (61.9 against 117.1 tok/s) than `--ple-io
+direct`. Locking that much RAM evicts the page cache that the arena and the
+table are read through, so a 2.5 GiB NVMe with a warm file cache beats a
+91 GiB RAM table on this host. The community 2x Titan RTX run that uses
+`--ple-io ram` had 125 GiB, so its choice is not portable to B550's 91 GiB.
+
+What the numbers say is that KV and RAM are not where the time goes at long
+context. Decode at 117.1 tok/s, with a 99.5 percent expert-cache hit rate and
+92 percent of KV reads hitting VRAM, is bounded by the launch-bound per-layer
+pipeline and by the MTP drafter's 61 accepted drafts of 87 offered. The next
+optimization target is the decode pipeline, not memory. Full measurements,
+including the explicit hugepage state and what was not measured, are in
+[long-session evidence](../evidence/qwen-b550-longrun-256k.json).

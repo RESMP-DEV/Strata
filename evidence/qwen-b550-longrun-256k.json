@@ -1,0 +1,122 @@
+{
+  "recorded_at": "2026-10-20T01:44:31Z",
+  "agent": "Codex",
+  "source_revision": "ac795e7d6a333b0e5f3aa2cecc05b8e569fe9eed",
+  "source_dirty": false,
+  "authorization": "The user asked how the standard workload of extremely long coding sessions is handled, how the KV cache is handled, and whether available RAM is being used to optimize it. The user's standing authorization permits stopping the B550 embedding services for Strata work.",
+  "scope": "Measure the B550 serving path on a realistic long coding session (real C++/CUDA source as the prompt) at a 256K context with KV streaming, and test whether keeping the 28.8 GiB n-gram table in RAM helps or hurts on this host.",
+  "hardware_and_model": {
+    "host": "B550 alias 192.168.1.171, kernel 7.0.0-38, 91 GiB RAM, 32 logical cores, 0 explicit hugepages (vm.nr_hugepages=0)",
+    "gpus": "2 x NVIDIA GeForce RTX 3090 Ti 24GB; GPU0 00000000:04:00.0 chipset Gen3 x4 2.9 GB/s; GPU1 00000000:08:00.0 CPU-root Gen4 x16 25.4 GB/s",
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata sha256 c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8, remote source revision 83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048, student sha256 c90e0fc65dddbe4107b1b417d771c3be188c87197e89cf4b14415f56abc866f0, pack /home/kearm/strata-scratch/qwen-iq2xs-calibrated/pack-split",
+    "configuration": "--layer-split 30 with the fast card first, --max-context 262144, --kv int8, --kv-resident 32768, --spec 4 --spec-min-p 0.5, --mtp q2_0 runtime, --prefill auto, --expert-cache auto, --pipeline-windows 2, --ple-io direct or ram",
+    "kv_geometry": "12 QSA layers (every 4th of 48) x 1,056 B per cell INT8 = 12,672 B = 12.375 KiB (12.67 decimal kB) of KV payload per token; 262,144 cells is 3,320,804,352 B = 3.09 GiB of KV payload in total."
+  },
+  "workload": {
+    "prompt": "112,626 tokens of real C++/CUDA engine source (34 files from src/ and include/) followed by a review question; the prompt file is kept with the raw evidence",
+    "generation": "128 tokens, temperature 0, reasoning_effort none",
+    "shape": "the long-session shape: a large context that must be prefilled once and then decoded against"
+  },
+  "measurements": {
+    "direct_ple_io": {
+      "engine_start": "KV streaming: 32768 of 262144 cells per QSA layer in VRAM, the K/V in 1.80 GiB of pinned RAM; expert cache auto 14116 slots on CUDA0 and 9216 on CUDA1, 95 percent of the experts resident, 597 MiB VRAM free The engine-reported pinned-RAM allocation is the authoritative allocation for the streamed KV representation; it is not the same as the simple 3.09 GiB total KV payload calculation, which does not model page granularity or the resident-cell representation.",
+      "prefill": {
+        "tokens": 112626,
+        "ms": 27743.5,
+        "tok_s": 4059.5
+      },
+      "decode": {
+        "tokens": 128,
+        "ms": 1093.5,
+        "tok_s": 117.1,
+        "drafts_offered": 87,
+        "drafts_accepted": 61
+      },
+      "expert_cache_hit_rate": "99.5 percent (54926 of 55189 decode lookups)",
+      "kv_reads": "92.14 percent of 740474 block reads hit VRAM, 234.5 MiB read from RAM",
+      "request_wall_s": 29.009
+    },
+    "ple_io_ram": {
+      "engine_start": "PLE table locked in RAM (--ple-io ram) in 18.2 s; same KV streaming line (32768 of 262144 cells, 1.80 GiB pinned RAM) The engine-reported pinned-RAM allocation is the authoritative allocation for the streamed KV representation; it is not the same as the simple 3.09 GiB total KV payload calculation, which does not model page granularity or the resident-cell representation.",
+      "prefill": {
+        "tokens": 112626,
+        "ms": 69990.5,
+        "tok_s": 1609.2
+      },
+      "decode": {
+        "tokens": 128,
+        "ms": 2068.6,
+        "tok_s": 61.9,
+        "drafts_offered": 93,
+        "drafts_accepted": 67
+      },
+      "expert_cache_hit_rate": "99.1 percent (92898 of 93772 decode lookups)",
+      "kv_reads": "93.04 percent of 808731 block reads hit VRAM, 226.7 MiB read from RAM",
+      "request_wall_s": 72.233
+    }
+  },
+  "result": {
+    "long_session_is_supported": "Yes. A 112,626-token real-source prompt prefilled in 27.743 s and decoded 128 tokens at 117.1 tok/s with the 256K context. The engine allocated 1.80 GiB of pinned host RAM for its streamed KV representation while keeping 32,768 hot cells per QSA layer in VRAM; 92.14 percent of KV block reads hit VRAM. The nominal full-context KV payload is 3.09 GiB by the 12 x 1,056 B per-cell calculation, so host-memory planning should reserve at least the engine's 1.80 GiB measured allocation and treat 3.09 GiB as the conservative upper bound.",
+    "ram_is_not_the_bottleneck": "B550 has 91 GiB and about 85-88 GiB available while idle. The KV cache needs 1.80 GiB of it at 256K INT8, and the expert arena needs about 32 GiB. RAM is not what limits this workload.",
+    "more_ram_is_harmful_here": "--ple-io ram was 2.52x slower to prefill (1609.2 versus 4059.5 tok/s) and 1.89x slower to decode (61.9 versus 117.1 tok/s) than --ple-io direct, and it cost 18.2 s of startup to lock the 28.8 GiB table. Locking that much RAM evicts the page cache the expert arena and the table themselves are read through, which is why a 2.5 GiB NVMe with the file cache warm beats a 91 GiB RAM table on this host.",
+    "kv_handling_summary": "KV is INT8 at 1,056 B per cell per QSA layer with 12 QSA layers: 12.375 KiB (12.67 decimal kB) of nominal KV payload per token. The engine keeps 32,768 hot cells per layer in VRAM, reports a 1.80 GiB pinned host allocation for its streamed representation, and served about 92 percent of reads from VRAM. The full-context nominal payload is 3.09 GiB; do not conflate that upper bound with the engine's measured 1.80 GiB host allocation.",
+    "remaining_lever": "The KV path is not where the time goes. Decode at 117.1 tok/s with a 99.5 percent expert-cache hit rate and 92 percent VRAM KV hits is limited by the launch-bound per-layer pipeline and the 61 of 87 accepted MTP drafts, not by KV or RAM."
+  },
+  "checks": [
+    {
+      "name": "foreign-gpu-guard",
+      "command": "nvidia-smi --query-compute-apps=pid --format=csv,noheader | wc -l",
+      "exit": 0,
+      "result": "zero foreign apps before each GPU window; the run aborts on a nonzero count"
+    },
+    {
+      "name": "256k-engine-start",
+      "command": "serve.server --engine strata --config longrun-256k-server.json --host 127.0.0.1 --port 18700",
+      "exit": 0,
+      "result": "ready in 28 s; KV streaming and 95 percent expert residency reported"
+    },
+    {
+      "name": "long-prompt-direct",
+      "command": "curl --data-binary @longrun-256k/request.json http://127.0.0.1:18700/v1/chat/completions (112,626 prompt tokens, max_tokens 128)",
+      "exit": 0,
+      "result": "http 200, wall 29.009 s, prefill 4059.5 tok/s, decode 117.1 tok/s"
+    },
+    {
+      "name": "long-prompt-ple-ram",
+      "command": "same request against longrun-256k-ple-ram-server.json (--ple-io ram)",
+      "exit": 0,
+      "result": "http 200, wall 72.233 s, prefill 1609.2 tok/s, decode 61.9 tok/s"
+    },
+    {
+      "name": "restore-embeddings",
+      "command": "systemctl restart sindexer-embed-gpu@0/@1 then POST :1238 /v1/embeddings",
+      "exit": 0,
+      "result": "both units active and the balancer returned a 1536-dim embedding (the first probe landed during the 20 s unit startup and returned 502)"
+    },
+    {
+      "name": "quality",
+      "command": "just quality",
+      "exit": 0,
+      "result": "all required domains passed"
+    }
+  ],
+  "raw_evidence": {
+    "local_ignored_root": "build/reports/b550-longrun-256k",
+    "engine_direct_log_sha256": "22787ab174b6b6793dbf8eab1e7fb268a28e5ac20e4ea7386e357bfbbc680a7a",
+    "engine_ple_ram_log_sha256": "95fc2ad822c6fe19c54be738e6413679e6cfec4c9f93461e6abee9a03e945624",
+    "long_prompt_sha256": "173e79ea333ba49a6f12024bfb31887dfb171dad2dd510bdd271ae89c32b3dce",
+    "response_direct_sha256": "bc3a0b5c21962c08fe740bbd70741c0496bb1400d6a4ee3fbb644feef0868802",
+    "response_ple_ram_sha256": "963d3653906c1d1d3b2629cbcee01b0105ac1d18fd2aa5d70ae05f3177e16fc7",
+    "curl_direct_meta_sha256": "818217e8b354d7ff4444bcecc7567a907aec4d21533f6455d7b5465124af91fe",
+    "curl_ple_ram_meta_sha256": "98b89baa12535055dda3831a4371f1e63b2707a735f0fd9053c7563bd71b4682"
+  },
+  "non_claims": [
+    "One prompt and one 128-token generation per arm; not a session-length sweep, and no long-context quality or correctness comparison was run.",
+    "The 112,626-token prompt is real engine source but is not a multi-turn agent session with tool calls; the repeated-turn path (conversation checkpoints, prompt cache reuse) was not exercised.",
+    "The direct-versus-RAM comparison is one run each on this host with a warm page cache; it does not establish the crossover point for other hosts, table sizes, or cold-cache starts.",
+    "No claim is made about the 2.5 GiB Optane or any other storage change, and none was made; the host's root NVMe was used as-is.",
+    "Explicit hugepages are 0 on this host, so the 1.80 GiB pinned KV was pinned without large pages; a hugepage-backed arena was measured in an earlier A/B and rejected, and that decision was not revisited here.",
+    "Another session's mlx_gptq.dflash2_distill jobs were running on GPU0 during the final state check; they were observed and left untouched, and they were not present during the measured windows."
+  ]
+}
