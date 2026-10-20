@@ -30,6 +30,7 @@ struct KvReadItem {
     int32_t layer = 0;
     int32_t group = 0;
     int32_t slot = -1;   ///< the L1 slot the group's bytes go into; -1 when the slot is not known yet
+    uint64_t operation = 0; ///< the background read's explicit completion, or 0 for a synchronous item
 };
 
 /// A batch of group reads. The batch owns the deduplication: the same group named twice appears once.

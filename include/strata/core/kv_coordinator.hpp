@@ -10,9 +10,13 @@
 
 #include <cstdint>
 #include <functional>
+#include <condition_variable>
+#include <deque>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -133,6 +137,26 @@ struct KvTierCounters {
     uint64_t published_groups = 0;
     uint64_t checksum_errors = 0;
     uint64_t readiness_waits = 0;
+    uint64_t async_reads_submitted = 0;
+    uint64_t async_writes_submitted = 0;
+    uint64_t async_cancellations = 0;
+};
+
+/// The explicit lifecycle of one background store operation. The store ABI has no hard cancel, so a running
+/// operation may finish in the transport and then be discarded; cancellation never exposes its bytes as ready.
+enum class KvAsyncState : int {
+    kQueued = 0,
+    kRunning = 1,
+    kSucceeded = 2,
+    kFailed = 3,
+    kCanceled = 4,
+};
+
+/// The current explicit completion of one background operation.
+struct KvAsyncCompletion {
+    uint64_t operation = 0;
+    KvAsyncState state = KvAsyncState::kQueued;
+    std::string error;
 };
 
 /// One entry of the coordinator's L1: the pinned host slot that holds one group's bytes.
@@ -165,6 +189,8 @@ public:
         int32_t blocks_per_group = kKvGroupBlocks;
         uint64_t block_bytes = 0;
         std::vector<KvBlockRun> runs;
+        bool async_io = false;       ///< opt-in Phase C behavior; false keeps the synchronous Phase A/B path
+        uint32_t async_workers = 1;  ///< one serialized store worker avoids racing an adapter
     };
 
     KvTierCoordinator(KvCoordinatorScope scope, Options options, KvBlockStore* store);
@@ -200,6 +226,9 @@ public:
     /// hands the block over and the coordinator is what serializes, checksums, and publishes it.
     bool write_block(int32_t layer, int32_t block, const void* data, uint64_t bytes, std::string& error);
 
+    /// Is the group free of pending background I/O, so a host consumer or writer may use its bytes?
+    bool group_io_ready(int32_t layer, int32_t group) const;
+
     /// Read a block's bytes back out of L1, for the resolve step that fills the VRAM slot.
     bool read_block(int32_t layer, int32_t block, void* dst, uint64_t bytes, std::string& error);
 
@@ -210,6 +239,48 @@ public:
     /// Make a group readable in L1, reading it from the store when it is not there. The call returns only when the
     /// group is ready, so the resolver never waits on a missing slot.
     bool read(int32_t layer, int32_t group, std::string& error);
+
+    /// Submit the missing groups in a foreground batch. A duplicate group maps to one operation and no second
+    /// store read. Every missing group owns a reserved L1 slot until its completion is consumed.
+    bool submit_read(const KvReadBatch& batch, std::string& error);
+
+    /// Consume one explicit read: wait until it succeeds, fails, or is canceled. A failed or canceled read
+    /// releases its slot and does not expose bytes. A group already in L1 succeeds without touching the store.
+    bool wait_read(uint64_t operation, int32_t layer, int32_t group, std::string& error);
+
+    /// Consume every operation in the batch, even after a failure, so a foreground resolver never leaves I/O
+    /// running behind it. The first error is reported.
+    bool wait_read(const KvReadBatch& batch, std::string& error);
+
+    /// Cancel a read cooperatively: queued work never runs; running work is discarded when the store returns.
+    bool cancel_read(uint64_t operation, std::string& error);
+
+    /// Poll an operation without blocking.
+    bool completion(uint64_t operation, KvAsyncCompletion& state) const;
+
+    /// Wait for one background operation. Failure and cancellation are explicit errors.
+    bool wait(uint64_t operation, std::string& error);
+
+    /// Submit the missing groups in a foreground batch. A duplicate group maps to one operation and no second
+    /// store read. Every missing group owns a reserved L1 slot until its completion is consumed.
+    bool submit_read(const KvReadBatch& batch, std::string& error);
+
+    /// Consume one explicit read: wait until it succeeds, fails, or is canceled. A failed or canceled read
+    /// releases its slot and does not expose bytes. A group already in L1 succeeds without touching the store.
+    bool wait_read(uint64_t operation, int32_t layer, int32_t group, std::string& error);
+
+    /// Consume every operation in the batch, even after a failure, so a foreground resolver never leaves I/O
+    /// running behind it. The first error is reported.
+    bool wait_read(const KvReadBatch& batch, std::string& error);
+
+    /// Cancel a read cooperatively: queued work never runs; running work is discarded when the store returns.
+    bool cancel_read(uint64_t operation, std::string& error);
+
+    /// Poll an operation without blocking.
+    bool completion(uint64_t operation, KvAsyncCompletion& state) const;
+
+    /// Wait for one background operation. Failure and cancellation are explicit errors.
+    bool wait(uint64_t operation, std::string& error);
 
     /// Where a group's bytes are right now.
     KvTier tier_of(int32_t layer, int32_t group) const;
@@ -227,6 +298,9 @@ public:
     /// The bytes of one group.
     uint64_t group_bytes() const;
 
+    /// Is opt-in Phase C background I/O enabled? False is the synchronous compatibility path.
+    bool async_io() const { return async_enabled_; }
+
     /// The number of blocks in a group.
     int32_t blocks_per_group() const { return options_.blocks_per_group; }
 
@@ -240,6 +314,15 @@ private:
     int32_t victim_slot(std::string& error) const;
     bool load_group(int32_t layer, int32_t group, int32_t slot, std::string& error);
     bool store_group(int32_t layer, int32_t group, std::string& error);
+    bool submit_group(int32_t layer, int32_t group, std::string& error);
+    void worker_loop();
+    void finish_operation_locked(uint64_t operation, KvAsyncState state, std::string error);
+    KvBlockKey operation_key(int32_t layer, int32_t group) const;
+    bool has_pending_io_locked() const;
+    uint64_t pending_read_locked(int32_t layer, int32_t group) const;
+    uint64_t pending_put_locked(int32_t layer, int32_t group) const;
+    void clear_slot_locked(int32_t slot);
+    bool drain_async_completions(std::string& error);
     void touch(int32_t slot);
     uint64_t group_checksum(int32_t layer, int32_t group) const;
     uint64_t block_bytes() const;
@@ -263,6 +346,37 @@ private:
     /// send the checksum of the group it PUBLISHED, not the bytes of whatever the L1 slot happens to hold.
     std::map<std::string, uint64_t> published_checksums_;
     KvTierCounters counters_;
+
+    /// The Phase C background owner. One worker serializes this adapter's store calls, does no CUDA work, and
+    /// never calls a mutating coordinator method; graph capture still ends before this host readiness phase.
+    struct AsyncJob {
+        enum class Kind : int { kRead = 0, kPut = 1 };
+        Kind kind = Kind::kRead;
+        uint64_t operation = 0;
+        int32_t layer = 0;
+        int32_t group = 0;
+        int32_t slot = -1;
+        KvBlockKey key;
+        std::vector<uint8_t> payload;   ///< an owned put snapshot, independent of the evictable L1 slot
+        uint64_t checksum = 0;
+    };
+    struct AsyncRecord {
+        AsyncJob::Kind kind = AsyncJob::Kind::kRead;
+        KvAsyncState state = KvAsyncState::kQueued;
+        int32_t layer = 0;
+        int32_t group = 0;
+        int32_t slot = -1;
+        std::string error;
+        bool cancel_requested = false;
+    };
+    bool async_enabled_ = false;
+    bool shutdown_ = false;
+    uint64_t next_operation_ = 1;
+    std::deque<std::shared_ptr<AsyncJob>> queue_;
+    std::map<uint64_t, AsyncRecord> operations_;
+    mutable std::mutex io_mutex_;
+    std::condition_variable io_ready_;
+    std::thread worker_;
 };
 
 /// A store that keeps everything in memory. It is the reference implementation of the ABI and the test double for
