@@ -7,9 +7,20 @@
 #include <filesystem>
 #include <vector>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <fcntl.h>
 #include <unistd.h>
+#endif
+
+// The L2 file store uses POSIX file calls (pread, pwrite, ftruncate). The Windows equivalents are not provided
+// yet, so on Windows the store REFUSES every operation rather than compiling calls it cannot make. The tier is
+// opt-in and off on Windows until this changes; the refusal is explicit so a caller knows why.
+#if defined(_WIN32)
+#define STRATA_KV_FILE_STORE_POSIX 0
+#else
+#define STRATA_KV_FILE_STORE_POSIX 1
 #endif
 
 namespace strata::core {
@@ -73,20 +84,19 @@ uint64_t KvFileStore::payload_checksum(const void* data, size_t bytes) {
 }
 
 void KvFileStore::close() {
+#if STRATA_KV_FILE_STORE_POSIX
     if (fd_ >= 0) {
         ::close(fd_);
         fd_ = -1;
     }
+#endif
     entries_.clear();
 }
 
 bool KvFileStore::open(const std::string& path, const Identity& identity, const std::vector<KvBlockRun>& runs,
                        std::string& error) {
     close();
-#ifdef _WIN32
-    // The store uses POSIX file calls (pread, pwrite, ftruncate). The Windows equivalents are not provided yet,
-    // so the store refuses to open rather than compiling a path it cannot run. The tier is opt-in and off on
-    // Windows until this changes.
+#if !STRATA_KV_FILE_STORE_POSIX
     (void) path;
     (void) identity;
     (void) runs;
@@ -222,6 +232,13 @@ bool KvFileStore::contains(const KvBlockKey& key) const {
 }
 
 bool KvFileStore::read_exact(uint64_t offset, void* dst, size_t bytes, std::string& error) const {
+#if !STRATA_KV_FILE_STORE_POSIX
+    (void) offset;
+    (void) dst;
+    (void) bytes;
+    error = "kv file store: the local file store is not available on this platform";
+    return false;
+#else
     size_t done = 0;
     auto* out = static_cast<uint8_t*>(dst);
     while (done < bytes) {
@@ -233,9 +250,17 @@ bool KvFileStore::read_exact(uint64_t offset, void* dst, size_t bytes, std::stri
         done += (size_t) got;
     }
     return true;
+#endif
 }
 
 bool KvFileStore::write_exact(uint64_t offset, const void* src, size_t bytes, std::string& error) {
+#if !STRATA_KV_FILE_STORE_POSIX
+    (void) offset;
+    (void) src;
+    (void) bytes;
+    error = "kv file store: the local file store is not available on this platform";
+    return false;
+#else
     size_t done = 0;
     const auto* in = static_cast<const uint8_t*>(src);
     while (done < bytes) {
@@ -247,6 +272,7 @@ bool KvFileStore::write_exact(uint64_t offset, const void* src, size_t bytes, st
         done += (size_t) put;
     }
     return true;
+#endif
 }
 
 bool KvFileStore::read_entry(uint64_t group, Entry& entry, std::string& error) const {
@@ -336,6 +362,7 @@ bool KvFileStore::put(const KvBlockPut& put_request, std::string& error) {
         // The store grows: the group directory and the payload area follow.
         const uint64_t old_groups = group_count_;
         group_count_ = group + 1;
+#if STRATA_KV_FILE_STORE_POSIX
         if (::ftruncate(fd_, (off_t) (payload_offset_ + group_count_ * group_bytes_)) != 0) {
             error = std::string("kv file store: the file could not be extended: ") + std::strerror(errno);
             group_count_ = old_groups;
@@ -352,6 +379,7 @@ bool KvFileStore::put(const KvBlockPut& put_request, std::string& error) {
                 return false;
             }
         }
+#endif
     }
 
     // The payload first, and the valid marker only after it: a reader never sees a group whose marker is set but
@@ -360,12 +388,7 @@ bool KvFileStore::put(const KvBlockPut& put_request, std::string& error) {
     if (!write_exact(offset, put_request.src, (size_t) put_request.bytes, error)) return false;
     // The payload must be durable BEFORE the valid marker is committed, so a reader never sees a group whose
     // marker is set but whose payload is incomplete.
-#ifdef _WIN32
-    if (_commit(fd_) != 0) {
-        error = "kv file store: the payload could not be flushed";
-        return false;
-    }
-#else
+#if STRATA_KV_FILE_STORE_POSIX
     if (::fsync(fd_) != 0) {
         error = std::string("kv file store: the payload could not be flushed: ") + std::strerror(errno);
         return false;
