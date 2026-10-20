@@ -185,6 +185,7 @@ def read_native_experts(path: Path) -> NativeExpertLayout:
     total_bytes = 0
     layers: list[int] = []
     offsets: list[int] = []
+    expected_offset = 0
     with path.open(encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
             if line.startswith("#"):
@@ -212,6 +213,11 @@ def read_native_experts(path: Path) -> NativeExpertLayout:
                 raise ValueError(f"{path}:{line_number}: invalid native-expert row") from exc
             if gate_type <= 0 or down_type <= 0 or blob_bytes <= 0:
                 raise ValueError(f"{path}:{line_number}: non-positive native-expert field")
+            if offsets[-1] != expected_offset:
+                raise ValueError(
+                    f"{path}:{line_number}: offset {offsets[-1]}, expected {expected_offset}"
+                )
+            expected_offset += blob_bytes * n_expert
             layers.append(layer)
     if not source:
         raise ValueError(f"{path}: missing native experts v4 header")
@@ -219,12 +225,10 @@ def read_native_experts(path: Path) -> NativeExpertLayout:
         raise ValueError(f"{path}: n_expert {n_expert}, expected {N_EXPERT} for full Flash-Next")
     if tuple(layers) != tuple(range(N_LAYERS)):
         raise ValueError(f"{path}: expected layer rows 0..{N_LAYERS - 1}")
-    stride = offsets[1] if len(offsets) > 1 else 0
-    if any(offset != layer * stride for layer, offset in zip(layers, offsets, strict=True)):
-        raise ValueError(f"{path}: native-expert layer offsets are not uniform")
-    accounted = stride * N_LAYERS
-    if accounted != total_bytes:
-        raise ValueError(f"{path}: rows account for {accounted} bytes, header says {total_bytes}")
+    if expected_offset != total_bytes:
+        raise ValueError(
+            f"{path}: rows account for {expected_offset} bytes, header says {total_bytes}"
+        )
     experts_bin = path.with_name("experts.bin")
     if experts_bin.exists() and experts_bin.stat().st_size != total_bytes:
         raise ValueError(f"{experts_bin}: size does not match native-expert total")
@@ -405,7 +409,13 @@ def read_profile_checked(path: Path) -> list[tuple[int, int]]:
         raise ValueError(f"{path}: profile is not Flash-Next STRP v1")
     if len(blob) != expected_size:
         raise ValueError(f"{path}: profile size {len(blob)}, expected {expected_size}")
-    return make_profile.read_profile(path, N_EXPERT)
+    ranked = make_profile.read_profile(path, N_EXPERT)
+    invalid_pairs = [
+        pair for pair in ranked if not 0 <= pair[0] < N_LAYERS or not 0 <= pair[1] < N_EXPERT
+    ]
+    if invalid_pairs:
+        raise ValueError(f"{path}: out-of-range expert pair {invalid_pairs[0]}")
+    return ranked
 
 
 def build_manifest(

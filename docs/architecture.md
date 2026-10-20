@@ -87,7 +87,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 
 | Topic | Current position | Decision gate |
 | --- | --- | --- |
-| Common quality mode | `just quality` checks host-safe structure, selected regressions, the plugin ABI, dependency-free DeepSeek host contracts, and the trace-derived REAP control test | Add a check only with a test and an explicit non-claim |
+| Common quality mode | `just quality` checks host-safe structure, README/docs navigation, selected regressions, the plugin ABI, dependency-free DeepSeek host contracts, the trace-derived REAP and prefiller-planner tests | Add a check only with a test and an explicit non-claim |
 | Full setup matrix | Existing full discovery is not accepted as a gate on macOS Python 3.14 because native build and upstream-release cases fail | A dedicated setup change runs its named modules and the affected platform smoke test |
 | Backend acceptance | No local backend build is claimed on this Mac | Require named compiler/driver/backend evidence on the target host |
 | Eight-GB NVIDIA runtime | Documentation and setup accept an 8 GB NVIDIA card as slow; an sm_120 engine built and launched on the Strix laptop | Require a real model run and same-day performance measurement before claiming usable throughput |

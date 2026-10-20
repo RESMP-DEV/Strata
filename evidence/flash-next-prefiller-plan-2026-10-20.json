@@ -2,7 +2,7 @@
   "schema": 1,
   "recorded_at": "2026-10-20T19:57:26Z",
   "agent": "Codex parent with two read-only Codex subagents",
-  "source_revision": "1e8263888c38d7c2cde6deee2bded975efd18d94",
+  "source_revision": "1e8263888c38d7c2cde6deee2bded975efd38d94",
   "source_dirty": true,
   "dirty_scope": [
     "README.md",

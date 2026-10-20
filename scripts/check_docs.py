@@ -122,10 +122,14 @@ def _readme_contract() -> CheckResult:
     problems = [f"missing link {link}" for link in missing]
     if len(lines) > MAX_README_LINES:
         problems.append(f"{len(lines)} lines exceeds {MAX_README_LINES}")
-    status_section = text.split("## Project status and governance", 1)[-1].split("##", 1)[0]
-    status_rows = status_section.count("\n| ") - 1
-    if status_rows > 6:
-        problems.append(f"README status table has {status_rows} rows; keep it compact")
+    status_marker = "## Project status and governance"
+    if status_marker not in text:
+        problems.append("missing README status heading")
+    else:
+        status_section = text.split(status_marker, 1)[-1].split("##", 1)[0]
+        status_rows = status_section.count("\n| ") - 1
+        if status_rows > 6:
+            problems.append(f"README status table has {status_rows} rows; keep it compact")
     return CheckResult(
         "readme-reference-split",
         not problems,

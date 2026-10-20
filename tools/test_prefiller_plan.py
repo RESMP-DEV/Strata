@@ -66,8 +66,10 @@ def write_inputs(
     native.write_text(
         "# strata native experts v4: layer gu_type d_type offset blob_bytes "
         f"gate_off up_off down_off (n_expert {MODULE.N_EXPERT}, "
-        f"total {MODULE.N_LAYERS}; absolute)\n"
-        + "\n".join(f"{layer} 17 42 {layer} 1 0 0 0" for layer in range(MODULE.N_LAYERS))
+        f"total {MODULE.N_LAYERS * MODULE.N_EXPERT}; absolute)\n"
+        + "\n".join(
+            f"{layer} 17 42 {layer * MODULE.N_EXPERT} 1 0 0 0" for layer in range(MODULE.N_LAYERS)
+        )
         + "\n",
         encoding="utf-8",
     )
@@ -115,6 +117,13 @@ class PrefillerPlanTest(unittest.TestCase):
         self.assertEqual(sum(item.elements for item in dense), 3_571_384_320)
         self.assertEqual(MODULE.mxfp4_bytes(3_571_384_320), 1_897_297_920)
         self.assertAlmostEqual(MODULE.mxfp4_bytes(3_571_384_320) / 2**30, 1.7669963836669922)
+
+    def test_native_expert_stride_must_account_for_every_expert(self) -> None:
+        _, native = write_inputs(self.root)
+        text = native.read_text(encoding="utf-8").replace("total 24576", "total 48")
+        native.write_text(text, encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "rows account for 24576 bytes"):
+            MODULE.read_native_experts(native)
 
     def test_trace_selection_fill_and_coverage(self) -> None:
         index, native = write_inputs(self.root)
@@ -178,6 +187,19 @@ class PrefillerPlanTest(unittest.TestCase):
             for row in range(MODULE.N_EXPERT)
         ]
         MODULE.make_profile.write_profile(profile, ranked, MODULE.N_EXPERT)
+        original_profile = profile.read_bytes()
+        corrupt_profile = bytearray(original_profile)
+        rank_offset = 24 + 4 * (MODULE.N_LAYERS * MODULE.N_EXPERT - 1)
+        struct.pack_into("<H", corrupt_profile, rank_offset, MODULE.N_LAYERS)
+        profile.write_bytes(corrupt_profile)
+        with self.assertRaisesRegex(ValueError, "out-of-range expert pair"):
+            MODULE.read_profile_checked(profile)
+        struct.pack_into("<H", corrupt_profile, rank_offset, MODULE.N_LAYERS - 1)
+        struct.pack_into("<H", corrupt_profile, rank_offset + 2, MODULE.N_EXPERT)
+        profile.write_bytes(corrupt_profile)
+        with self.assertRaisesRegex(ValueError, "out-of-range expert pair"):
+            MODULE.read_profile_checked(profile)
+        profile.write_bytes(original_profile)
         out = self.root / "plan.json"
         result = subprocess.run(
             [

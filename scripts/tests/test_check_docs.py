@@ -96,6 +96,29 @@ class CheckDocsTest(unittest.TestCase):
             path.write_text("## Same\n## Same\n## Same\n", encoding="utf-8")
             self.assertIn("same-2", check_docs._heading_slugs(path))
 
+    def test_missing_readme_status_heading_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            readme = root / "README.md"
+            readme.write_text(
+                "\n".join(
+                    [
+                        "[index](docs/README.md)",
+                        "[status](docs/architecture.md#project-status-and-governance)",
+                        "| a | b |",
+                        "| --- | --- |",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with (
+                mock.patch.object(check_docs, "ROOT", root),
+                mock.patch.object(check_docs, "README", readme),
+            ):
+                result = check_docs._readme_contract()
+        self.assertFalse(result.passed)
+        self.assertIn("missing README status heading", result.detail)
+
     def test_parallel_status_page_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

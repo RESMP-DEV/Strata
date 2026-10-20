@@ -1,11 +1,14 @@
 {
   "schema": 1,
-  "recorded_at": "2026-10-20T23:07:57Z",
+  "recorded_at": "2026-10-20T23:13:30Z",
   "agent": "Codex parent",
-  "source_revision": "2fb5f7b23e4831d636c452e9f7a52cd8c0bf02df",
+  "source_revision": "b71fb3f6664d8654b67078c93f83750569da87fb",
   "source_dirty": true,
   "pull_request": "https://github.com/RESMP-DEV/Strata/pull/13",
-  "reviewer": "CodeRabbit",
+  "reviewers": [
+    "CodeRabbit",
+    "Codex read-only combined-diff subagent 01a15b86-5b30-7573-bd64-d4a3188929cb"
+  ],
   "reviewed_revision": "2fb5f7b23e4831d636c452e9f7a52cd8c0bf02df",
   "repairs": [
     {
@@ -19,17 +22,40 @@
     {
       "finding": "Duplicate-heading anchor suffixes could repeat after a third heading with the same text.",
       "change": "Heading slug generation now tracks each base slug independently so GitHub-style -1 and -2 suffixes remain unique."
+    },
+    {
+      "finding": "The durable prefiller receipt contained a one-character source-revision typo.",
+      "change": "Rebound it to the existing base commit 1e8263888c38d7c2cde6deee2bded975efd38d94."
+    },
+    {
+      "finding": "Native-expert validation treated offsets as uniform without relating each row's blob_bytes to its 512-expert stride.",
+      "change": "The parser now requires cumulative blob_bytes * n_expert offsets and exact final byte accounting."
+    },
+    {
+      "finding": "Out-of-range profile pairs could be silently discarded and replaced by geometric fills.",
+      "change": "Profile loading now rejects every layer/expert pair outside Flash-Next's 48x512 geometry."
+    },
+    {
+      "finding": "The README contract checker did not require the status heading before counting table rows.",
+      "change": "A README without 'Project status and governance' now fails explicitly."
+    },
+    {
+      "finding": "The architecture common-quality description omitted the newly wired docs and prefiller checks.",
+      "change": "Updated the canonical quality-mode row to name README/docs navigation and both planner test domains."
     }
   ],
   "tests_added": [
     "zero router weight is rejected in weighted mode and counted in unweighted mode",
-    "third duplicate Markdown heading produces the -2 GitHub suffix"
+    "third duplicate Markdown heading produces the -2 GitHub suffix",
+    "native-expert stride accounting",
+    "out-of-range profile pairs",
+    "missing README status heading"
   ],
   "validation": [
     {
       "command": "python3 -m unittest tools.test_prefiller_plan scripts.tests.test_check_docs -v",
       "exit": 0,
-      "result": "14 focused tests passed"
+      "result": "16 focused tests passed"
     },
     {
       "command": "python3 scripts/check_docs.py",
@@ -49,7 +75,7 @@
     {
       "command": "just quality",
       "exit": 0,
-      "result": "aggregate_passed=true at 2026-10-20T23:07:51Z; all checks exit 0",
+      "result": "aggregate_passed=true at 2026-10-20T23:12:58Z; all checks exit 0",
       "receipt": "build/reports/quality/receipt.json"
     }
   ],
