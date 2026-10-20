@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-20T22:51:06Z",
+  "agent": "Codex parent with two read-only Codex subagents",
+  "source_revision": "aba91b070b52b515b7461133a0d16fabc4a9b09c",
+  "source_dirty": true,
+  "dirty_scope": [
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "README.md and six localized README entry routes",
+    "docs/README.md",
+    "docs/architecture.md",
+    "scripts/check_structure.py",
+    "scripts/check_docs.py",
+    "scripts/tests/test_check_docs.py",
+    "scripts/strata.py",
+    "evidence/readme-reference-split-2026-10-20.json"
+  ],
+  "change": {
+    "english_readme_lines_before": 236,
+    "english_readme_lines_after": 124,
+    "documentation_index": "docs/README.md",
+    "index_lines": 86,
+    "indexed_nested_markdown_documents": 41,
+    "status_matrix_location": "docs/architecture.md#project-status-and-governance",
+    "authority_contract": [
+      "README owns the compact product entry status.",
+      "docs/architecture.md owns the detailed implementation/exercise matrix, decisions and work log.",
+      "docs/README.md is navigation only.",
+      "No parallel ROADMAP, STATUS or PROJECT_STATUS page is permitted."
+    ],
+    "localized_readmes": "received one language-specific route to the English documentation index; translated bodies were not rewritten"
+  },
+  "checks_added": [
+      "README is at most 140 lines and keeps a compact status table.",
+      "README links the docs index and architecture status anchor.",
+      "Parallel roadmap/status documents are rejected.",
+      "Every nested documentation Markdown page is indexed exactly once.",
+      "Repository-local Markdown and HTML link targets in README and the index resolve.",
+      "Markdown heading fragments used by README and the index resolve."
+  ],
+  "validation": [
+    {
+      "command": "python3 scripts/check_docs.py",
+      "exit": 0,
+      "result": "compact 124-line README; authorities preserved; 41 nested docs indexed exactly once; links and anchors resolve"
+    },
+    {
+      "command": "python3 -m unittest scripts.tests.test_check_docs scripts.tests.test_check_structure -v",
+      "exit": 0,
+      "result": "documentation and structure focused tests passed"
+    },
+    {
+      "command": "ruff check scripts/check_docs.py scripts/tests/test_check_docs.py scripts/check_structure.py scripts/strata.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "ruff format --check scripts/check_docs.py scripts/tests/test_check_docs.py scripts/check_structure.py scripts/strata.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed=true at 2026-10-20T22:52:04Z; all checks exit 0",
+      "receipt": "build/reports/quality/receipt.json"
+    }
+  ],
+  "subagent_audits": [
+    {
+      "thread_id": "01a15b6a-f466-7702-863d-b760e84d3d89",
+      "scope": "README section mapping and duplication risks",
+      "result": "recommended a compact README, links to existing canonical docs, navigation-only index, and attention to translation drift"
+    },
+    {
+      "thread_id": "01a15b6b-1af0-7930-8088-aa86822df560",
+      "scope": "documentation index and authority contract",
+      "result": "objected to a separate PROJECT_STATUS authority; parent moved the detailed matrix into architecture and added a parallel-authority rejection"
+    }
+  ],
+  "non_claims": [
+    "No installer, server, engine, model or runtime behavior changed.",
+    "Translated README bodies were not semantically rewritten or retranslated.",
+    "External URLs were not fetched by the documentation checker.",
+    "The link checker covers the reorganized README and docs index surfaces, not every historical specialized document.",
+    "Documentation organization alone does not validate any status claim; those claims remain bound to their existing evidence files."
+  ]
+}

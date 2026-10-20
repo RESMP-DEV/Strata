@@ -128,6 +128,12 @@ def quality() -> int:
         REPORT.unlink(missing_ok=True)
         state = git_state()
         structural_passed = _structural_checks(checks)
+        docs_checks = run_logged(
+            "docs-index",
+            [sys.executable, "scripts/check_docs.py"],
+        )
+        checks.append(docs_checks)
+        structural_passed = structural_passed and docs_checks["exit"] == 0
         checks.extend(
             [
                 run_logged(

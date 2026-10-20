@@ -27,7 +27,7 @@ change did not modify runtime behavior.
 | Concern | Owner | Current position | Decision gate |
 | --- | --- | --- | --- |
 | Agent contract | `AGENTS.md` | Canonical instructions; `CLAUDE.md` symlinks to it | Keep one instruction authority and a passing structural check |
-| Product status | `README.md` | Status table distinguishes inherited implementation from locally exercised work | Update only with a receipt or live command evidence |
+| Product status and entry point | `README.md` | README owns compact user-facing status and links this file's detailed implementation/exercise matrix; architecture owns the decisions and evidence record | Update only with a receipt or live command evidence; the README table must stay compact and link here |
 | Architecture and decisions | `docs/architecture.md` | Stable ownership/open-choice front matter plus append-only work log | A lasting decision needs claim, evidence, revision, and non-claims |
 | Procedure and checks | `CONTRIBUTING.md` | Host-safe common gate plus affected-backend matrix | Expand only after a command is runnable and scoped |
 | Engine | `src/`, `include/`, `CMakeLists.txt` | CUDA and HIP are primary; SYCL remains separately qualified | Compile every backend touched; measure behavior on real hardware |
@@ -122,6 +122,34 @@ Calibration-source identities, exact-token handling, and resume behavior are in
   and explicit user intent.
 - Receipts bind evidence to revision and scope, state dirty provenance, and say
   what they do not prove.
+
+## Project status and governance
+
+This is the detailed implementation/exercise matrix behind the compact README
+entry status. Claims remain bound to the linked evidence and do not transfer to
+later revisions.
+
+| Area | Current status |
+| --- | --- |
+| Engine, installer, local API, web app | Implemented and documented by the inherited upstream code at `fb58e0d`; not rebuilt or measured locally by the governance change on 2026-10-09 |
+| Local project governance | Lapis-style authority structure in place: [AGENTS.md](../AGENTS.md), [architecture](architecture.md), [CONTRIBUTING.md](../CONTRIBUTING.md), and [stand-up evidence](../evidence/project-standup.json) |
+| Common verification | `just quality` runs on this macOS host; it does not claim a CUDA, HIP, or SYCL build |
+| Strix hardware evidence | An 8 GB RTX 5070 engine build launched; the Intel NPU also passed an external, opt-in one-token router probe through the new plugin ABI. Neither is a Strata model-run or speed claim. See [accelerator evidence](../evidence/accelerator-plugin-router-probe.json) |
+| DeepSeek V4.1 port preparation | Exact 1017 checkpoint metadata taxonomy, model geometry, and deterministic CPU candidate selection are implemented and exercised host-side on both this machine and the B550 compute host. B550 also built the regular Qwen engine and passed its AVX2 parity targets; its DeepSeek-specific AVX2 ceiling is measured but no DeepSeek pack or backend exists. See [first host contracts](../evidence/deepseek-v41-first-host-contracts.json), [B550 bring-up](../evidence/deepseek-v41-b550-bringup.json), and [AVX2 ceiling](../evidence/deepseek-v41-b550-avx2-ceiling.json) |
+| Qwen B550 storage placement | The HDD source store sustains 202 MiB/s sequential reads but only 106 MiB/s for Strata-sized random expert-slot misses; the root NVMe is 10.8x faster at queue depth 1 and 18.3x at depth 8. Stage runnable Qwen packs on NVMe scratch. See [storage baseline](../evidence/qwen-b550-storage-read-baseline.json) |
+| Qwen B550 calibrated IQ2_XS execution | The staged split GGUF now has a shard-aware pack, the model loaded and executed on both cards and through the two-GPU server, and the missing Q2_0 MTP drafter was fetched, verified, packed, and exercised. First observations put two GPUs around 1.9x GPU 1 alone; with the embedding replicas stopped, all 24,576 experts fit resident and a five-request short-prompt control reached 227.4 tok/s median decode. Broader performance and quality remain unclaimed. See [B550 baseline](../evidence/qwen-b550-iq2xs-bringup-and-mtp-baseline.json) and [clean control](../evidence/qwen-b550-full-vram-clean-control.json) |
+| Speculative-head/QAT target research | The next high-upside research head is DSpark-style DFlash2 (rank-256 Markov plus calibrated confidence), while the already-running native Qwen MTP is the first practical QAT lane. No QAT backend or trained artifact is claimed yet. See [head research](../evidence/qwen-dspark-mtp-qat-target-research.json) |
+| DSpark2 Qwen 27B parameter plan | The local 11,273-cycle DFlash2 corpus, prior G2/G3 searches, official DeepSpec defaults, and a live B550 smoke define a staged block-7 Markov/confidence training plan. Existing top-64 captures cannot train the official TV/confidence loss unchanged. See [parameter evidence](../evidence/dspark2-qwen27b-training-parameters.json) |
+| DSpark2-Qwen full-logit distillation | The MLX DFlash2 prediction-head template now captures full-vocab F32 logits and trains DSpark-weighted hybrid loss (CE 0.1 / TV 0.9) with an MXFP4 QAT path. Prime RTX 6000 Ada is the selected lane: a real A100 80GB control was 1.53x slower and 2.51x costlier per step. This trains the Qwen3.8-27B prototype, not Flash-Next, and no candidate is promoted or live-accepted. See [cloud training state](../evidence/dspark2-qwen-cloud-training-state.json) and [GPU selection](../evidence/dspark2-gpu-provider-selection.json) |
+| Qwen B550 concurrency and embedding tiers | Strata serves concurrent agent requests via `--batch` slots; measured on one short coding-prompt family over 3 rounds, MTP activity inside concurrent batch slots is unconfirmed. On this launch-bound workload concurrency buys latency fairness, not aggregate throughput (two-GPU full-residency: 149.6/126.3/158.1 tok/s aggregate at C=1/2/4; per-request 199.8 to 49.7). CPU-only embedding of the small Qwen3-0.6B is reasonable for light use (0.020 s single-request, faster than the 0.081 s GPU round-trip) but 4.7x slower on bulk (38.8 vs 183.1 items/s); the sindexer MXFP4 Jina embedder is CUDA-only, not a CPU path. See [concurrency evidence](../evidence/qwen-b550-concurrency-fallback.json) |
+| Strix MXFP4 embedding tier | The sindexer Jina MXFP4 embedder runs on Strix's RTX 5070 Laptop (SM120): the Triton MXFP4 kernel executes there, and the 1536-dim output matches the B550 reference at cosine 0.9999. It is the low-latency 1536-dimensional MXFP4 tier (0.036 s single-request versus 0.081 s on B550) but far weaker on bulk (15.9 versus 183.1 items/s). It runs standalone on :1236 and is not in the sindexer routing path; the NPU path is untested. See [Strix tier evidence](../evidence/qwen-strix-mxfp4-embed-tier.json) |
+| B550 layer-split topology | B550's GPU0 is chipset-attached at Gen3 x4 (2.9 GB/s) while GPU1 is CPU-root Gen4 x16 (25.4 GB/s). On a verified-clean GPU, an explicit `--layer-split 30` with the fast card first measured 236.0 to 243.6 tok/s decode against the auto control's 226.9 to 227.3 (about 4 to 7%), and 165.9 versus 151.8 tok/s prompt. Reversing card order alone gains about 1%, and `STRATA_SPLIT_MISS_MS` does not move the placement. No deployed configuration was changed. See [topology evidence](../evidence/qwen-b550-layer-split-topology.json) |
+| B550 two-request serving policy | C=2 batch slots lose aggregate throughput even with topology-aware groups: 127.0 versus 142.7 tok/s at C=1, and split-30 falls to 106.3. Independent per-GPU servers and a shared CPU arena are worse. For the measured exact short-prompt shape, queue serially on split-30: ten requests reached 222.5 tok/s aggregate and about 252.6 tok/s per request; varied-prompt serial C=2 and longer prompts remain unmeasured. No deployed routing tier was changed. See [queueing evidence](../evidence/qwen-b550-c2-queue-topology.json) |
+| B550 long-session serving | At 256K context with KV streaming (32,768 hot cells per QSA layer in VRAM, the engine's measured 1.80 GiB pinned host allocation, against a 3.09 GiB full-context payload upper bound), a 112,626-token real-source prompt prefilled in 27.743 s (4059.5 tok/s) and decoded at 117.1 tok/s with a 99.5% expert-cache hit rate and 92% of KV reads from VRAM. RAM is not the constraint: `--ple-io ram` was 2.5x slower to prefill and 1.9x slower to decode than direct SSD reads on this 91 GiB host. See [long-session evidence](../evidence/qwen-b550-longrun-256k.json) |
+| B550 fast-NVMe KV sessions | Native session files can park and restore whole long conversations on the P4800X: a real 112,626-token state became a 1.956 GB file in 1.463 s and restored into a restarted single-GPU process in 2.232 s. This is explicit session parking, not live per-token NVMe paging; layer-split, peer-device, and batch modes remain incompatible, and Mooncake is reserved for a future multi-host shared pool. See [session-store evidence](../evidence/qwen-b550-optane-session-store.json) |
+| Disaggregated KV tier | The opt-in `--kv-tier` path owns per-layer stores, per-layer selections, explicit background store operations, a Mooncake-style shared pool reference, and restore into the engine host copy consumed by `kv_stream_resolve`. On B550 it now runs against a real model on the designated 750 GB device: a matched control with the tier off and on produced bit-identical output and a mean NLL delta of exactly 0.0 over 8,191 scored positions, with 756,560 real cold reads, 794,873 engine host restores and zero checksum errors. The tier was about 14.8x slower on the prompt read for that workload, the full pinned host allocation remains resident, and no RAM or speed benefit is claimed. See [KV disaggregation](KV_DISAGGREGATION.md), [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json), and [sm86 build evidence](../evidence/b550-sm86-build-2026-10-20.json) |
+| DeepInfer portable scheduling intake | The fetch-only DeepInfer audit at `774ce244` ranked confidence-scheduled variable-length MTP, zero-overhead scheduling, incremental metadata assembly, and sync guards above model-specific Engram/Hopper/Ascend work. The first host-only confidence/varlen draft-row planner is implemented and passes focused tests on macOS and in the B550 sm_86 tree; it is not wired into runtime MTP and claims no speedup. See [audit evidence](../evidence/deepinfer-portable-optimizations-2026-10-20.json) and [implementation evidence](../evidence/deepinfer-confidence-varlen-2026-10-20.json) |
+| Flash-Next auxiliary prefiller | The 27B NVFP4 checkpoint and paper are templates only. A host-only planner now binds the deployed Flash-Next pack metadata, selects dense prompt-state tensors plus per-layer hot experts, and reports MXFP4 size: the profile-rank 64-expert plan is 9.238 GiB, with coverage intentionally null because the profile has no frequencies. No trainer, runtime path, or quality/speed effect is claimed. See [architecture](PREFILLER.md) and [planning evidence](../evidence/flash-next-prefiller-plan-2026-10-20.json) |
 
 ## Work log
 
@@ -2048,3 +2076,19 @@ real B550 split pack, the 64-expert profile-rank plan is 9.238 GiB MXFP4:
 the shipped profile records ranking only. No trace was captured, no model or
 trainer ran, and no runtime or quality effect is claimed. Full evidence is in
 [prefiller planning](../evidence/flash-next-prefiller-plan-2026-10-20.json).
+
+### README reference split, 2026-10-20
+
+The English README is now a compact 124-line product entry page. Its long dated
+status matrix remains in this architecture authority under `Project status and
+governance`, and a new `docs/README.md` index groups the existing specialized
+documents by start-up, serving, hardware, memory/KV, quantization and research
+use. This does not create a second roadmap or status authority: README routes to
+the architecture matrix, while the index only routes to operational detail.
+
+The repository now checks that the README stays at or below 140 lines, its
+status table remains compact, every nested documentation page is represented in
+the index exactly once, and local targets plus Markdown heading anchors in the
+README and index resolve. Each localized README received an index route without
+rewriting its translated body. Full commands and results
+are in [README split evidence](../evidence/readme-reference-split-2026-10-20.json).

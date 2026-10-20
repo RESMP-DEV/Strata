@@ -20,7 +20,10 @@ agent-specific instruction file.
 3. Treat existing technical documentation as observations, not live proof.
    Probe the actual installer, API, engine binary, accelerator, or service
    before making an operational claim.
-4. The README status table owns current implementation and exercise status.
+4. The README owns the compact product status and entry point; the detailed
+   implementation/exercise matrix remains in `docs/architecture.md`, and
+   `docs/README.md` routes to specialized operational pages without creating
+   another architecture authority.
    Dated evidence and work-log entries record observations at a revision; they
    never upgrade a proposed feature into an implemented feature.
 </establish_context>
@@ -29,7 +32,8 @@ agent-specific instruction file.
 | Concern | Canonical owner |
 | --- | --- |
 | Agent and contributor contract | `AGENTS.md` |
-| Product status and entry point | `README.md` |
+| Product entry and status authority | `README.md` |
+| Documentation navigation | `docs/README.md` |
 | Architecture, ownership, open choices, append-only work log | `docs/architecture.md` |
 | Procedure, code standards, check matrix | `CONTRIBUTING.md` |
 | Engine and backend build | `src/`, `include/`, `CMakeLists.txt`, `sycl/` |
@@ -67,9 +71,10 @@ authorization.
 
 <quality_and_receipts>
 Use `just quality` for the host-safe repository gate. It checks project
-structure, selected setup regressions, the accelerator-plugin ABI,
-dependency-free DeepSeek manifest and C++ contracts, script unit tests, Ruff on
-maintained scripts, ShellCheck at warning severity, whitespace, and writes
+structure, README/docs navigation, selected setup regressions, the
+accelerator-plugin ABI, dependency-free DeepSeek manifest and C++ contracts,
+script unit tests, Ruff on maintained scripts, ShellCheck at warning severity,
+whitespace, and writes
 `build/reports/quality/receipt.json`. The runner removes an old receipt before
 starting and writes a failure receipt on startup errors.
 

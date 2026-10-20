@@ -21,6 +21,7 @@ REQUIRED_FILES = (
     "justfile",
     "scripts/strata.py",
     "scripts/check_structure.py",
+    "scripts/check_docs.py",
     "scripts/check_setup.py",
     "scripts/check_deepseek.py",
     "scripts/check_deepseek_contracts.py",
@@ -28,6 +29,7 @@ REQUIRED_FILES = (
     "scripts/tests/test_check_deepseek_contracts.py",
     "data/deepseek_v41_manifest.json",
     "scripts/tests/test_check_structure.py",
+    "scripts/tests/test_check_docs.py",
     "scripts/tests/test_check_setup.py",
 )
 REQUIRED_AGENT_TAGS = (
@@ -41,6 +43,7 @@ REQUIRED_AGENT_TAGS = (
 REQUIRED_ARCHITECTURE_HEADINGS = (
     "## Product philosophy",
     "## Ownership boundaries",
+    "## Project status and governance",
     "## Open choices",
     "## Contracts to preserve",
     "## Work log",
@@ -109,7 +112,9 @@ def _architecture_contract() -> CheckResult:
     text = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
     missing = [heading for heading in REQUIRED_ARCHITECTURE_HEADINGS if heading not in text]
     forbidden_roots = [
-        path for path in ("docs/ROADMAP.md", "docs/STATUS.md") if (ROOT / path).exists()
+        path
+        for path in ("docs/ROADMAP.md", "docs/STATUS.md", "docs/reference/PROJECT_STATUS.md")
+        if (ROOT / path).exists()
     ]
     passed = not missing and not forbidden_roots
     problems = [f"heading {heading}" for heading in missing]

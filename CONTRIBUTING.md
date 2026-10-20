@@ -44,7 +44,7 @@ roadmap.
 
 Run `just quality` first on a host without GPU toolchains. It writes
 `build/reports/quality/receipt.json` and covers maintained structure, selected
-setup regressions, the host-safe accelerator-plugin ABI test, the
+setup regressions, README/docs navigation, the host-safe accelerator-plugin ABI test, the
 dependency-free DeepSeek manifest and C++ contract tests, script tests, Ruff,
 ShellCheck warning severity, and Git whitespace. It intentionally does not
 compile an engine.
@@ -52,6 +52,7 @@ compile an engine.
 | Changed area | Required evidence |
 | --- | --- |
 | `AGENTS.md`, `CONTRIBUTING.md`, governance docs, receipt runner | `just quality` |
+| README navigation, `docs/README.md`, or specialized docs | `python3 scripts/check_docs.py` (included in `just quality`); a behavioral or hardware claim still needs its own live evidence |
 | `scripts/` | `just quality`; add or update the colocated test for each check domain |
 | Host-safe plugin ABI and probe | `python3 scripts/check_plugins.py` (included in `just quality`) |
 | DeepSeek V4.1 host contracts | `python3 scripts/check_deepseek_contracts.py` (included in `just quality`); the standalone `src/deepseek` CMake project must not gain a backend or dependency |
