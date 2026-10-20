@@ -32,6 +32,28 @@ struct KvTierSessionConfig {
     std::vector<KvBlockRun> runs;
 };
 
+/// The graph-split proof. A CUDA graph cannot perform host-side file I/O or update a host cache from a CPU
+/// thread, so the captured sequence must split at the selection boundary: the captured selection produces the read
+/// plan, the coordinator makes the L1 slots ready on the host, and the captured resolve consumes only ready slots.
+///
+/// The proof counts the phases the captured windows actually went through. A run that claims the cold tier is in
+/// the serving path must show a selection phase, a host readiness phase, and a resolve phase, in that order, and
+/// no split violation.
+struct KvTierGraphPhases {
+    uint64_t selection = 0;   ///< the captured selection produced a read plan
+    uint64_t readiness = 0;   ///< the host made the plan's groups ready, between the two graph phases
+    uint64_t resolve = 0;     ///< the captured resolve consumed the ready groups
+    uint64_t windows = 0;     ///< the windows that went through all three
+    uint64_t split_violations = 0;  ///< a resolve without a preceding host readiness: a graph doing host work
+};
+
+/// The phases, in the order the hooks call them.
+enum KvTierPhase : int {
+    kKvTierPhaseSelection = 0,
+    kKvTierPhaseReadiness = 1,
+    kKvTierPhaseResolve = 2,
+};
+
 /// The session's own state. It is a singleton because the engine's serving path has one session per process, and
 /// a global keeps the verify path's call sites free of plumbing.
 class KvTierSession {
@@ -49,7 +71,17 @@ public:
     /// The counters, summed over every coordinator the session created.
     static KvTierCounters counters();
 
+    /// The graph-split proof's counters.
+    static KvTierGraphPhases graph_phases();
+
+    /// Note a phase of the captured window. The order is what the proof checks: a resolve that is not preceded by
+    /// a host readiness in the same window is a split violation, because that means the graph tried to do host
+    /// work.
+    static void note_phase(int phase);
+
     /// One line on stderr with the counters. A run that claims to have used the cold tier must show reads here.
+    /// The line also carries the graph-split proof: the number of windows that went through a captured selection,
+    /// a host readiness phase, and a captured resolve, and the number of split violations.
     static void report(const char* tag);
 
     /// Zero every coordinator's counters, so the next report describes ONE sequence.

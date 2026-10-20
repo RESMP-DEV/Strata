@@ -1797,6 +1797,8 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                               attn_ + t * NH * HD, 1, cs);
                     }
                 } else {
+                // The graph-split proof: the captured selection is the phase that produces the read plan.
+                if (kv_tier_session_on()) KvTierSession::note_phase(kKvTierPhaseSelection);
                 if (!sidem) idx_select(cs);
                 else if (cudaStreamWaitEvent(cs, mjoin_, 0) != cudaSuccess) {
                     err = "verify: the indexer's branch could not join";
@@ -1810,10 +1812,14 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 // KV streaming: the n selections' blocks resident (device-side, inside the graph)
                 if (kv_tier_session_on()) {
                     std::string tier_error;
+                    // The host boundary: the coordinator makes the plan's groups ready HERE, between the
+                    // captured selection and the captured resolve. A graph cannot do this work itself.
+                    KvTierSession::note_phase(kKvTierPhaseReadiness);
                     if (!kv_tier_resolve((int32_t) qi, st, *g_, sel_ + (size_t) tb * cap_, cap_, tier_error)) {
                         err = tier_error;
                         return false;
                     }
+                    KvTierSession::note_phase(kKvTierPhaseResolve);
                 }
                 qsa_kv_resolve(st, *g_, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, n, cap_, cs);
                 stamp(l, 12, grp);
@@ -3241,6 +3247,18 @@ bool Verifier::commit(int n_keep, std::string& err) {
             if (re != cudaSuccess) { err = std::string("verify: commit event: ") + cudaGetErrorString(re); return false; }
             (void) cudaStreamQuery(cs_);
             commit_pending_ = true;
+        }
+    }
+    // The disaggregated KV tier's token-path hook. The token path itself runs inside a CAPTURED graph and
+    // cannot do host I/O, so the publish happens here: the commit boundary is where the window's writes have
+    // become visible to the host. The same coordinator that served the window publishes the tokens, so there is
+    // one policy and no second implicit path.
+    if (kv_tier_session_on() && g_->n_qsa_layers() > 0) {
+        const int32_t layer = (int32_t) ss_->qsa_ord0;
+        std::string tier_error;
+        if (!kv_tier_commit(layer, ss_->qsa_states[layer], *g_, last_pos0_, n_keep, tier_error)) {
+            err = tier_error;
+            return false;
         }
     }
     if (ple_stage())   // stages that share one session must advance it once

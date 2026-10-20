@@ -9,6 +9,8 @@ namespace strata::core {
 namespace {
 
 std::mutex g_mutex;
+KvTierGraphPhases g_phases;
+int g_window_stage = 0;   // 0: nothing, 1: selection seen, 2: readiness seen
 
 }  // namespace
 
@@ -106,17 +108,50 @@ KvTierCounters KvTierSession::counters() {
     return total;
 }
 
+KvTierGraphPhases KvTierSession::graph_phases() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_phases;
+}
+
+void KvTierSession::note_phase(int phase) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    switch (phase) {
+        case kKvTierPhaseSelection:
+            ++g_phases.selection;
+            g_window_stage = 1;
+            break;
+        case kKvTierPhaseReadiness:
+            if (g_window_stage < 1) ++g_phases.split_violations;   // readiness without a selection
+            ++g_phases.readiness;
+            g_window_stage = 2;
+            break;
+        case kKvTierPhaseResolve:
+            if (g_window_stage < 2) ++g_phases.split_violations;   // a resolve with no host readiness
+            ++g_phases.resolve;
+            if (g_window_stage >= 2) ++g_phases.windows;
+            g_window_stage = 0;
+            break;
+        default:
+            break;
+    }
+}
+
 void KvTierSession::report(const char* tag) {
     const KvTierCounters c = counters();
+    const KvTierGraphPhases phases = graph_phases();
     std::fprintf(stderr,
                  "strata kv tier (%s): l1_hits=%llu l1_misses=%llu l1_evictions=%llu l2_reads=%llu "
                  "l2_read_failures=%llu l2_read_bytes=%llu l2_write_bytes=%llu published_groups=%llu "
-                 "checksum_errors=%llu readiness_waits=%llu\n",
+                 "checksum_errors=%llu readiness_waits=%llu | graph_split: selection=%llu readiness=%llu "
+                 "resolve=%llu windows=%llu violations=%llu\n",
                  tag ? tag : "report", (unsigned long long) c.l1_hits, (unsigned long long) c.l1_misses,
                  (unsigned long long) c.l1_evictions, (unsigned long long) c.l2_reads,
                  (unsigned long long) c.l2_read_failures, (unsigned long long) c.l2_read_bytes,
                  (unsigned long long) c.l2_write_bytes, (unsigned long long) c.published_groups,
-                 (unsigned long long) c.checksum_errors, (unsigned long long) c.readiness_waits);
+                 (unsigned long long) c.checksum_errors, (unsigned long long) c.readiness_waits,
+                 (unsigned long long) phases.selection, (unsigned long long) phases.readiness,
+                 (unsigned long long) phases.resolve, (unsigned long long) phases.windows,
+                 (unsigned long long) phases.split_violations);
 }
 
 void KvTierSession::reset_counters() {

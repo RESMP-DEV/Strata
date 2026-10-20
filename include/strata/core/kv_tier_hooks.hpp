@@ -8,6 +8,7 @@
 #pragma once
 
 #include "strata/core/kv_coordinator.hpp"
+#include "strata/core/kv_tier_session.hpp"
 #include "strata/core/layer.hpp"
 
 #include <cstdint>
@@ -34,6 +35,12 @@ bool kv_tier_session_on();
 /// groups that became whole. It returns false only on a hard error (a store write that failed), and the caller
 /// treats that as a failed window rather than silently continuing without a cold tier.
 bool kv_tier_append(int32_t layer, const QsaState& st, const ModelGeometry& g, int64_t first_block, int64_t n_blocks,
+                    std::string& error);
+
+/// The token path's hook. The token path runs inside a CAPTURED graph, so it cannot do host I/O: the publish
+/// happens at the commit boundary, where the window's writes have become visible to the host. The hook notes the
+/// cells the committed window produced, so the same coordinator that serves the window also publishes the tokens.
+bool kv_tier_commit(int32_t layer, const QsaState& st, const ModelGeometry& g, int64_t first_pos, int64_t n_cells,
                     std::string& error);
 
 /// The resolve hook. The selection names the blocks the attention needs; the coordinator makes the groups that are

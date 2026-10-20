@@ -292,6 +292,11 @@ if(STRATA_BUILD_TESTS)
                                     src/core/kv_file_store.cpp)
   target_include_directories(kv_file_store_test PRIVATE include)
   add_test(NAME kv_file_store_test COMMAND kv_file_store_test)
+  # the graph-split proof: the captured sequence must split at the selection boundary
+  add_executable(kv_tier_graph_test src/core/kv_tier_graph_test.cpp src/core/kv_coordinator.cpp
+                                    src/core/kv_tier_session.cpp src/core/kv_file_store.cpp)
+  target_include_directories(kv_tier_graph_test PRIVATE include)
+  add_test(NAME kv_tier_graph_test COMMAND kv_tier_graph_test)
   add_executable(logit_bias_test src/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE include)
   add_test(NAME logit_bias_test COMMAND logit_bias_test)

@@ -124,8 +124,39 @@ bool kv_tier_append(int32_t layer, const QsaState& st, const ModelGeometry& g, i
     return true;
 }
 
+bool kv_tier_commit(int32_t layer, const QsaState& st, const ModelGeometry& g, int64_t first_pos, int64_t n_cells,
+                    std::string& error) {
+    if (!KvTierSession::enabled()) return true;
+    KvTierCoordinator* coordinator = KvTierSession::coordinator(layer);
+    if (coordinator == nullptr) return true;
+    if (n_cells <= 0) return true;
+
+    // The token path's cells are the ones the committed window appended. The blocks that are COMPLETE are the
+    // ones the group can be published from; a block that is still open stays pinned.
+    const int64_t cells_per_block = qsa_shapes(g).idx_block;
+    if (cells_per_block <= 0) return true;
+    const int64_t first_block = first_pos / cells_per_block;
+    const int64_t last_block = (first_pos + n_cells - 1) / cells_per_block;
+
+    const KvTierLayerGeometry geometry = kv_tier_geometry(st, g);
+    if (geometry.block_bytes == 0) return true;
+
+    for (int64_t block = first_block; block <= last_block; ++block) {
+        const int32_t block_index = (int32_t) block;
+        if (!coordinator->append(layer, block_index, error)) return false;
+        // Only a block whose cells are all written is complete. The engine's own count says how many blocks
+        // have completed, and the tail block is the one still being filled.
+        const int64_t block_end = (block + 1) * cells_per_block;
+        if (block_end <= first_pos + n_cells) {
+            if (!coordinator->complete(layer, block_index, error)) return false;
+        }
+    }
+    return true;
+}
+
 bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, const int32_t* ids, int64_t n_ids,
                      std::string& error) {
+    (void) st;
     if (!KvTierSession::enabled()) return true;
     KvTierCoordinator* coordinator = KvTierSession::coordinator(layer);
     if (coordinator == nullptr) return true;
