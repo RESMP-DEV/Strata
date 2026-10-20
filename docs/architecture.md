@@ -1417,11 +1417,16 @@ B550, with the pinned Qwen IQ2_XS/Q2_0 model, the two-GPU split-30 placement,
 question, generated 128 tokens at temperature 0.
 
 The KV cache is handled by splitting it between VRAM and pinned host RAM. There
-are 12 QSA layers (every fourth of 48) and 1,056 bytes per cell in INT8, so the
-whole 262,144-cell table is 3.09 GiB. With 32,768 hot cells per layer kept in
-VRAM, the engine reported "32768 of 262144 cells per QSA layer in VRAM, the K/V
-in 1.80 GiB of pinned RAM", and 92.14 percent of 740,474 KV block reads were
-served from VRAM. The result was a 27.743 s prefill (4059.5 tok/s) and 128
+are 12 QSA layers (every fourth of 48) and 1,056 bytes per cell in INT8, which
+is 12,672 bytes or 12.375 KiB of KV payload per token, so the whole
+262,144-cell table is 3.09 GiB of payload. With 32,768 hot cells per layer kept
+in VRAM, the engine reported "32768 of 262144 cells per QSA layer in VRAM, the
+K/V in 1.80 GiB of pinned RAM", and 92.14 percent of 740,474 KV block reads
+were served from VRAM. The engine's 1.80 GiB is its measured host allocation
+for the streamed representation, not the 3.09 GiB payload arithmetic, which
+does not model page granularity or the resident-cell representation; host
+planning should reserve at least the measured 1.80 GiB and treat 3.09 GiB as
+the upper bound. The result was a 27.743 s prefill (4059.5 tok/s) and 128
 tokens at 117.1 tok/s, with a 99.5 percent decode expert-cache hit rate.
 
 On the question of whether the host's RAM is being used: it should not be, for
