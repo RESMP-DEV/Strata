@@ -1317,3 +1317,48 @@ placed on Strix, the model by a B550 to Mac to Strix relay because this Mac's
 `rsync` is openrsync 2.6.9 and cannot do remote-to-remote copies. Full
 measurements and non-claims are in
 [Strix MXFP4 embedding tier](../evidence/qwen-strix-mxfp4-embed-tier.json).
+
+### B550 layer-split topology optimization, 2026-10-20
+
+B550's two cards are not symmetric on the host bus, and the difference is
+larger than the card order. The PCI tree puts GPU0 (`0000:00:04.0`) behind the
+AMD 500-series chipset at Gen3 x4, 2.9 GB/s host-to-device as the engine probes
+it, while GPU1 (`0000:08:00.0`) is CPU-root at Gen4 x16, 25.4 GB/s. The engine's
+auto placement search already scales each stage's miss cost by its probed link
+(x6.96 against x1.00 here), so the question was whether an explicit placement
+beats the search on this asymmetric pair.
+
+On a GPU verified clean (a pre-flight guard aborts if any foreign process holds
+VRAM) and with the embedding replicas stopped for the window, five arms of the
+pinned workload ran: the auto control, the same with the fast card first, an
+explicit split of 30 layers with the fast card first, and the miss-cost constant
+raised to 600 and to 2000. The explicit split-30 configuration was the winner.
+Decode measured 236.0 tok/s median against the control's 226.9, and 243.6
+against 227.3 when the arms were re-run with the control last, with prompt
+throughput 165.9 against 151.8 tok/s, a 9.29% gain. The control is stable at
+226.9 and 227.3 across the two orderings, and the control's expert prefill was
+still 6.1 s when it ran last, so the gain is not a warm-page-cache artifact.
+Reversing the card order alone changes little (230.1 to 229.3, about 1%),
+because the auto search already reaches K=24 with 100% of the profiled pairs
+resident, and raising `STRATA_SPLIT_MISS_MS` leaves the placement decision
+unchanged, so that constant is not a live lever on this rig.
+
+The mechanism is a hypothesis, not an isolated proof: giving the Gen4 x16 card
+30 of 48 layers moves layer work and the expert-miss stream onto the fast link,
+and it also changes the per-card cache sizing (14,499 slots and 599 MiB free
+against 12,288 slots and 3,649 MiB) and the draft window (67 to 68 accepted of
+79 to 80, against 66 of 78). The recommendation is to run `--gpu 1,0` with an
+explicit `--layer-split 30` on this rig; nothing in the deployed configuration
+was changed, and the result is specific to this model, this engine revision, and
+this short-prompt workload.
+
+One measurement hazard is worth recording because it nearly produced the wrong
+conclusion. An earlier pass of the same arms measured 50 to 73 tok/s and
+placement logs showing only 2.99 GiB free against the control's 20.04 GiB. The
+cause was another session's live Ming ASR teacher transcription, which held
+about 17.5 GB on each card; the 17,459 MiB difference in free VRAM matches that
+footprint exactly. That job was not stopped. It was allowed to finish on its own
+(500 of 500 on both arms), and the arms were re-run on a verified-clean GPU with
+a guard that aborts on any foreign VRAM holder. Full measurements, the
+contamination record, and non-claims are in
+[layer-split topology evidence](../evidence/qwen-b550-layer-split-topology.json).
