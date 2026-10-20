@@ -6,6 +6,7 @@
 #include "strata/core/verify.hpp"
 #if !defined(STRATA_USE_HIP) && !defined(STRATA_HIP_GFX906)
 #include "strata/core/host_graph_launch.hpp"
+#include "strata/core/kv_tier_hooks.hpp"
 #endif
 #include "strata/core/remote_expert_opt.hpp"
 #include "strata/core/dma_batch.hpp"
@@ -1685,6 +1686,17 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                         kv_append_step(st.k_pool, st.v_pool, st.page_table, step_t, kcur_ + t * NKV * HD,
                                        vcur_ + t * NKV * HD, s, cs, &st.host);
                 }
+                // The disaggregated KV tier: the engine has written the window's cells, so the blocks it
+                // appended are complete enough to publish. The hook is a no-op unless the cold tier is on, and
+                // a store failure fails the window rather than silently continuing without a cold tier.
+                if (kv_tier_session_on()) {
+                    const int64_t first_block = (int64_t) (step_[(size_t) tb * kStepCount] / (s.idx_block > 0 ? s.idx_block : 1));
+                    std::string tier_error;
+                    if (!kv_tier_append((int32_t) qi, st, *g_, first_block, n, tier_error)) {
+                        err = tier_error;
+                        return false;
+                    }
+                }
                 if (!sidem) idx_append(cs);
                 stamp(l, 9, grp);
                 if (qbr) {
@@ -1766,6 +1778,13 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                          max_blocks_, s, scores_ + (size_t) t * max_blocks_, cs);
                         qsa_block_topk(scores_ + (size_t) t * max_blocks_, step_ + t * kStepCount, 1, max_blocks_, cap_, s,
                                        sel_ + (size_t) t * cap_, cs);
+                        if (kv_tier_session_on()) {
+                            std::string tier_error;
+                            if (!kv_tier_resolve((int32_t) qi, sx, *g_, sel_ + (size_t) t * cap_, cap_, tier_error)) {
+                                err = tier_error;
+                                return false;
+                            }
+                        }
                         qsa_kv_resolve(sx, *g_, sel_ + (size_t) t * cap_, step_ + t * kStepCount, 1, cap_, cs);
                         const QsaAttnPools px = qsa_attn_pools(sx);
                         qsa_decode_attn_batch(qcur_ + t * NH * HD, px, sel_ + (size_t) t * cap_, step_ + t * kStepCount,
@@ -1784,6 +1803,13 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 }
                 stamp(l, 11, grp);
                 // KV streaming: the n selections' blocks resident (device-side, inside the graph)
+                if (kv_tier_session_on()) {
+                    std::string tier_error;
+                    if (!kv_tier_resolve((int32_t) qi, st, *g_, sel_ + (size_t) tb * cap_, cap_, tier_error)) {
+                        err = tier_error;
+                        return false;
+                    }
+                }
                 qsa_kv_resolve(st, *g_, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, n, cap_, cs);
                 stamp(l, 12, grp);
                 if (qbr) join(0);   // the query, for attention

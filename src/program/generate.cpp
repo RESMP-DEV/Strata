@@ -36,6 +36,8 @@
 #include "strata/core/on_device.hpp"
 #include "strata/core/peer_experts.hpp"
 #include "strata/core/layer.hpp"
+#include "strata/core/kv_tier_hooks.hpp"
+#include "strata/core/kv_tier_session.hpp"
 #include "strata/core/layout.hpp"
 #include "strata/core/session.hpp"
 #include "strata/core/weights.hpp"
@@ -476,6 +478,11 @@ struct Options {
     bool ple_sync_submit = false;      ///< A/B arm: submit reads on the token thread, no I/O worker
     std::string kv = "fp16";           ///< plan v0.3 P7: KV storage, fp16 (default) or int8 (half the VRAM)
     int64_t kv_resident = 0;           ///< KV streaming: resident cells per QSA layer (0: all in VRAM)
+    /// The disaggregated KV cold tier (docs/KV_DISAGGREGATION.md): --kv-tier <path> turns it on, and
+    /// --kv-tier-l1 <groups> sizes the L1 group cache per layer. Off by default: the default runtime path is
+    /// byte-identical without it.
+    std::string kv_tier;
+    int32_t kv_tier_l1 = 0;
     bool kv_grow = false;              ///< the elastic K/V (--kv-grow, STRATA_KV_GROW=1; kvg_ensure)
     std::string dump_residual;
     /// The head input, `bb.mixed`.  It exists so the head can be SPLIT: steps 1-4 (the per-stream norm, the two
@@ -2337,6 +2344,8 @@ int main(int argc, char** argv) {
         else if (a == "--ple-sync-submit") o.ple_sync_submit = true;
         else if (a == "--kv") o.kv = next("--kv");
         else if (a == "--kv-resident") o.kv_resident = std::atoll(next("--kv-resident"));
+        else if (a == "--kv-tier") o.kv_tier = next("--kv-tier");
+        else if (a == "--kv-tier-l1") o.kv_tier_l1 = (int32_t) std::atoll(next("--kv-tier-l1"));
         else if (a == "--kv-grow") o.kv_grow = true;
         else if (a == "--no-kv-grow") o.kv_grow = false;
         else if (a == "--stream-token") o.stream_token = true;
@@ -3003,6 +3012,19 @@ int main(int argc, char** argv) {
         return 2;
     }
     strata::core::qsa_set_kv_resident(o.kv_resident);
+    // The disaggregated KV cold tier (docs/KV_DISAGGREGATION.md). It is opt-in and it needs KV streaming: the
+    // cold tier publishes a group of the layer's host copy, so the layer must have one. The L1 cache defaults to
+    // one group per layer, which is the smallest bounded cache that can hold a group.
+    if (!o.kv_tier.empty()) {
+        if (o.kv_resident <= 0) {
+            std::fprintf(stderr, "strata generate: --kv-tier needs --kv-resident: the cold tier publishes the "
+                                 "layer's host copy, and only a streamed layer has one\n");
+            return 2;
+        }
+        if (o.kv_tier_l1 <= 0) o.kv_tier_l1 = 1;
+        std::fprintf(stderr, "strata generate: the KV cold tier is on (--kv-tier %s, %d L1 group%s per layer)\n",
+                     o.kv_tier.c_str(), o.kv_tier_l1, o.kv_tier_l1 == 1 ? "" : "s");
+    }
     // Prompt lookup (the suffix drafter, on by default): the MTP keeps its --spec windows and a lookup window may be
     // up to 2 tokens longer; the draft policy (strata/spec/draft_policy.hpp) takes one only where it pays. Code
     // edits +6-11%, ordinary text unchanged (bench/results/2026-09-27-spec). --suffix-draft 0 turns it off.
@@ -4993,6 +5015,41 @@ int main(int argc, char** argv) {
                                  "%.2f GiB of pinned RAM\n",
                          (long long) (ss.qsa_states[ss.qsa_primary()].n_slots * 4),
                          (long long) o.max_context, (double) strata::core::qsa_kv_host_bytes() / 1073741824.0);
+        // The disaggregated KV cold tier: the geometry is known now, so the tier can be sized from the engine's own
+        // block layout rather than from a second, hand-written one.
+        if (!o.kv_tier.empty()) {
+            if (g.n_qsa_layers() <= 0) {
+                std::fprintf(stderr, "strata generate: --kv-tier needs a model with QSA layers\n");
+                return 2;
+            }
+            const strata::core::QsaState& qst = ss.qsa_states[ss.qsa_primary()];
+            if (qst.kv_mode != 1) {
+                std::fprintf(stderr, "strata generate: --kv-tier needs a streamed KV layer: --kv-resident %lld keeps "
+                                     "every cell in VRAM, and the cold tier publishes the layer's host copy\n",
+                             (long long) o.kv_resident);
+                return 2;
+            }
+            const strata::core::KvTierLayerGeometry tier_geometry =
+                strata::core::kv_tier_geometry(qst, g);
+            strata::core::KvTierSessionConfig tier_config;
+            tier_config.store_path = o.kv_tier;
+            tier_config.l1_groups_per_layer = o.kv_tier_l1;
+            tier_config.geometry_id = (uint64_t) g.n_head_kv * 1000003ull + (uint64_t) g.head_dim * 31ull +
+                                      (uint64_t) g.n_head * 7ull + (uint64_t) o.max_context;
+            tier_config.format_id = (uint64_t) strata::core::qsa_kv_format(qst) + 1ull;
+            tier_config.blocks_per_group = strata::core::kKvGroupBlocks;
+            tier_config.block_bytes = tier_geometry.block_bytes;
+            tier_config.runs = tier_geometry.runs;
+            std::string tier_error;
+            if (!strata::core::KvTierSession::enable(tier_config, tier_error)) {
+                std::fprintf(stderr, "strata generate: the KV cold tier could not be enabled: %s\n", tier_error.c_str());
+                return 2;
+            }
+            std::fprintf(stderr, "strata generate: the KV cold tier is on: %d L1 group(s) per layer, %llu B per block, "
+                                 "%d blocks per group\n",
+                         o.kv_tier_l1, (unsigned long long) tier_geometry.block_bytes,
+                         strata::core::kKvGroupBlocks);
+        }
         // the PLE block above built everything but the history, which session_init has just carved
         ss.ple.hist = ss.ple_hist;
         // (#167) generate mode starts from an empty sequence, and nothing else zeroes this state before the prompt
