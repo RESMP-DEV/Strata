@@ -509,16 +509,35 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | --- | --- | --- |
 | K1 `KvBlockStore` ABI and reference store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K2 `KvTierCoordinator` state machine and epoch keys | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
-| K3 serving append boundary | not started | - |
-| K4 serving read-plan boundary | not started | - |
+| K3 serving append boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K4 serving read-plan boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| L2 local file store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K5 shared token and prompt path hooks | not started | - |
 | K6 graph split proof | not started | - |
 
-The coordinator is not wired into the engine. Its current contract is the
-state machine alone: a whole group is published as one store put, a partial
-group is never published, the tail is pinned, a rewind advances the epoch so
-the old bytes are unreachable, a checksum mismatch is a refusal, and a cold
-read counter moves when the read is issued.
+The coordinator is now wired into the serving path behind an opt-in switch:
+`--kv-tier <path>` turns the cold tier on and `--kv-tier-l1 <groups>` sizes
+the L1 group cache per layer. It needs `--kv-resident`, because a cold tier
+publishes the layer's host copy and only a streamed layer has one. With the
+tier off, the serving path costs one branch per window and nothing else.
+
+The hooks sit where the serving path really moves K/V: `verify.cpp`'s
+`kv_append_*` calls and its `qsa_kv_resolve` calls. The append hook reads the
+window's first position from the host-mapped step buffer, because the device
+`step_` buffer cannot be read from the host. The resolve hook maps the
+selection's cells to their blocks, deduplicates the groups, and makes each
+group ready before the attention runs.
+
+The L2 store is a file of whole groups. A group's payload is durable before
+its valid marker is committed, the header is the only source of truth for the
+layout, a group of another geometry, format, layer, or epoch is absent rather
+than misread, and a partial read is refused because a whole-group checksum
+cannot verify it.
+
+What is not yet true: the hooks have never run against a model. The CUDA
+build, the identity gate, the matched NLL control, the forced cold reads, and
+the 600K and 800K gates are all outstanding, and the cold tier's benefit is
+unmeasured.
 
 ## Current prototype status
 

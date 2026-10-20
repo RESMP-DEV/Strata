@@ -1623,3 +1623,46 @@ and resolve boundaries in `verify.cpp` are unchanged, and no KV byte has moved
 between tiers. The host gate now includes the coordinator's contract test.
 Full commands and non-claims are in
 [phase A evidence](../evidence/kv-coordinator-phase-a.json).
+
+### Disaggregated KV coordinator: Phase A build-out, 2026-10-20
+
+The Phase A slice is now implemented on `feature/kv-coordinator-v2`, on top of
+the merged v0.1.45 base. It adds the `KvBlockStore` ABI with an in-memory
+reference store, the block identity with epoch rules, the `KvTierCoordinator`
+state machine, the session that owns one coordinator per layer, the L2 local
+file store, and the serving-path hooks behind an opt-in switch.
+
+The switch is `--kv-tier <path>` with `--kv-tier-l1 <groups>`; it needs
+`--kv-resident`, because a cold tier publishes the layer's host copy and only
+a streamed layer has one. With the tier off, the serving path costs one branch
+per window and nothing else.
+
+The hooks are at the places the serving path really moves K/V: `verify.cpp`'s
+`kv_append_*` calls and its `qsa_kv_resolve` calls. The append hook reads the
+window's first position from the host-mapped step buffer, because the device
+`step_` buffer cannot be read from the host. The resolve hook maps the
+selection's cells to their blocks, deduplicates the groups, and makes each
+group ready before the attention runs.
+
+The L2 store writes whole groups. A group's payload is durable before its
+valid marker is committed, the header is the only source of truth for the
+layout, a group of another geometry, format, layer, or epoch is absent rather
+than misread, and a partial read is refused, because a whole-group checksum
+cannot verify it.
+
+Four defects were found by the contract tests rather than by a model run. The
+quarantined prototype indexed its completion bitmap by the block inside its
+group, so two groups of the same layer shared a flag. A cold-read counter that
+moved only on success could not prove a foreground cold read when the read was
+refused, so the counter now moves when the read is issued and a separate
+counter records the refusals. A file store that mixed the layer and the group
+into its file index grew the file without bound, so the store holds one layer
+and refuses a key of another. And a group checksum that covers the whole group
+cannot verify a partial read, so the store refuses partial reads outright.
+
+The hooks have never run against a model. The CUDA build, the identity gate,
+the matched NLL control, the forced cold reads, and the 600K and 800K gates are
+all outstanding, and the cold tier's benefit is unmeasured. B550 was
+unreachable on both the LAN and ZeroTier paths for the whole session, so no
+hardware acceptance gate ran. Full commands and non-claims are in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json).

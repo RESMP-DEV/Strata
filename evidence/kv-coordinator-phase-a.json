@@ -1,35 +1,38 @@
 {
-  "recorded_at": "2026-10-20T07:36:01Z",
+  "recorded_at": "2026-10-20T07:47:36Z",
   "agent": "Codex",
-  "source_revision": "c876b0ec62e8a7c0b72643d80d5dd923aafbfbc1",
+  "source_revision": "0b7ce6955902e3a42f43b23c3b5d55dfb4f96e2a",
   "source_dirty": false,
-  "scope": "Records the first Phase A slice of the disaggregated KV work: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, and their host contract test. It does not touch the serving path, move any KV byte to a cold tier, compile CUDA, run a model, or measure performance.",
+  "scope": "Records the Phase A build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, and the serving-path hooks in verify.cpp behind an opt-in switch. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
   "checks": [
-    {
-      "command": "c++ -std=c++17 -Wall -Wextra -Iinclude src/core/kv_coordinator.cpp src/core/kv_coordinator_test.cpp -o build/kv-coord-test && ./build/kv-coord-test",
-      "exit": 0,
-      "result": "kv coordinator: OK; nine contract cases pass"
-    },
-    {
-      "command": "cmake --build build/kv-coordinator-check --target kv_coordinator_test && ctest --test-dir build/kv-coordinator-check -R ^kv_coordinator_test$ --output-on-failure",
-      "exit": 0,
-      "result": "1/1 test passed through the project's CMake target"
-    },
     {
       "command": "just quality",
       "exit": 0,
-      "result": "aggregate_passed=true; the new kv-coordinator check is part of the gate; receipt build/reports/quality/receipt.json"
+      "result": "aggregate_passed=true; the kv-coordinator check runs the coordinator, session, and file-store contract tests; receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "ctest --test-dir build/kv-coordinator-check -R '^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test)$' --output-on-failure",
+      "exit": 0,
+      "result": "3/3 passed: nine coordinator cases, sixteen session cases, eight file-store cases"
+    },
+    {
+      "command": "c++ -std=c++17 -Wall -Wextra -Iinclude -fsyntax-only src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp",
+      "exit": 0,
+      "result": "all four new sources compile clean with warnings enabled"
     }
   ],
   "findings": [
-    "The imported v0.1.45 engine already implements the L0 and L1 tiers: a streamed QSA layer keeps its authoritative K/V in pinned device-mapped host memory, VRAM holds a bounded pool of page slots, and kv_stream_resolve makes the selected blocks resident with a CLOCK sweep on device. The coordinator therefore owns L1 admission, the store, and the epoch rules, and the device-side residency map stays the L0/L1 mechanism rather than something the coordinator reimplements.",
-    "The quarantined prototype's completion bitmap was indexed by the block inside its group, so two groups of the same layer shared a flag. The new coordinator indexes by the block itself.",
-    "A cold-read counter that only moves on success cannot prove a foreground cold read happened when the read is refused. The counter moves when the read is issued, and a separate failure counter records the refusals."
+    "The imported v0.1.45 engine already implements the L0 and L1 tiers: a streamed QSA layer keeps its authoritative K/V in pinned device-mapped host memory, VRAM holds a bounded pool of page slots, and kv_stream_resolve makes the selected blocks resident with a device-side CLOCK sweep. The coordinator therefore owns L1 admission, the store, the epoch rules, and the counters; the device-side residency map stays the L0/L1 mechanism.",
+    "The quarantined prototype indexed its completion bitmap by the block inside its group, so two groups of the same layer shared a flag. The new coordinator indexes by the block itself.",
+    "A cold-read counter that moves only on success cannot prove a foreground cold read when the read is refused. The counter now moves when the read is issued, and a separate counter records the refusals.",
+    "The serving path's `step_` buffer is device memory, so the append hook cannot read the window's first position from it. The hook reads the host-mapped `h_step_` buffer instead, which holds the same values.",
+    "A file store that mixes the layer and the group into its file index grows the file without bound. The store holds one layer, so the index is the group number and a key of another layer is refused by identity.",
+    "A group checksum that covers the whole group cannot verify a partial read. The store refuses a partial read outright, because an unverifiable read is exactly the torn read the valid marker exists to prevent."
   ],
   "non_claims": [
-    "No KV byte has moved between tiers; the store under test is an in-memory reference implementation.",
-    "The coordinator is not wired into verify.cpp yet: the serving append, selection, and resolve boundaries are unchanged.",
-    "No CUDA backend was compiled, no model was run, and no NLL, perplexity, throughput, or latency figure is claimed.",
-    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session, so no hardware acceptance gate was run."
+    "No KV byte has moved between tiers in a real engine: the store under test is the local file store, exercised without a model.",
+    "The serving-path hooks are compiled but have never run against a model. The CUDA build, the identity gate, the NLL control, and the 600K/800K gates are all outstanding.",
+    "No CUDA backend was compiled and no performance, latency, or context figure is claimed.",
+    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session, so no hardware acceptance gate ran. Its ZeroTier node appeared once as a relay peer and then left the peer list again."
   ]
 }
