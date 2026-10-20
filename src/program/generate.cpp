@@ -5050,7 +5050,9 @@ int main(int argc, char** argv) {
                 strata::core::kv_tier_geometry(qst, g);
             strata::core::KvTierSessionConfig tier_config;
             tier_config.store_path = o.kv_tier;
-            tier_config.session_id = ((uint64_t) std::random_device() << 32) | std::random_device();
+            std::random_device rd;
+            tier_config.session_id = ((uint64_t) rd() << 32) | (uint64_t) rd();
+            if (tier_config.session_id == 0) tier_config.session_id = 1;
             // The store's layer identity is the QSA layer INDEX, the same index the serving path passes to the
             // hooks (the QSA ordinal of a layer within the model's QSA layers), so the two agree.
             tier_config.layer = 0;

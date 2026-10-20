@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <atomic>
 #include <string>
 #include <thread>
@@ -30,6 +31,12 @@ KvTierCoordinator::Options async_options() {
     o.async_io = true;
     o.async_workers = 1;
     o.l1_groups = 1;
+    return o;
+}
+
+KvTierCoordinator::Options async_two_slot_options() {
+    KvTierCoordinator::Options o = async_options();
+    o.l1_groups = 2;
     return o;
 }
 
@@ -70,7 +77,7 @@ private:
 
 }  // namespace
 
-int main() {
+int test() {
     // 1. The L1 cache is a real cache: a group that is in L1 is a hit, one that is not is a miss that reads the
     //    store, and the bytes survive the round trip.
     {
@@ -246,6 +253,7 @@ int main() {
         KvTierCoordinator c({17, 0, 0}, async_options(), &store);
         std::string error;
         if (!fill_group(c, 0, 0, 0x90, error)) return 100;
+        if (!c.flush(error)) return 106;
         std::vector<uint8_t> published(64, 0);
         if (!c.read_block(0, 0, published.data(), published.size(), error)) return 101;
         if (!c.group_io_ready(0, 0)) return 105;   // draining waits for and consumes the store completion
@@ -260,7 +268,9 @@ int main() {
         KvTierCoordinator c({18, 0, 0}, async_options(), &store);
         std::string error;
         if (!fill_group(c, 0, 0, 0xa0, error)) return 110;
+        if (!c.flush(error)) return 129;
         if (!fill_group(c, 0, 1, 0xb0, error)) return 111;   // evicts group 0 from the one-slot L1
+        if (!c.flush(error)) return 128;
         std::vector<uint8_t> second(64, 0);
         if (!c.read_block(0, 4, second.data(), second.size(), error)) return 112;
         if (c.slot_of(0, 0) >= 0) return 112;
@@ -290,6 +300,42 @@ int main() {
         if (c.counters().l2_reads != 2 || c.counters().l1_evictions == 0) return 127;
     }
 
+    // 12. Every missing group in one asynchronous batch reserves a distinct L1 slot. The last completion may
+    //     not overwrite an earlier group that has not been consumed.
+    {
+        KvMemoryStore store;
+        KvTierCoordinator c({19, 0, 0}, async_two_slot_options(), &store);
+        std::string error;
+        for (int32_t group = 0; group < 4; ++group) {
+            if (!fill_group(c, 0, group, static_cast<uint8_t>(0xc0 + group), error)) return 130;
+            if (!c.flush(error)) return 131;
+        }
+        if (c.slot_of(0, 0) >= 0 || c.slot_of(0, 1) >= 0) return 132;
+
+        KvReadBatch batch(0, KvReadKind::kForeground);
+        if (!batch.add(0, 0, -1) || !batch.add(0, 1, -1)) return 133;
+        if (!c.submit_read(batch, error)) return 134;
+        if (!c.flush(error)) return 141;   // an explicit flush installs, but does not invalidate, completions
+        if (!c.wait_read(batch, error)) { std::printf("batch wait failed: %s\n", error.c_str()); return 135; }
+        if (c.slot_of(0, 0) < 0 || c.slot_of(0, 1) < 0) return 136;
+        std::vector<uint8_t> first(64, 0), second(64, 0);
+        if (!c.read_block(0, 0, first.data(), first.size(), error)) return 137;
+        if (!c.read_block(0, 4, second.data(), second.size(), error)) return 138;
+        if (first.front() != 0xc0 || second.front() != 0xc1) return 139;
+    }
+
     std::puts("kv coordinator: OK");
     return 0;
+}
+
+int main() {
+    try {
+        return test();
+    } catch (const std::exception& error) {
+        std::printf("kv coordinator: uncaught exception: %s\n", error.what());
+        return 101;
+    } catch (...) {
+        std::printf("kv coordinator: unknown exception\n");
+        return 140;
+    }
 }

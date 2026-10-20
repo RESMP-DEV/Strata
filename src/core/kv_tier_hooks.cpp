@@ -6,6 +6,7 @@
 #include "strata/kernels/kv_q8.hpp"
 #include "strata/kernels/kv_stream.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <set>
 
@@ -164,6 +165,7 @@ bool kv_tier_append(int32_t layer, const QsaState& st, const ModelGeometry& g, i
             return false;
         if (!coordinator->complete(layer, (int32_t) block, error)) return false;
     }
+    if (!coordinator->flush(error)) return false;
     return true;
 }
 
@@ -196,6 +198,7 @@ bool kv_tier_commit(int32_t layer, const QsaState& st, const ModelGeometry& g, i
             if (!coordinator->complete(layer, block_index, error)) return false;
         }
     }
+    if (!coordinator->flush(error)) return false;
     return true;
 }
 
@@ -232,11 +235,13 @@ bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, 
         if (!coordinator->read(layer, item.group, error)) return false;
         std::vector<uint8_t> block_bytes;
         block_bytes.resize((size_t) geometry.block_bytes);
-        const int32_t first_block = item.group * coordinator->blocks_per_group();
-        for (int32_t b = 0; b < coordinator->blocks_per_group(); ++b) {
-            if (!coordinator->read_block(layer, first_block + b, block_bytes.data(), geometry.block_bytes, error))
+        const int64_t first_block = (int64_t) item.group * coordinator->blocks_per_group();
+        const int64_t end_block =
+            std::min<int64_t>(geometry.blocks, first_block + coordinator->blocks_per_group());
+        for (int64_t block = first_block; block < end_block; ++block) {
+            if (!coordinator->read_block(layer, (int32_t) block, block_bytes.data(), geometry.block_bytes, error))
                 return false;
-            if (!scatter_block(runs, first_block + b, block_bytes, geometry.block_bytes, error)) return false;
+            if (!scatter_block(runs, block, block_bytes, geometry.block_bytes, error)) return false;
         }
         coordinator->note_engine_host_restore();
     }

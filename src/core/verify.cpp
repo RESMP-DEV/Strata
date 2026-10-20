@@ -3239,9 +3239,13 @@ bool Verifier::commit(int n_keep, std::string& err) {
         // exactly the split the architecture's graph-boundary rule asks for.
         std::vector<int32_t> selection;
         if (last_t_ > 0 && cap_ > 0 && n_qsa > 0) {
-            selection.resize((size_t) n_qsa * (size_t) last_t_ * (size_t) cap_, 0);
-            const size_t bytes = selection.size() * sizeof(int32_t);
-            if (cudaMemcpy(selection.data(), sel_, bytes, cudaMemcpyDeviceToHost) != cudaSuccess) {
+            const size_t row_words = (size_t) last_t_ * (size_t) cap_;
+            selection.resize((size_t) n_qsa * row_words, 0);
+            if (cudaMemcpy2D(selection.data(), row_words * sizeof(int32_t),
+                             selection_for(ss_->qsa_ord0, 0),
+                             (size_t) max_t_ * (size_t) cap_ * sizeof(int32_t),
+                             row_words * sizeof(int32_t), (size_t) n_qsa,
+                             cudaMemcpyDeviceToHost) != cudaSuccess) {
                 err = "verify: the KV tier could not read the selection";
                 return false;
             }

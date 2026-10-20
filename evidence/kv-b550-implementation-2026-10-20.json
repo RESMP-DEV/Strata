@@ -53,7 +53,7 @@
     "The asynchronous coordinator was a set of declarations with no implementation. It is now real: one serialized worker owns the store I/O, a read owns its L1 slot until its completion is consumed, a put owns an immutable snapshot rather than the evictable slot, a canceled operation never installs bytes, and the synchronous path stays the default.",
     "A segfault during the async work was a use-after-move of the shared job pointer, found with LLDB and repaired; the duplicate declarations the worker had introduced were removed.",
     "The repository's own B550 watcher had a defect that made it exit before its first probe: it stamped its log lines with GNU date -Is, which macOS rejects, and it now uses a portable format.",
-    "The acceptance harness hard-coded the designated device's model and serial swapped relative to the recorded receipt (the model is PHKS826300DP750BGN and the serial is ET000750KWJTF), and the harness's first unit-test run had four failures; both are corrected and the suite is green.",
+    "The acceptance harness hard-coded the designated device's model and serial swapped relative to the recorded receipt (the model is ET000750KWJTF and the serial is PHKS826300DP750BGN), and the harness's first unit-test run had four failures; both are corrected and the suite is green.",
     "The engine never printed the tier report the acceptance harness parses, so the harness could never have seen the counters it requires. The session now flushes and prints the report at shutdown, and the report carries the new engine_host_restores counter.",
     "An independent read-only worker reached the same two serving-boundary findings from its own trace of the same files, which cross-validates the parent audit."
   ],

@@ -359,7 +359,7 @@ def verify_identity(
             "lsblk",
             "-J",
             "-o",
-            "NAME,PATH,MODEL,SERIAL,SIZE,FSTYPE,MOUNTPOINTS",
+            "NAME,PATH,TYPE,MODEL,SERIAL,SIZE,FSTYPE,MOUNTPOINTS",
         ],
     )
     optane: dict[str, Any] | None = None
@@ -865,8 +865,8 @@ def _artifact_hashes(
     if hashed.passed:
         for line in hashed.stdout.splitlines():
             digest, separator, path = line.partition(" ")
-            if separator:
-                hashes[path.removeprefix("*")] = digest
+            if separator and len(path) >= 1 and path[0] in " *":
+                hashes[path[1:]] = digest
     harness.require(set(hashes) == set(files), "could not hash every engine/model/token artifact")
     return {
         "engine": engine,

@@ -184,7 +184,8 @@ uint64_t KvTierCoordinator::group_checksum(int32_t layer, int32_t group) const {
 
 bool KvTierCoordinator::rewind(std::string& error) {
     std::string async_error;
-    if (!drain_async_completions(async_error) && error.empty()) error = async_error;
+    const bool drained = drain_async_completions(async_error);
+    if (!drained && error.empty()) error = async_error;
     if (store_ != nullptr) {
         // The store's groups of the old epoch are invalidated BEFORE the epoch advances, so a stale group can
         // never be read as current data and the store's quota is not consumed by an epoch nobody may read.
@@ -205,7 +206,7 @@ bool KvTierCoordinator::rewind(std::string& error) {
     }
     completed_.clear();
     stamp_ = 0;
-    return true;
+    return drained;
 }
 
 bool KvTierCoordinator::reset(std::string& error) {
@@ -229,7 +230,10 @@ bool KvTierCoordinator::append(int32_t layer, int32_t block, std::string& error)
         error = "kv coordinator: no store is attached";
         return false;
     }
-    if (async_enabled_ && !drain_async_completions(error)) return false;
+    if (async_enabled_ && !group_io_ready(layer, block / options_.blocks_per_group)) {
+        error = "kv coordinator: the group still has background I/O in flight";
+        return false;
+    }
     const int32_t group = block / options_.blocks_per_group;
     const int32_t slot = slot_index(layer, group);
     if (slot < 0) {
@@ -259,7 +263,10 @@ bool KvTierCoordinator::write_block(int32_t layer, int32_t block, const void* da
         error = "kv coordinator: the block has no data";
         return false;
     }
-    if (async_enabled_ && !drain_async_completions(error)) return false;
+    if (async_enabled_ && !group_io_ready(layer, group_of(block))) {
+        error = "kv coordinator: the group still has background I/O in flight";
+        return false;
+    }
     const uint64_t want = block_bytes();
     if (bytes != want) {
         error = "kv coordinator: the block's size does not match the geometry";
@@ -292,7 +299,10 @@ bool KvTierCoordinator::read_block(int32_t layer, int32_t block, void* dst, uint
         error = "kv coordinator: the block has no destination";
         return false;
     }
-    if (async_enabled_ && !drain_async_completions(error)) return false;
+    if (async_enabled_ && !group_io_ready(layer, group_of(block))) {
+        error = "kv coordinator: the group still has background I/O in flight";
+        return false;
+    }
     if (bytes != want) {
         error = "kv coordinator: the block's size does not match the geometry";
         return false;
@@ -414,7 +424,7 @@ KvBlockKey KvTierCoordinator::operation_key(int32_t layer, int32_t group) const 
 
 bool KvTierCoordinator::has_pending_io_locked() const {
     for (const auto& [id, record] : operations_) {
-        if (record.state != KvAsyncState::kCanceled) return true;
+        if (record.state == KvAsyncState::kQueued || record.state == KvAsyncState::kRunning) return true;
     }
     return !queue_.empty();
 }
@@ -422,7 +432,7 @@ bool KvTierCoordinator::has_pending_io_locked() const {
 uint64_t KvTierCoordinator::pending_read_locked(int32_t layer, int32_t group) const {
     for (const auto& [id, record] : operations_) {
         if (record.layer == layer && record.group == group && record.kind == AsyncJob::Kind::kRead &&
-            record.state != KvAsyncState::kCanceled)
+            (record.state == KvAsyncState::kQueued || record.state == KvAsyncState::kRunning))
             return id;
     }
     return 0;
@@ -465,6 +475,7 @@ bool KvTierCoordinator::submit_group(int32_t layer, int32_t group, std::string& 
         error = "kv coordinator: the group still has pending I/O";
         return false;
     }
+    slots_[(size_t) slot].pins = 1;
     job->operation = next_operation_++;
     AsyncRecord record;
     record.kind = job->kind;
@@ -550,7 +561,10 @@ bool KvTierCoordinator::read(int32_t layer, int32_t group, std::string& error) {
         error = "kv coordinator: no store is attached";
         return false;
     }
-    if (async_enabled_ && !drain_async_completions(error)) return false;
+    if (async_enabled_ && !group_io_ready(layer, group)) {
+        error = "kv coordinator: the group still has background I/O in flight";
+        return false;
+    }
     const int32_t existing = slot_index(layer, group);
     if (existing >= 0) {
         ++counters_.l1_hits;
@@ -595,6 +609,9 @@ bool KvTierCoordinator::submit_read(KvReadBatch& batch, std::string& error) {
 
         const int32_t victim = victim_slot(error);
         if (victim < 0) return false;
+        if (slots_[(size_t) victim].group >= 0) ++counters_.l1_evictions;
+        clear_slot_locked(victim);
+        slots_[(size_t) victim].pins = 1;
         auto job = std::make_shared<AsyncJob>();
         job->kind = AsyncJob::Kind::kRead;
         job->layer = item.layer;
@@ -629,10 +646,12 @@ bool KvTierCoordinator::submit_read(KvReadBatch& batch, std::string& error) {
 
 bool KvTierCoordinator::wait_read(uint64_t operation, int32_t layer, int32_t group, std::string& error) {
     if (!wait(operation, error)) {
+        if (slot_index(layer, group) >= 0) return true;
         std::lock_guard<std::mutex> lock(io_mutex_);
         const auto failed = operations_.find(operation);
         if (failed != operations_.end()) {
             if (failed->second.kind == AsyncJob::Kind::kRead) ++counters_.l2_read_failures;
+            clear_slot_locked(failed->second.slot);
             operations_.erase(failed);
         }
         return false;
@@ -640,7 +659,8 @@ bool KvTierCoordinator::wait_read(uint64_t operation, int32_t layer, int32_t gro
     std::lock_guard<std::mutex> lock(io_mutex_);
     const auto it = operations_.find(operation);
     if (it == operations_.end()) {
-        error = "kv coordinator: the operation is unknown";
+        if (slot_index(layer, group) >= 0) return true;
+        error = "kv coordinator: the operation is unknown and its group is not ready";
         return false;
     }
     const int32_t slot = it->second.slot;
@@ -650,7 +670,6 @@ bool KvTierCoordinator::wait_read(uint64_t operation, int32_t layer, int32_t gro
         std::memcpy(slot_bytes_.data() + (size_t) slot * (size_t) bytes,
                     it->second.payload.data(), (size_t) bytes);
         KvL1Slot& entry = slots_[(size_t) slot];
-        if (entry.group >= 0 && (entry.layer != layer || entry.group != group)) ++counters_.l1_evictions;
         entry.layer = layer;
         entry.group = group;
         entry.epoch = epoch_;
@@ -752,7 +771,12 @@ bool KvTierCoordinator::drain_async_completions(std::string& error) {
                 ok = false;
             }
             if (record.kind == AsyncJob::Kind::kRead) ++counters_.l2_read_failures;
-            it = operations_.erase(it);
+            if (record.kind == AsyncJob::Kind::kRead) {
+                clear_slot_locked(record.slot);
+                ++it;
+            } else {
+                it = operations_.erase(it);
+            }
             continue;
         }
         if (record.state == KvAsyncState::kSucceeded && record.kind == AsyncJob::Kind::kRead) {
@@ -762,8 +786,6 @@ bool KvTierCoordinator::drain_async_completions(std::string& error) {
                 std::memcpy(slot_bytes_.data() + (size_t) record.slot * (size_t) bytes, record.payload.data(),
                             (size_t) bytes);
                 KvL1Slot& entry_slot = slots_[(size_t) record.slot];
-                if (entry_slot.group >= 0 && (entry_slot.layer != record.layer || entry_slot.group != record.group))
-                    ++counters_.l1_evictions;
                 entry_slot.layer = record.layer;
                 entry_slot.group = record.group;
                 entry_slot.epoch = epoch_;
@@ -787,7 +809,7 @@ bool KvTierCoordinator::drain_async_completions(std::string& error) {
             if (record.slot >= 0 && (size_t) record.slot < slots_.size())
                 slots_[(size_t) record.slot].pins = 0;
         }
-        if (record.state == KvAsyncState::kSucceeded) {
+        if (record.state == KvAsyncState::kSucceeded && record.kind == AsyncJob::Kind::kPut) {
             it = operations_.erase(it);
         } else {
             ++it;
@@ -798,7 +820,25 @@ bool KvTierCoordinator::drain_async_completions(std::string& error) {
 
 bool KvTierCoordinator::flush(std::string& error) {
     if (!async_enabled_) return true;
-    return drain_async_completions(error);
+    if (!drain_async_completions(error)) return false;
+    std::lock_guard<std::mutex> lock(io_mutex_);
+    bool ok = true;
+    for (auto it = operations_.begin(); it != operations_.end();) {
+        AsyncRecord& record = it->second;
+        if (record.kind != AsyncJob::Kind::kRead) {
+            ++it;
+            continue;
+        }
+        if (record.state == KvAsyncState::kFailed || record.state == KvAsyncState::kCanceled) {
+            if (ok) {
+                error = record.error.empty() ? "kv coordinator: a background read did not succeed" : record.error;
+                ok = false;
+            }
+            clear_slot_locked(record.slot);
+        }
+        it = operations_.erase(it);
+    }
+    return ok;
 }
 
 std::vector<KvBlockKey> KvTierCoordinator::published_keys() const { return published_; }

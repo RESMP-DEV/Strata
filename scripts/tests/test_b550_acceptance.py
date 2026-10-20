@@ -193,7 +193,7 @@ class RemoteSafetyTest(unittest.TestCase):
             if "cat > /tmp/request" in joined:
                 return completed(command)
             if "sha256sum" in joined:
-                return completed(command, stdout="a /engine\nb /model\nc /tokens\n")
+                return completed(command, stdout="a  /engine\nb  /model\nc  /tokens\n")
             if joined.endswith("cat -- /tmp/logpos-1"):
                 return completed(command, stdout="0\t2\t-1.0\t7\t-1.0\t1\n")
             if joined.endswith("cat -- /tmp/logpos-2"):
