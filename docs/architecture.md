@@ -1706,3 +1706,43 @@ will capture the host's uptime, its boot window, the previous boot's kernel
 errors, the Optane mount, the SMART state, and the GPU state on the first
 successful login. Full commands and non-claims are in
 [phase A evidence](../evidence/kv-coordinator-phase-a.json).
+
+### Disaggregated KV tiers merged, and the hardware gate still open, 2026-10-20
+
+The disaggregated KV work is merged. PR #10 brought in the v0.1.45 engine base
+and the upstream intake ledger, and PR #11 brought in the coordinator, the store
+ABI, the L2 file store, the L3 shared store, the read batch, the placement
+policy, the serving-path hooks, the graph-split proof, the failure-injection
+suite, and the live-model acceptance gate. The merged main is `b6927556`.
+
+CodeRabbit reviewed PR #11 and posted thirteen actionable findings. All
+thirteen were repaired and answered with the repair evidence, and its re-review
+posted no new findings. The findings were real, and the most serious were that
+the tier hooks ran inside the captured graph rather than at a host boundary, and
+that the resolve hook read a device-resident selection from the host. The cold
+read sent the checksum of the L1 slot rather than the checksum of the group it
+published, so every shared-store cold read failed; the regression test for that
+one fails on the old code and passes on the new. The file store's group
+directory held only 102 entries, far below what the 600K target needs.
+
+Six OpenCodeReview profiles ran against the PR and none posted a finding, for
+infrastructure reasons: two failed with agent errors and three have been
+looping on a checkpoint fingerprint mismatch with empty attempt logs. Under the
+review policy these are `deferred/skipped-unavailable`: not approvals, not
+waivers, and not merge gates.
+
+The hardware gate is still open. The B550 did not come back after the reboot.
+The main machine's own LAN moved to a different subnet, so the home network
+that holds the B550 and the Strix is unreachable from here, and the B550's
+ZeroTier node appeared three times as a relay peer and never carried traffic.
+A persistent watcher with both lanes is running and will capture the host's
+uptime, its boot window, the previous boot's kernel errors, the Optane mount,
+the SMART state, and the GPU state on the first successful login. That capture
+is what will answer what happened in the previous session's IO errors.
+
+Until the host answers, the following remain unrun and unclaimed: the CUDA
+sm86 build, the SM86 identity gate, the matched NLL control, the forced cold
+reads, the 600K and 800K scale gates, and any measurement of the cold tier's
+benefit. Full evidence is in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json) and
+[B550 reachability evidence](../evidence/b550-reachability-2026-10-20.json).
