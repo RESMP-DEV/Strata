@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-10-20T08:25:00Z",
+  "recorded_at": "2026-10-20T08:35:00Z",
   "agent": "Codex",
-  "source_revision": "0b8c6f137e42c9c0712578f2ac644f7c7d780264",
+  "source_revision": "69950fef2b6ac7e52b2ff50b70b6f47ccc8ac38f",
   "source_dirty": false,
   "scope": "Records the build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, the read batch, the L3 Mooncake-compatible shared store, the placement policy and its matched control, the serving-path append, resolve, and token-path hooks behind an opt-in switch, and the graph-split proof. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
   "checks": [
@@ -19,6 +19,11 @@
       "command": "c++ -std=c++17 -Wall -Wextra -Iinclude -fsyntax-only src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp",
       "exit": 0,
       "result": "all the KV tier's host sources compile clean with warnings enabled, and the engine links them through one static library so the tests exercise the same objects the engine runs"
+    },
+    {
+      "command": "preprocess the file store with STRATA_KV_FILE_STORE_POSIX forced to 0 and search the output for POSIX calls",
+      "exit": 0,
+      "result": "no ::pread, ::pwrite, ::ftruncate, ::fsync, ::close, ::open, or ::lseek call survives in the Windows branch, and the platform refusal is present"
     }
   ],
   "findings": [
@@ -33,13 +38,15 @@
     "The shared store keeps the semantic boundary in the right place: Strata owns the key, the geometry, the format, the layer, the group, the epoch, the checksum, and the quota, and the transport carries opaque bytes under a key it does not parse. The epoch is part of the object key, so a rewind's bytes are a different object and cannot be served as current data.",
     "The placement policy ships with the matched control that a promotion needs: the same workload, the same cache size, and the same pattern with only the policy differing. A control that a policy wins against itself is a broken control, and the test refuses that case.",
     "CodeRabbit's review found nine real defects in the first cut of this work, and every one was repaired: the hooks ran inside the captured graph (so they fired once per capture instead of once per window) and the resolve hook read the device-resident selection from the host, which faults; the commit hook completed blocks without writing their bytes, so a group was published with another group's payload; the cold read sent the checksum of the L1 slot instead of the checksum of the group it published, so every shared-store cold read failed; a rewind did not invalidate the old epoch's keys in the store, so the shared pool's quota leaked; the file store's group directory had room for 102 entries, so a later group's entry landed in an earlier group's payload; the file store reused a file without checking the header's own checksum, its layer, or its offsets; the store's session identity did not match the coordinators', so every publish was refused; the shared store's quota count moved before the transport write succeeded, so a failed write made the count wrap; and the placement policy's frequency tie-break compared a timestamp with a read count.",
-    "The cold-read checksum bug is now covered by a regression test that fails on the old code: the two groups hold different bytes, so a checksum taken from the L1 slot cannot pass the store's verification."
+    "The cold-read checksum bug is now covered by a regression test that fails on the old code: the two groups hold different bytes, so a checksum taken from the L1 slot cannot pass the store's verification.",
+    "CodeRabbit's second pass found that the first Windows fix was incomplete: guarding only the store's open() left the other method bodies compiling POSIX calls. The whole implementation is now behind one macro, and the Windows branch was verified by preprocessing it and searching the output, which is a check that runs on this host and does not need a Windows build."
   ],
   "non_claims": [
     "No KV byte has moved between tiers in a real engine: the store under test is the local file store, exercised without a model.",
     "The serving-path hooks are compiled but have never run against a model. The CUDA build, the identity gate, the NLL control, and the 600K/800K gates are all outstanding.",
     "No CUDA backend was compiled and no performance, latency, or context figure is claimed.",
     "B550 was unreachable on both the LAN and ZeroTier paths for the whole session. Its ZeroTier node appeared once as a relay peer and then left the peer list again, so no hardware acceptance gate ran.",
-    "The hooks have still never run against a model. The graph-split counters now count host boundaries rather than captures, but they have not been observed on real hardware."
+    "The hooks have still never run against a model. The graph-split counters now count host boundaries rather than captures, but they have not been observed on real hardware.",
+    "The Windows branch was verified by preprocessing and inspecting the output, not by a native Windows build. A Windows compiler was not available on this host."
   ]
 }
