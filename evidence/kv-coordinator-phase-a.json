@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-10-20T07:56:25Z",
+  "recorded_at": "2026-10-20T08:25:00Z",
   "agent": "Codex",
-  "source_revision": "801e3a4a00000000000000000000000000000000",
+  "source_revision": "0b8c6f137e42c9c0712578f2ac644f7c7d780264",
   "source_dirty": false,
   "scope": "Records the build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, the read batch, the L3 Mooncake-compatible shared store, the placement policy and its matched control, the serving-path append, resolve, and token-path hooks behind an opt-in switch, and the graph-split proof. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
   "checks": [
@@ -31,13 +31,15 @@
     "The token path runs inside a CAPTURED graph and cannot do host I/O, so the token path's publish belongs at the commit boundary, where the window's writes have become host-visible. The same coordinator that serves the window publishes the tokens, so there is one policy rather than a second implicit path.",
     "The selection's cells are collected into one read batch and deduplicated by group, so a token that names hundreds of blocks issues one request per GROUP rather than one per block. The batch statistics report both the requested and the deduplicated counts.",
     "The shared store keeps the semantic boundary in the right place: Strata owns the key, the geometry, the format, the layer, the group, the epoch, the checksum, and the quota, and the transport carries opaque bytes under a key it does not parse. The epoch is part of the object key, so a rewind's bytes are a different object and cannot be served as current data.",
-    "The placement policy ships with the matched control that a promotion needs: the same workload, the same cache size, and the same pattern with only the policy differing. A control that a policy wins against itself is a broken control, and the test refuses that case."
+    "The placement policy ships with the matched control that a promotion needs: the same workload, the same cache size, and the same pattern with only the policy differing. A control that a policy wins against itself is a broken control, and the test refuses that case.",
+    "CodeRabbit's review found nine real defects in the first cut of this work, and every one was repaired: the hooks ran inside the captured graph (so they fired once per capture instead of once per window) and the resolve hook read the device-resident selection from the host, which faults; the commit hook completed blocks without writing their bytes, so a group was published with another group's payload; the cold read sent the checksum of the L1 slot instead of the checksum of the group it published, so every shared-store cold read failed; a rewind did not invalidate the old epoch's keys in the store, so the shared pool's quota leaked; the file store's group directory had room for 102 entries, so a later group's entry landed in an earlier group's payload; the file store reused a file without checking the header's own checksum, its layer, or its offsets; the store's session identity did not match the coordinators', so every publish was refused; the shared store's quota count moved before the transport write succeeded, so a failed write made the count wrap; and the placement policy's frequency tie-break compared a timestamp with a read count.",
+    "The cold-read checksum bug is now covered by a regression test that fails on the old code: the two groups hold different bytes, so a checksum taken from the L1 slot cannot pass the store's verification."
   ],
   "non_claims": [
     "No KV byte has moved between tiers in a real engine: the store under test is the local file store, exercised without a model.",
     "The serving-path hooks are compiled but have never run against a model. The CUDA build, the identity gate, the NLL control, and the 600K/800K gates are all outstanding.",
     "No CUDA backend was compiled and no performance, latency, or context figure is claimed.",
-    "The captured-window phase counters, the read-batch statistics, and the cold-read counters are implemented and unit tested, but no captured window has run yet, so the graph-split proof has not been observed on real hardware.",
-    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session. Its ZeroTier node appeared once as a relay peer and then left the peer list again, so no hardware acceptance gate ran."
+    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session. Its ZeroTier node appeared once as a relay peer and then left the peer list again, so no hardware acceptance gate ran.",
+    "The hooks have still never run against a model. The graph-split counters now count host boundaries rather than captures, but they have not been observed on real hardware."
   ]
 }
