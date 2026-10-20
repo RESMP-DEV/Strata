@@ -1932,10 +1932,20 @@ endpoint `127.0.0.1:1236` is unchanged. The two B550 units
 `sindexer-embed-gpu@0.service` and `sindexer-embed-gpu@1.service` are disabled
 and stopped, and the now-dead nginx balancer on B550's port 1238 is retired.
 B550's unrelated CPU embedding service was left alone. The measured embedding
-parity is a cosine similarity of 0.999916 over 1,536 dimensions, and the warm
-single-request latency is about 32 ms on Strix against about 86 ms on B550's
-two-GPU balancer. The Strix unit was not proven to survive a reboot of that
-host, and no indexer throughput was measured. The full receipt is
+parity is a cosine similarity of 0.999916 over 1,536 dimensions.
+
+The purpose of the move is not indexing speed. Indexing speed is not a problem
+at this concurrency and is not an optimization target: the service answers a
+small number of embedding requests for the code index, and a single request is
+about 32 ms on Strix against about 86 ms on B550's balancer, with neither a
+bottleneck. A single-concurrency comparison of the two hosts is expected to be
+slower on the split arrangement, because the pieces now live in different
+places for the use case. The move exists to free B550's two GPUs for model
+work, and the use case it serves is many agents accessing one served model with
+a mix of cache hits and cache misses that the KV tier can be optimized against.
+
+The Strix unit was not proven to survive a reboot of that host, and no indexer
+throughput was measured. The full receipt is
 [the indexing migration evidence](../evidence/indexing-migration-to-strix-2026-10-20.json).
 
 Getting there needed the identity rule to be repaired first. The host's

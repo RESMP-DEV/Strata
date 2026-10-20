@@ -1,7 +1,7 @@
 {
   "recorded_at": "2026-10-20T10:45:00Z",
   "agent": "Codex parent",
-  "scope": "Records the migration of the S-indexer Jina MXFP4 embedding service from the B550's two RTX 3090 Ti cards to the Strix laptop's RTX 5070, the local consumer cutover, the retirement of the B550 GPU units, and the measured parity and latency of the new path. It does not claim that the B550's cold KV tier is faster, and it does not measure the indexer's throughput at scale.",
+  "scope": "Records the migration of the S-indexer Jina MXFP4 embedding service from the B550's two RTX 3090 Ti cards to the Strix laptop's RTX 5070, the local consumer cutover, the retirement of the B550 GPU units, and the measured parity of the new path. The purpose of the move is to free B550's GPUs for model work, not to make indexing faster: at this concurrency indexing speed is not a problem and is not an optimization target. It does not claim a storage, KV-tier, or serving performance result.",
   "identity": {
     "b550": {
       "hostname": "b550",
@@ -79,7 +79,7 @@
       31.39
     ],
     "strix_through_the_local_tunnel": 42.05,
-    "note": "Single request, same text, warm model. The B550 figures are the two-GPU nginx balancer; the Strix figures are one GPU. This is a latency observation on one request shape, not a throughput benchmark."
+    "note": "Single request, same text, warm model. These are recorded for completeness, not as a claim: indexing speed is not a problem at this concurrency, and the split arrangement is expected to be slower under a single concurrency than the colocated one was."
   },
   "consumer_path_proof": {
     "command": "sindexer search /Users/kearm/Strata 'KV tier coordinator cold group restore' --limit 3",
@@ -119,10 +119,16 @@
     }
   ],
   "non_claims": [
-    "No indexer throughput, batch, or scale measurement was made; the latency figures are single warm requests.",
+    "No indexer throughput, batch, or scale measurement was made. The latency figures are single warm requests and are not a performance claim.",
+    "No speed improvement is claimed for the move. Its purpose is to free B550's GPUs.",
     "The embedding parity is a cosine similarity over one probe text, not a distributional equivalence proof.",
-    "The B550's CPU llama-embedding service was not moved, tested, or altered.",
-    "No B550 KV-tier performance was measured in this receipt.",
+    "The B550 CPU llama-embedding service was not moved, tested, or altered.",
+    "No B550 KV-tier or serving performance was measured in this receipt.",
     "The Strix service is a new systemd unit; it was not proven to survive a reboot of the Strix host."
-  ]
+  ],
+  "purpose": {
+    "why_the_service_moved": "B550's two GPUs are the fleet's model-execution hardware. Holding the embedding service on them blocked the cold-KV acceptance gate, which refuses to measure a model on a contended card. The move frees both cards for model work.",
+    "what_was_not_the_goal": "Indexing speed. The service answers a small number of embedding requests for the code index; a single request is about 32 ms on Strix against about 86 ms on B550's balancer, and neither is a bottleneck. A single-concurrency comparison of the two hosts is also expected to be slower on the split arrangement, because the pieces now live in different places for the multi-agent use case.",
+    "the_use_case_it_serves": "Many agents accessing one served model, with a mix of cache hits and cache misses that the KV tier can be optimized against. That is a serving workload, not an indexing one."
+  }
 }
