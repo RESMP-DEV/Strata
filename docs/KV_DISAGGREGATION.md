@@ -103,6 +103,24 @@ Strata still owns the QSA block key, page geometry, format fingerprint,
 residency ordering, and validation. Mooncake treats KV bytes as opaque values,
 which is the correct boundary for an adapter.
 
+### What the imported engine already provides
+
+The v0.1.45 engine already implements the L0 and L1 tiers for a streamed QSA
+layer: the authoritative K/V lives in pinned, device-mapped host memory, VRAM
+holds a bounded pool of page slots, and `kv_stream_resolve` makes the blocks
+named by a selection resident with a device-side CLOCK sweep before the
+attention runs. The coordinator does not replace that machinery. It owns:
+
+- the L1 admission and eviction decision for the group granularity the store
+  uses, above the page granularity the device map uses;
+- the L2 and L3 store, the epoch rules, and the readiness contract;
+- the counters that prove a cold read happened.
+
+The device-side residency map remains the L0/L1 mechanism. A group is composed
+of the pages the map already resolves, so the coordinator's group and the
+engine's page must have one documented relationship, and the group's payload
+is exactly the pages it contains in layout order.
+
 ## Block identity
 
 A logical key names one immutable group:
@@ -484,6 +502,23 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | NVMe latency dominates decode | GPU-wait metric and foreground/prefetch separation |
 | Filesystem dirty state loses metadata | Clean unmount and `fsck.exfat -n` procedure |
 | Smaller KV format hides a correctness bug | Format parameter included in parity and live controls |
+
+## Implementation status
+
+| Ticket | State | Evidence |
+| --- | --- | --- |
+| K1 `KvBlockStore` ABI and reference store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K2 `KvTierCoordinator` state machine and epoch keys | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K3 serving append boundary | not started | - |
+| K4 serving read-plan boundary | not started | - |
+| K5 shared token and prompt path hooks | not started | - |
+| K6 graph split proof | not started | - |
+
+The coordinator is not wired into the engine. Its current contract is the
+state machine alone: a whole group is published as one store put, a partial
+group is never published, the tail is pinned, a rewind advances the epoch so
+the old bytes are unreachable, a checksum mismatch is a refusal, and a cold
+read counter moves when the read is issued.
 
 ## Current prototype status
 

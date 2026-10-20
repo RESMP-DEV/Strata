@@ -1,0 +1,35 @@
+{
+  "recorded_at": "2026-10-20T07:36:01Z",
+  "agent": "Codex",
+  "source_revision": "c876b0ec62e8a7c0b72643d80d5dd923aafbfbc1",
+  "source_dirty": false,
+  "scope": "Records the first Phase A slice of the disaggregated KV work: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, and their host contract test. It does not touch the serving path, move any KV byte to a cold tier, compile CUDA, run a model, or measure performance.",
+  "checks": [
+    {
+      "command": "c++ -std=c++17 -Wall -Wextra -Iinclude src/core/kv_coordinator.cpp src/core/kv_coordinator_test.cpp -o build/kv-coord-test && ./build/kv-coord-test",
+      "exit": 0,
+      "result": "kv coordinator: OK; nine contract cases pass"
+    },
+    {
+      "command": "cmake --build build/kv-coordinator-check --target kv_coordinator_test && ctest --test-dir build/kv-coordinator-check -R ^kv_coordinator_test$ --output-on-failure",
+      "exit": 0,
+      "result": "1/1 test passed through the project's CMake target"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed=true; the new kv-coordinator check is part of the gate; receipt build/reports/quality/receipt.json"
+    }
+  ],
+  "findings": [
+    "The imported v0.1.45 engine already implements the L0 and L1 tiers: a streamed QSA layer keeps its authoritative K/V in pinned device-mapped host memory, VRAM holds a bounded pool of page slots, and kv_stream_resolve makes the selected blocks resident with a CLOCK sweep on device. The coordinator therefore owns L1 admission, the store, and the epoch rules, and the device-side residency map stays the L0/L1 mechanism rather than something the coordinator reimplements.",
+    "The quarantined prototype's completion bitmap was indexed by the block inside its group, so two groups of the same layer shared a flag. The new coordinator indexes by the block itself.",
+    "A cold-read counter that only moves on success cannot prove a foreground cold read happened when the read is refused. The counter moves when the read is issued, and a separate failure counter records the refusals."
+  ],
+  "non_claims": [
+    "No KV byte has moved between tiers; the store under test is an in-memory reference implementation.",
+    "The coordinator is not wired into verify.cpp yet: the serving append, selection, and resolve boundaries are unchanged.",
+    "No CUDA backend was compiled, no model was run, and no NLL, perplexity, throughput, or latency figure is claimed.",
+    "B550 was unreachable on both the LAN and ZeroTier paths for the whole session, so no hardware acceptance gate was run."
+  ]
+}

@@ -1586,3 +1586,40 @@ packaging, protocol, monitor, browser, picture-reader, or release changes
 rather than B550 engine performance inputs. Full commit clusters, controls, and
 the B550 reachability blocker are recorded in
 [upstream intake evidence](../evidence/upstream-v0145-performance-intake.json).
+
+### Disaggregated KV coordinator, Phase A slice, 2026-10-20
+
+The merged v0.1.45 base changes one premise of the disaggregated KV plan. The
+imported engine already implements the L0 and L1 tiers for a streamed QSA
+layer: the authoritative K/V is in pinned, device-mapped host memory, VRAM
+holds a bounded pool of page slots, and `kv_stream_resolve` makes the selected
+blocks resident with a device-side CLOCK sweep before the attention runs. The
+coordinator therefore does not reimplement residency. It owns the store, the
+epoch rules, the readiness contract, and the counters that prove a cold read
+happened. The device map stays the L0/L1 mechanism, and the group-to-page
+relationship must be documented and tested so the two granularities cannot
+drift.
+
+The first slice is now implemented on `feature/kv-coordinator-v2`: the
+`KvBlockStore` ABI with an in-memory reference store, the block identity with
+epoch rules, and the `KvTierCoordinator` state machine, with nine host contract
+cases. The contract that is enforced today is: a whole group is published as
+one store put, a partial group is never published, the open tail is pinned and
+never evicted, a rewind advances the epoch so the old bytes are unreachable, a
+reset invalidates the store's groups, a checksum mismatch is a refusal rather
+than a zero fill, and two coordinators with different stage or slot scopes
+never share state.
+
+Two defects were found by those tests rather than by a model run. The
+quarantined prototype indexed its completion bitmap by the block inside its
+group, so two groups of the same layer shared a flag; the new coordinator
+indexes by the block itself. And a cold-read counter that moved only on success
+could not prove a foreground cold read when the read was refused, so the
+counter now moves when the read is issued and a separate counter records the
+refusals.
+
+The coordinator is not wired into the engine yet. The serving append, selection,
+and resolve boundaries in `verify.cpp` are unchanged, and no KV byte has moved
+between tiers. The host gate now includes the coordinator's contract test.
+Full commands and non-claims are in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json).
