@@ -17,7 +17,15 @@
     "b550_working_combination": "transformers 5.17.0, kernels 0.16.0, torch 2.14.1, triton 3.8.0",
     "strix_probe_venv": "/home/kearm/.probe-mxfp4-sm120 (transformers 5.17.0, kernels 0.16.0, torch 2.14.1+cu130, triton 3.8.0, fastapi, uvicorn, pydantic)",
     "version_constraint_found": "transformers 5.20.2 requires kernels >= 0.17.2 (different package layout: load.py/importer.py, no kernels.utils). Strix was aligned to the B550-proven transformers 5.17.0 + kernels 0.16.0 instead.",
-    "hf_token_issue": "Strix carries the same invalid HF token as B550 (~/.cache/huggingface/token, 825 bytes, Oct 5): hf auth whoami reports 'Invalid user token'. The embedder is launched with HF_HUB_DISABLE_IMPLICIT_TOKEN=1 so the kernels publisher-trust check runs anonymously (the org-overview endpoint returns 200 anonymously, 401 with the token). The credential file was not modified."
+    "hf_token_issue": "Strix carries the same invalid HF token as B550 (~/.cache/huggingface/token, 825 bytes, Oct 5): hf auth whoami reports 'Invalid user token'. The embedder is launched with HF_HUB_DISABLE_IMPLICIT_TOKEN=1 so the kernels publisher-trust check runs anonymously. The credential file was not modified.",
+    "token_diagnostics": {
+      "anonymous_org_overview": "HTTP 200",
+      "stored_token_org_overview": "HTTP 401 Unauthorized",
+      "hf_whoami": "Invalid user token",
+      "expiry_vs_revocation_vs_malformation": "not distinguished",
+      "root_cause_reference": "evidence/qwen-b550-concurrency-fallback.json service_incident_and_fix",
+      "status": "worked around with HF_HUB_DISABLE_IMPLICIT_TOKEN=1; not fixed"
+    }
   },
   "artifacts_placed_on_strix": [
     "/home/kearm/services/rust-indexer/models/jina-code-mxfp4-a328a7f/ (1.1GB; model.safetensors 1163135216 bytes, transferred B550 -> Mac -> Strix because this Mac's rsync is openrsync 2.6.9 and cannot do remote-to-remote)",
@@ -36,12 +44,14 @@
       "single_request_s": 0.036,
       "batch32_items_per_s": 15.9,
       "note": "direct :1236 on Strix; 2.25x lower single-request latency than the B550 GPU path, about 11.5x lower bulk throughput; 1324 MiB VRAM resident",
-      "path": "measured direct on Strix :1236"
+      "path": "measured direct on Strix :1236",
+      "provenance": "freshly measured in this session on Strix"
     },
     "b550_cpu_qwen3_0_6b_q8_1024dim": {
       "single_request_s": 0.02,
       "batch32_items_per_s": 38.8,
-      "note": "always-on llama.cpp on :1235; a DIFFERENT model and dimensionality, so not drop-in interchangeable with the 1536-dim collection without a reindex"
+      "note": "always-on llama.cpp on :1235; a DIFFERENT model and dimensionality, so not drop-in interchangeable with the 1536-dim collection without a reindex",
+      "provenance": "reused from evidence/qwen-b550-concurrency-fallback.json (measured 2026-10-19T23:07Z in that session), not re-measured in this session"
     },
     "tier_role": "Strix fits the interactive/low-volume slot (lowest GPU-path latency) and can host the exact 1536-dim MXFP4 model, which the CPU embedder cannot. B550's 3090 Ti remains the bulk-throughput tier.",
     "path_asymmetry_note": "The 2.25x single-request latency ratio compares the B550 balancer path (:1238) with the direct Strix path (:1236), so it is not a GPU-only comparison."
