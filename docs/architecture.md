@@ -1382,19 +1382,19 @@ GiB RAM plus swap. Sharing the 32.23 GiB CPU expert arena through
 hash check, but measured 104.79 tok/s; duplicate RAM was not the primary
 bottleneck.
 
-For exactly two short agent requests, the better topology-aware policy is to
+For the measured exact short-prompt shape, the better topology-aware policy is to
 avoid batch slots and queue serially on the two-GPU split-30 solo/MTP path. An
 exact repeated binary-search pair completed ten requests at 222.53 aggregate
 tok/s with 252.6 tok/s median decode; one request returned in about 0.42-0.44 s
 and its queued peer in about 0.83-0.88 s. The same varied-prompt driver that
-showed the C=2 batch loss measured split-30 solo-class C=1 at 137.49 tok/s
-against 106.29 tok/s for split-30 C=2, so the direction is consistent even
-though the exact-prompt 222.53 figure is not a same-workload substitute for
-127.02. The operational recommendation is serial split-30 queueing for
-concurrency <=2 and short tool calls, with batch slots reserved for more than
-two concurrent conversations where fairness outweighs total latency. A future
-engine improvement would need topology-aware batch MTP across a layer split;
-the current `--batch-mtp` implementation is explicitly one-GPU-only.
+showed the C=2 batch loss measured split-30 C=1 at 137.49 tok/s against
+106.29 tok/s for split-30 C=2, but it did not measure two varied requests queued
+serially, so it is not a serial-C=2 control. The measured recommendation is
+limited to the exact short-prompt shape; a varied-prompt serial C=2 control and
+longer prompts remain open. Batch slots remain the fairness mode when avoiding
+queue wait across more conversations matters more than aggregate latency. A
+future engine improvement would need topology-aware batch MTP across a layer
+split; the current `--batch-mtp` implementation is explicitly one-GPU-only.
 
 The refreshed Hugging Face credential was copied from the Mac to B550 and Strix
 with mode 0600. Both report `user=Kearm`; B550's anonymous-token drop-in was

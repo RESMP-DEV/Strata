@@ -8,8 +8,8 @@
   "question_answer": {
     "is_c2_slower_overall": "Yes for the built-in batch path. The topology-aware default (auto K=24, --batch-groups auto) fell from 142.66 aggregate tok/s at C=1 to 127.02 at C=2, a 10.95 percent aggregate loss. Per-request decode median fell from 176.6 to 75.65 tok/s.",
     "best_builtin_c2": "Auto K=24 with --batch-groups auto. One shared group, split-30 grouping, and per-GPU process sharding were all slower.",
-    "better_topology_aware_fallback": "For exactly two short requests, do not use batch slots: keep the split-30 two-GPU solo/MTP path and queue the requests serially. An exact binary-search prompt pair completed ten requests at 222.53 aggregate tok/s with 252.6 tok/s median per-request decode. First-request wall was about 0.42-0.44 s and second-request wall about 0.83-0.88 s.",
-    "comparison_caveat": "The 222.53 figure uses the exact repeated binary-search prompt and 94-token completions. The varied-prompt driver measured split-30 solo/serial-class C=1 at 137.49 aggregate tok/s against 106.29 for split-30 C=2 batch slots. The direction is consistent under both workload styles, but 222.53 is not a same-prompt-family comparison to 127.02."
+    "better_topology_aware_fallback": "For the measured exact short binary-search prompt pair, do not use batch slots: keep the split-30 two-GPU solo/MTP path and queue requests serially. Ten requests completed at 222.53 aggregate tok/s with 252.6 tok/s median per-request decode. First-request wall was about 0.42-0.44 s and second-request wall about 0.83-0.88 s.",
+    "comparison_caveat": "The 222.53 figure uses the exact repeated binary-search prompt and 94-token completions. It is not directly comparable to the varied-prompt C=2 batch result of 127.02 tok/s. The varied-prompt driver measured split-30 C=1 at 137.49 and split-30 C=2 batch at 106.29, but it did not measure two varied requests queued serially; that serial C=2 control remains unmeasured."
   },
   "measurements": {
     "same_driver_varied_prompts": [
@@ -30,9 +30,23 @@
     }
   },
   "interpretation": {
-    "builtin_batch_penalty": "The topology-aware two-group pipeline is already the best built-in C=2 mode. It cannot preserve the solo MTP path: batch-slot requests lose the solo draft behavior/reporting and each verify window carries one token per conversation, so per-request decode falls even though both cards remain busy.",
+    "builtin_batch_penalty": "The topology-aware two-group pipeline is already the best built-in C=2 mode. Batch-slot requests do not report the solo path's draft counters and each verify window carries one token per conversation, so per-request decode falls even though both cards remain busy. Whether drafts run inside batch slots remains unconfirmed.",
     "why_process_sharding_does_not_help": "One full model per card leaves only about 13.7k of 24.6k experts resident per GPU and competes for CPU/RAM. Sharing the 32.23 GiB CPU arena removes duplication but does not improve throughput (104.79 versus 109.11 tok/s), so the bottleneck is not merely duplicate RAM.",
-    "recommendation": "Use split-30 two-GPU serial queueing for an agent fallback tier at concurrency <=2, especially short tool calls. Enable batch slots only when fairness across more than two longer concurrent conversations matters more than total latency. A future engine optimization would need topology-aware batch MTP across a layer split; current --batch-mtp is explicitly one-GPU-only."
+    "recommendation": "For the measured exact short-prompt shape, use split-30 two-GPU serial queueing at concurrency <=2. Treat the broader agent-tier policy as provisional until a varied-prompt serial C=2 control and longer-prompt tests run. Enable batch slots when fairness across more than two concurrent conversations matters more than total latency. A future engine optimization would need topology-aware batch MTP across a layer split; current --batch-mtp is explicitly one-GPU-only."
+  },
+  "hardware_and_model": {
+    "host": "B550 alias 192.168.1.171, hostname b550, kernel 7.0.0-38-generic",
+    "gpus": [
+      {"index": 0, "name": "NVIDIA GeForce RTX 3090 Ti", "pci_bus_id": "00000000:04:00.0", "link": "Gen3 x4, about 2.9 GB/s"},
+      {"index": 1, "name": "NVIDIA GeForce RTX 3090 Ti", "pci_bus_id": "00000000:08:00.0", "link": "Gen4 x16, about 25.4 GB/s"}
+    ],
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
+    "remote_source_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "model": "z-lab-Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix calibrated split artifact",
+    "student_model_sha256": "c90e0fc65dddbe4107b1b417d771c3be188c87197e89cf4b14415f56abc866f0",
+    "mtp_runtime": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-bf16/rt",
+    "cache_state": "Each arm used a fresh engine and server. The foreign-process guard required zero GPU compute apps before load. Embedding replicas were stopped. The first expert fill could read cold from disk (about 6.1 s); later same-artifact loads used the warm OS file cache (about 0.8-0.9 s). Every request arm discarded one warm-up. Prompt caches reused 18 of 25 tokens on repeat requests as reported by the engine."
   },
   "credentials_and_host_incident": {
     "hf_token_refresh": "The valid Mac token was copied to B550 and Strix with mode 0600. hf auth whoami reports user Kearm on both. The B550 hf-anon-trust.conf drop-in was removed, daemon-reloaded, and both embedding units restarted successfully; :1238 returned a 1536-dim embedding. Strix's standalone embedder was also restarted without the anonymous workaround and returned a 1536-dim embedding.",
@@ -41,10 +55,13 @@
   },
   "checks": [
     {"name": "foreign-gpu-guard", "command": "nvidia-smi --query-compute-apps=pid --format=csv,noheader | wc -l", "exit": 0, "result": "zero foreign apps before each GPU window; abort on nonzero count"},
-    {"name": "c2-topology-arms", "command": "serve four --batch 2 configurations and run conc_driver.py at C=1 and C=2, five rounds each after warm-up", "exit": 0},
-    {"name": "process-shard-arms", "command": "serve one single-GPU model per card with duplicated arenas, then with --shared-expert-arena /dev/shm/strata-qwen-iq2xs-shared-arena", "exit": 0},
-    {"name": "serial-queue-arm", "command": "serve two-GPU split-30 without batch slots; submit two requests concurrently to one endpoint and let the server queue them", "exit": 0},
-    {"name": "restore-embeddings", "command": "restart sindexer-embed-gpu@0/@1 and query :1238 /v1/embeddings after each window", "exit": 0, "result": "active/active and 1536-dim response"},
+      {"name": "c2-server-launch", "command": "cd /home/kearm/strata-main && setsid /home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/c2-{auto-gauto,auto-g1,split30-gauto,split30-g1}-server.json --host 127.0.0.1 --port {18300,18301,18302,18303}", "exit": 0},
+      {"name": "c1_c2_driver", "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/qwen-iq2xs-calibrated/conc_driver.py --url http://127.0.0.1:{port}/v1/chat/completions --model {arm-model} --concurrency {1,2} --rounds 5 --max-tokens 128 --warm 1", "exit": 0},
+      {"name": "process-shard-servers-duplicated-arenas", "command": "cd /home/kearm/strata-main && setsid /home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/shard-gpu{0,1}-server.json --host 127.0.0.1 --port {18400,18401}", "exit": 0},
+      {"name": "process-shard-servers-shared-arena", "command": "cd /home/kearm/strata-main && setsid /home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/shared-gpu{0,1}-server.json --host 127.0.0.1 --port {18500,18501}", "exit": 0},
+      {"name": "pair-driver", "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/qwen-iq2xs-calibrated/pair_driver.py URL0 URL1 MODEL0 MODEL1", "exit": 0, "result": "one warm-up per URL then five paired rounds; for the serial arm URL0 and URL1 were the same split-30 endpoint"},
+      {"name": "serial-queue-server", "command": "cd /home/kearm/strata-main && setsid /home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/qwen-iq2xs-calibrated/split30-server.json --host 127.0.0.1 --port 18600", "exit": 0},
+      {"name": "restore-embeddings", "command": "sudo -n systemctl restart sindexer-embed-gpu@0.service sindexer-embed-gpu@1.service && curl -fsS http://127.0.0.1:1238/v1/embeddings -H 'Content-Type: application/json' -d '{\"input\":\"probe\",\"model\":\"jina-code-embeddings-1.5b-block-gptq-mxfp4-32k\"}'", "exit": 0, "result": "active/active and 1536-dim response"},
     {"name": "quality", "command": "just quality", "exit": 0, "result": "all required domains passed"}
   ],
   "raw_evidence": {
