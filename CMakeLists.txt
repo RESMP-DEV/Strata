@@ -313,6 +313,11 @@ if(STRATA_BUILD_TESTS)
   add_executable(kv_placement_test src/core/kv_placement_test.cpp)
   target_link_libraries(kv_placement_test PRIVATE strata_kv_tier)
   add_test(NAME kv_placement_test COMMAND kv_placement_test)
+  # the failure injection the acceptance gates require: an I/O error, a short read, a checksum mismatch, an
+  # invalid epoch, a pinned allocation failure, and a coordinator shutdown
+  add_executable(kv_failure_injection_test src/core/kv_failure_injection_test.cpp)
+  target_link_libraries(kv_failure_injection_test PRIVATE strata_kv_tier)
+  add_test(NAME kv_failure_injection_test COMMAND kv_failure_injection_test)
   add_executable(logit_bias_test src/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE include)
   add_test(NAME logit_bias_test COMMAND logit_bias_test)
