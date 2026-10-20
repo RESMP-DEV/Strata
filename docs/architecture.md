@@ -97,6 +97,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
 | GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight, `tools/reap_mask_from_traces.py`, and the tiny Qwen4-Exp/RCO CPU plus Modal-L4 compatibility probes. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
+| KV disk tier | Use native Optane session files for whole-conversation parking; live inference remains VRAM plus pinned host RAM | A live NVMe pager needs measured multi-session RAM pressure, asynchronous QSA block I/O, correctness/failure tests, and a same-day decode control; Mooncake is reserved for a concrete multi-host shared-pool requirement |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -1447,3 +1448,45 @@ pipeline and by the MTP drafter's 61 accepted drafts of 87 offered. The next
 optimization target is the decode pipeline, not memory. Full measurements,
 including the explicit hugepage state and what was not measured, are in
 [long-session evidence](../evidence/qwen-b550-longrun-256k.json).
+
+### B550 Optane session parking and the Mooncake boundary, 2026-10-20
+
+Strata already has two distinct KV placement mechanisms, and only one of them is
+a disk tier. During live inference, `--kv-resident` keeps hot QSA cells in VRAM
+but the authoritative streamed K/V is device-mapped pinned host RAM; the
+resolver copies misses from that RAM pool, not from NVMe. Disk session files are
+the second mechanism: an explicit save serializes the running state, deepest
+checkpoint, every authoritative QSA layer's K/V, and draft K/V, and an explicit
+restore reads that file into a new engine process.
+
+The Optane path was exercised with a single RTX 3090 Ti because session files
+currently reject `--layer-split`, `--peer-device`, and `--batch`. On the HPE
+OEM Intel 750 GB Optane partition (`ET000750KWJTF`, SMART passed with zero
+media/data-integrity errors), a 112,626-token real-source conversation at
+256K context became a 1,956,182,716-byte file in 1,462.9 ms. After the engine
+was stopped and restarted, restore returned all 112,626 tokens and exactly the
+same byte count in 2,231.6 ms; the engine attributed 2,114.9 ms to read plus
+validation. Effective end-to-end rates were 1.245 GiB/s save and 0.816 GiB/s
+restore, including the exFAT path, flush/rename, hashes, and validation. This
+proves native whole-session parking on Optane, not live per-token paging.
+
+The measured file is 17,368.84 bytes per token including running state,
+checkpoints, and draft K/V. With the 669 GiB available before the run, that
+shape represents about 367 identical 112,626-token sessions; a linear 256K
+projection is about 4.55 GB, but that projection was not measured. The current
+B550 has no capacity pressure that justifies moving the live authoritative KV:
+one single-GPU 256K engine reported 3.09 GiB pinned KV and the host has 91 GiB
+RAM. Many simultaneously resident sessions, not one long coding session, would
+be the reason to add a native pager.
+
+Mooncake is therefore not a B550 dependency. Its Transfer Engine provides
+segments and asynchronous batch transfers across DRAM, accelerator memory, and
+NVMe-oF; Store adds a distributed object pool, placement Master, replication,
+and local SSD/NVMe tiers. Those facilities do not understand Strata's QSA block
+layout, model/config fingerprints, residency tables, or validation protocol.
+Bringing in Mooncake now would add a control plane without solving the
+engine-side pager. The correct sequence is native session files first, a
+Strata-native asynchronous block pager if local multi-session RAM pressure is
+measured, and Mooncake only when a second inference host needs a shared or
+replicated KV pool. Full measurements and non-claims are in
+[Optane session evidence](../evidence/qwen-b550-optane-session-store.json).
