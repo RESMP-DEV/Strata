@@ -103,6 +103,24 @@ Strata still owns the QSA block key, page geometry, format fingerprint,
 residency ordering, and validation. Mooncake treats KV bytes as opaque values,
 which is the correct boundary for an adapter.
 
+### What the imported engine already provides
+
+The v0.1.45 engine already implements the L0 and L1 tiers for a streamed QSA
+layer: the authoritative K/V lives in pinned, device-mapped host memory, VRAM
+holds a bounded pool of page slots, and `kv_stream_resolve` makes the blocks
+named by a selection resident with a device-side CLOCK sweep before the
+attention runs. The coordinator does not replace that machinery. It owns:
+
+- the L1 admission and eviction decision for the group granularity the store
+  uses, above the page granularity the device map uses;
+- the L2 and L3 store, the epoch rules, and the readiness contract;
+- the counters that prove a cold read happened.
+
+The device-side residency map remains the L0/L1 mechanism. A group is composed
+of the pages the map already resolves, so the coordinator's group and the
+engine's page must have one documented relationship, and the group's payload
+is exactly the pages it contains in layout order.
+
 ## Block identity
 
 A logical key names one immutable group:
@@ -484,6 +502,81 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | NVMe latency dominates decode | GPU-wait metric and foreground/prefetch separation |
 | Filesystem dirty state loses metadata | Clean unmount and `fsck.exfat -n` procedure |
 | Smaller KV format hides a correctness bug | Format parameter included in parity and live controls |
+
+## Implementation status
+
+| Ticket | State | Evidence |
+| --- | --- | --- |
+| K1 `KvBlockStore` ABI and reference store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K2 `KvTierCoordinator` state machine and epoch keys | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K3 serving append boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K4 serving read-plan boundary | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| L2 local file store | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K5 shared token and prompt path hooks | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K6 graph split proof | implemented, not yet observed on a captured window | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K9 read batch | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K10 Mooncake-compatible store adapter | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K11 placement policy sweep | policy and matched control implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+
+The coordinator is now wired into the serving path behind an opt-in switch:
+`--kv-tier <path>` turns the cold tier on and `--kv-tier-l1 <groups>` sizes
+the L1 group cache per layer. It needs `--kv-resident`, because a cold tier
+publishes the layer's host copy and only a streamed layer has one. With the
+tier off, the serving path costs one branch per window and nothing else.
+
+The hooks sit where the serving path really moves K/V: `verify.cpp`'s
+`kv_append_*` calls and its `qsa_kv_resolve` calls. The append hook reads the
+window's first position from the host-mapped step buffer, because the device
+`step_` buffer cannot be read from the host. The resolve hook maps the
+selection's cells to their blocks, deduplicates the groups, and makes each
+group ready before the attention runs.
+
+The L2 store is a file of whole groups. A group's payload is durable before
+its valid marker is committed, the header is the only source of truth for the
+layout, a group of another geometry, format, layer, or epoch is absent rather
+than misread, and a partial read is refused because a whole-group checksum
+cannot verify it.
+
+The token path's publish happens at the commit boundary, not inside the
+layer. The token path runs inside a captured graph, and a captured graph cannot
+do host I/O or update a host cache from a CPU thread. The commit boundary is
+where the window's writes have become host-visible, and the same coordinator
+that serves the window publishes the tokens, so there is one policy and not a
+second implicit path.
+
+The selection's cells are collected into one read batch and deduplicated by
+group, so a token that names hundreds of blocks issues one request per GROUP
+rather than one per block. The batch carries its kind (foreground, prefetch, or
+migration) and a deadline, and a foreground batch may not be starved by prefetch
+traffic.
+
+The graph-split proof counts the phases each captured window went through: a
+captured selection, a host readiness phase, and a captured resolve, in that
+order. A resolve with no preceding host readiness is a split violation, because
+that means the graph tried to do host work. The counts, the batch statistics, and
+the cold-read counters all appear in the tier's report line, so a run that
+claims the cold tier is in the serving path can show it.
+
+The L3 shared store keeps the semantic boundary in the right place. Strata owns
+the key, the geometry, the format, the layer, the group, the epoch, the
+checksum, and the quota; the transport carries opaque bytes under a key it does
+not parse. The epoch is part of the object key, so a rewind's bytes are a
+different object and cannot be served as current data. A real Mooncake client
+implements the narrow transport interface; the in-process transport is the
+reference for what that interface must provide, and the adapter's contract is
+testable before a second host exists.
+
+The placement policy ships with the matched control a promotion needs: the same
+workload, the same cache size, and the same access pattern with only the policy
+differing. CLOCK is the baseline, because the engine's own device residency map
+uses it. A policy that does not beat CLOCK in that control is not promoted, and
+a control that a policy wins against itself is a broken control, which the
+contract test refuses.
+
+What is not yet true: the hooks have never run against a model. The CUDA
+build, the identity gate, the matched NLL control, the forced cold reads, and
+the 600K and 800K gates are all outstanding, and the cold tier's benefit is
+unmeasured.
 
 ## Current prototype status
 

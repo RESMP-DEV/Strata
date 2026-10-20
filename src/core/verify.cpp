@@ -6,6 +6,7 @@
 #include "strata/core/verify.hpp"
 #if !defined(STRATA_USE_HIP) && !defined(STRATA_HIP_GFX906)
 #include "strata/core/host_graph_launch.hpp"
+#include "strata/core/kv_tier_hooks.hpp"
 #endif
 #include "strata/core/remote_expert_opt.hpp"
 #include "strata/core/dma_batch.hpp"
@@ -1685,6 +1686,10 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                         kv_append_step(st.k_pool, st.v_pool, st.page_table, step_t, kcur_ + t * NKV * HD,
                                        vcur_ + t * NKV * HD, s, cs, &st.host);
                 }
+                // The disaggregated KV tier's append hook does NOT run here. This code runs while the graph is
+                // CAPTURED, and a capture happens once per window size: the hook would run once per capture
+                // instead of once per window, and the host copy would not yet hold the window's cells. The hook
+                // runs at the commit boundary instead, after the graph has run.
                 if (!sidem) idx_append(cs);
                 stamp(l, 9, grp);
                 if (qbr) {
@@ -1766,6 +1771,9 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                          max_blocks_, s, scores_ + (size_t) t * max_blocks_, cs);
                         qsa_block_topk(scores_ + (size_t) t * max_blocks_, step_ + t * kStepCount, 1, max_blocks_, cap_, s,
                                        sel_ + (size_t) t * cap_, cs);
+                        // The disaggregated KV tier's resolve hook does NOT run here: the selection lives in
+                        // DEVICE memory, so reading it from the host would fault, and at capture time the
+                        // top-k kernel has not run so the buffer holds no selection at all.
                         qsa_kv_resolve(sx, *g_, sel_ + (size_t) t * cap_, step_ + t * kStepCount, 1, cap_, cs);
                         const QsaAttnPools px = qsa_attn_pools(sx);
                         qsa_decode_attn_batch(qcur_ + t * NH * HD, px, sel_ + (size_t) t * cap_, step_ + t * kStepCount,
@@ -1793,6 +1801,9 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 if (!(split_attn && qsa_decode_attn_split(qcur_ + tb * NH * HD, pools, sel_ + (size_t) tb * cap_,
                                                           step_ + tb * kStepCount, cap_, s,
                                                           attn_scratch_ + (size_t) tb * attn_scratch_floats_,
+                // The disaggregated KV tier's resolve hook does NOT run here: the selection lives in DEVICE
+                // memory, so reading it from the host would fault, and at capture time the top-k kernel has
+                // not run so the buffer holds no selection at all. The hook runs at the commit boundary.
                                                           (uint64_t) n * (uint64_t) attn_scratch_floats_, attn_ + tb * NH * HD, n, cs)))
                 qsa_decode_attn_batch(qcur_ + tb * NH * HD, pools, sel_ + (size_t) tb * cap_, step_ + tb * kStepCount, cap_,
                                       s, attn_scratch_ + (size_t) tb * attn_scratch_floats_, attn_ + tb * NH * HD, n, cs);
@@ -3210,6 +3221,39 @@ bool Verifier::commit(int n_keep, std::string& err) {
             if (re != cudaSuccess) { err = std::string("verify: commit event: ") + cudaGetErrorString(re); return false; }
             (void) cudaStreamQuery(cs_);
             commit_pending_ = true;
+        }
+    }
+    // The disaggregated KV tier's hooks. They run HERE, at the commit boundary, and not inside the captured
+    // graph: a capture happens once per window size, so a hook inside it would run once per capture instead of
+    // once per window, and the host copy would not yet hold the window's cells.
+    //
+    // The commit boundary is where the window's writes have become visible to the host, and where the graph has
+    // finished, so the selection can be copied to a host buffer and the coordinator can do its work. The same
+    // coordinator that served the window publishes the tokens, so there is one policy and no second implicit path.
+    if (kv_tier_session_on() && g_->n_qsa_layers() > 0) {
+        const int32_t layer = (int32_t) ss_->qsa_ord0;
+        std::string tier_error;
+        if (!kv_tier_commit(layer, ss_->qsa_states[layer], *g_, last_pos0_, n_keep, tier_error)) {
+            err = tier_error;
+            return false;
+        }
+        // The resolve hook needs the selection on the HOST. The selection lives in device memory, so it is
+        // copied into a mapped host buffer first. The copy is a device-to-host copy after the graph, which is
+        // exactly the split the architecture's graph-boundary rule asks for.
+        if (last_t_ > 0 && cap_ > 0) {
+            const size_t bytes = (size_t) last_t_ * (size_t) cap_ * sizeof(int32_t);
+            std::vector<int32_t> selection((size_t) last_t_ * (size_t) cap_, 0);
+            if (cudaMemcpy(selection.data(), sel_, bytes, cudaMemcpyDeviceToHost) != cudaSuccess) {
+                err = "verify: the KV tier could not read the selection";
+                return false;
+            }
+            KvTierSession::note_phase(kvTierPhaseSelection);
+            KvTierSession::note_phase(kvTierPhaseReadiness);
+            if (!kv_tier_resolve(layer, ss_->qsa_states[layer], *g_, selection.data(), (int64_t) cap_, tier_error)) {
+                err = tier_error;
+                return false;
+            }
+            KvTierSession::note_phase(kvTierPhaseResolve);
         }
     }
     if (ple_stage())   // stages that share one session must advance it once

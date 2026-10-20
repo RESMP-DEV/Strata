@@ -1586,3 +1586,123 @@ packaging, protocol, monitor, browser, picture-reader, or release changes
 rather than B550 engine performance inputs. Full commit clusters, controls, and
 the B550 reachability blocker are recorded in
 [upstream intake evidence](../evidence/upstream-v0145-performance-intake.json).
+
+### Disaggregated KV coordinator, Phase A slice, 2026-10-20
+
+The merged v0.1.45 base changes one premise of the disaggregated KV plan. The
+imported engine already implements the L0 and L1 tiers for a streamed QSA
+layer: the authoritative K/V is in pinned, device-mapped host memory, VRAM
+holds a bounded pool of page slots, and `kv_stream_resolve` makes the selected
+blocks resident with a device-side CLOCK sweep before the attention runs. The
+coordinator therefore does not reimplement residency. It owns the store, the
+epoch rules, the readiness contract, and the counters that prove a cold read
+happened. The device map stays the L0/L1 mechanism, and the group-to-page
+relationship must be documented and tested so the two granularities cannot
+drift.
+
+The first slice is now implemented on `feature/kv-coordinator-v2`: the
+`KvBlockStore` ABI with an in-memory reference store, the block identity with
+epoch rules, and the `KvTierCoordinator` state machine, with nine host contract
+cases. The contract that is enforced today is: a whole group is published as
+one store put, a partial group is never published, the open tail is pinned and
+never evicted, a rewind advances the epoch so the old bytes are unreachable, a
+reset invalidates the store's groups, a checksum mismatch is a refusal rather
+than a zero fill, and two coordinators with different stage or slot scopes
+never share state.
+
+Two defects were found by those tests rather than by a model run. The
+quarantined prototype indexed its completion bitmap by the block inside its
+group, so two groups of the same layer shared a flag; the new coordinator
+indexes by the block itself. And a cold-read counter that moved only on success
+could not prove a foreground cold read when the read was refused, so the
+counter now moves when the read is issued and a separate counter records the
+refusals.
+
+The coordinator is not wired into the engine yet. The serving append, selection,
+and resolve boundaries in `verify.cpp` are unchanged, and no KV byte has moved
+between tiers. The host gate now includes the coordinator's contract test.
+Full commands and non-claims are in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json).
+
+### Disaggregated KV coordinator: Phase A build-out, 2026-10-20
+
+The Phase A slice is now implemented on `feature/kv-coordinator-v2`, on top of
+the merged v0.1.45 base. It adds the `KvBlockStore` ABI with an in-memory
+reference store, the block identity with epoch rules, the `KvTierCoordinator`
+state machine, the session that owns one coordinator per layer, the L2 local
+file store, and the serving-path hooks behind an opt-in switch.
+
+The switch is `--kv-tier <path>` with `--kv-tier-l1 <groups>`; it needs
+`--kv-resident`, because a cold tier publishes the layer's host copy and only
+a streamed layer has one. With the tier off, the serving path costs one branch
+per window and nothing else.
+
+The hooks are at the places the serving path really moves K/V: `verify.cpp`'s
+`kv_append_*` calls and its `qsa_kv_resolve` calls. The append hook reads the
+window's first position from the host-mapped step buffer, because the device
+`step_` buffer cannot be read from the host. The resolve hook maps the
+selection's cells to their blocks, deduplicates the groups, and makes each
+group ready before the attention runs.
+
+The L2 store writes whole groups. A group's payload is durable before its
+valid marker is committed, the header is the only source of truth for the
+layout, a group of another geometry, format, layer, or epoch is absent rather
+than misread, and a partial read is refused, because a whole-group checksum
+cannot verify it.
+
+Four defects were found by the contract tests rather than by a model run. The
+quarantined prototype indexed its completion bitmap by the block inside its
+group, so two groups of the same layer shared a flag. A cold-read counter that
+moved only on success could not prove a foreground cold read when the read was
+refused, so the counter now moves when the read is issued and a separate
+counter records the refusals. A file store that mixed the layer and the group
+into its file index grew the file without bound, so the store holds one layer
+and refuses a key of another. And a group checksum that covers the whole group
+cannot verify a partial read, so the store refuses partial reads outright.
+
+The hooks have never run against a model. The CUDA build, the identity gate,
+the matched NLL control, the forced cold reads, and the 600K and 800K gates are
+all outstanding, and the cold tier's benefit is unmeasured. B550 was
+unreachable on both the LAN and ZeroTier paths for the whole session, so no
+hardware acceptance gate ran. Full commands and non-claims are in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json).
+
+### Disaggregated KV tiers: shared store and placement policy, 2026-10-20
+
+Two more pieces of the disaggregated KV architecture are now implemented on
+`feature/kv-coordinator-v2`, alongside the coordinator, the L2 file store, the
+read batch, the serving-path hooks, and the graph-split proof.
+
+The L3 shared store keeps the semantic boundary in the right place. Strata owns
+the key, the geometry, the format, the layer, the group, the epoch, the
+checksum, and the quota; the transport carries opaque bytes under a key it does
+not parse. The epoch is part of the object key, so a rewind's bytes are a
+different object and can never be served as current data. A real Mooncake client
+implements the narrow transport interface, and the in-process transport is the
+reference for what that interface must provide. The adapter's contract is
+testable before a second host exists, which is the point: the shared tier must
+not need a second machine to be correct.
+
+The placement policy ships with the matched control a promotion needs: the same
+workload, the same cache size, and the same access pattern with only the policy
+differing. CLOCK is the baseline, because the engine's own device residency map
+uses it and matching it keeps the cold tier comparable with the tier the engine
+already has. A policy that does not beat CLOCK in that control is not promoted.
+A control that a policy wins against itself is a broken control, and the
+contract test refuses that case outright.
+
+The repository gate now runs seven contract suites for the KV tiers: the
+coordinator, the session, the file store, the graph split, the read batch, the
+shared store, and the placement policy.
+
+None of this has run against a model. The CUDA build, the identity gate, the
+matched NLL control, the forced cold reads, and the 600K and 800K gates are all
+outstanding, and the cold tier's benefit is unmeasured. B550 stayed unreachable
+on both the LAN and the ZeroTier path for the whole session: the Mac's own LAN
+moved to a different subnet, so the 192.168.1.0/24 home network is unreachable
+from here, and the B550's ZeroTier node appeared once as a relay peer and then
+left the peer list again. A persistent watcher with both lanes is running and
+will capture the host's uptime, its boot window, the previous boot's kernel
+errors, the Optane mount, the SMART state, and the GPU state on the first
+successful login. Full commands and non-claims are in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json).

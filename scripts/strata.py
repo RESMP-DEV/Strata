@@ -20,11 +20,13 @@ REPORT = ROOT / "build" / "reports" / "quality" / "receipt.json"
 LOG_ROOT = ROOT / "build" / "reports" / "quality" / "logs"
 SCOPE = (
     "Validates repository governance, ten selected setup regressions, the host-safe "
-    "accelerator-plugin ABI test, DeepSeek manifest and host C++ contract tests, "
+    "accelerator-plugin ABI test, the disaggregated KV coordinator's state-machine and "
+    "store-refusal contract tests, the KV tier acceptance gate's own decision tests, "
+    "DeepSeek manifest and host C++ contract tests, "
     "script tests, maintained-script Ruff lint/format, shell warning lint, and Git "
     "whitespace on this host. It does not compile CUDA, HIP, or SYCL, run the full "
     "setup matrix, start the "
-    "server, download a model, or measure performance."
+    "server, download a model, move any KV byte to a cold tier, or measure performance."
 )
 
 
@@ -145,11 +147,24 @@ def quality() -> int:
                     [sys.executable, "scripts/check_deepseek_contracts.py"],
                 ),
                 run_logged(
+                    "kv-coordinator",
+                    [sys.executable, "scripts/check_kv_coordinator.py"],
+                ),
+                run_logged(
+                    "kv-tier-acceptance",
+                    [sys.executable, "tools/kv_tier_acceptance.py", "--self-test"],
+                ),
+                run_logged(
                     "compression-tools",
                     [sys.executable, "-m", "unittest", "tools.test_reap_mask_from_traces"],
                 ),
-                run_logged("ruff-check", ["ruff", "check", "scripts"]),
-                run_logged("ruff-format", ["ruff", "format", "--check", "scripts"]),
+                run_logged(
+                    "ruff-check", ["ruff", "check", "scripts", "tools/kv_tier_acceptance.py"]
+                ),
+                run_logged(
+                    "ruff-format",
+                    ["ruff", "format", "--check", "scripts", "tools/kv_tier_acceptance.py"],
+                ),
                 run_logged(
                     "shellcheck-warning",
                     [
