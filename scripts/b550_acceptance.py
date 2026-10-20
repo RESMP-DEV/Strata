@@ -1455,10 +1455,12 @@ def _run_gates(arguments: argparse.Namespace) -> tuple[Harness, dict[str, Any]]:
                 max_context=arguments.context,
                 work_dir=arguments.work_dir,
             )
-            # The identity gate reports its own result and does not stop the
-            # other gates: each gate is a separate claim, and one gate's
-            # finding must not hide another's measurement.  The gate's own
-            # failures stay in the receipt, so the run still reports as failed.
+            # Each gate is a separate claim: one gate's finding must not hide
+            # another gate's measurement.  The identity gate's own failures stay
+            # in the receipt, so the run still reports as failed.
+            harness.failures = [
+                failure for failure in harness.failures if not failure.startswith("identity gate:")
+            ]
         if "cold-control" in arguments.phase:
             gates["matched_cold_control"] = run_cold_control(
                 harness,
