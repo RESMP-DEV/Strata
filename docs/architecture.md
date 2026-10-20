@@ -1823,3 +1823,34 @@ identity is `HPE OEM Intel ET000750KWJTF`, and no live SMART read in this
 session confirmed whether the device is 3D XPoint. Full commands and
 non-claims are in
 [implementation evidence](../evidence/kv-b550-implementation-2026-10-20.json).
+
+### CodeRabbit review repairs for the B550 cold tier, 2026-10-20
+
+CodeRabbit reviewed PR #12 at `8a30e3d2` and posted nine actionable
+findings. All nine were repaired together at `7db98a56`.
+
+The critical finding was a compile defect: the per-process session identity
+constructed `std::random_device` temporaries instead of calling the device, so
+`generate.cpp` could not compile. The expression now calls one device twice and
+reserves zero. The review also found that the commit boundary copied the
+per-layer selection matrix with `last_t_` as its stride while the device layout
+uses `max_t_`; `cudaMemcpy2D` now copies each layer's active rows with the
+correct source and destination strides. Cold restoration stops at
+`geometry.blocks`, so an unaligned final group cannot restore 32 blocks into a
+shorter pinned allocation.
+
+The asynchronous operations now reserve distinct L1 slots for distinct batch
+groups, release a reservation on failure or cancellation, preserve an explicit
+read completion until it is waited on (or recognize a flush-installed group as
+ready), and flush a publication before the host boundary reports success. The
+B550 harness asks `lsblk` for `TYPE` and parses the `sha256sum` path marker;
+both defects had been hidden by hand-built unit-test JSON and single-space hash
+fixtures. The durable identity receipt now states the device model and serial
+in the same order as the recorded receipt and code.
+
+Validation at `7db98a56`: `just quality` passed, all eight KV contract suites
+passed, all thirteen harness unit tests passed, Ruff format and lint passed,
+and every touched host KV translation unit compiled with warnings enabled. No
+CUDA backend or model ran. The separate one-hour async worker timed out with a
+hanging partial implementation and was not integrated. Full evidence is in
+[review repair evidence](../evidence/kv-b550-review-repairs-2026-10-20.json).
