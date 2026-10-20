@@ -126,7 +126,7 @@
     "engine_sha256": "027d4d338ef318b34a4bd537a6ba0eaa8e27024343865bd0e67e58eba10c15de",
     "response_sha256": "c10922db2b4d3d8400d59678a324ca4fab330212fb5f88a69de9d3ec2dca9220",
     "save_json_sha256": "4e773b8f97412f1d375a9911f839f97f37ae89bc6f9d196ea04e1fb883b49372",
-    "restore_json_sha256": "87f43512cc6ae12e2a64b116aeaf75edcd0c9af9fa7691c9f5ef985f37d06e",
+    "restore_json_sha256": "87f43512cc6ae12e2a64b116aeaf75edcdaf0c9af9fa7691c9f5ef985f37d06e",
     "first_attempt_note": "The archived first run left the old --max-context value 2048 as a positional argument and did not fail fast. Its logs are under raw/attempt-01-malformed-argv; the corrected strict driver is run-v2.sh."
   },
   "references": [
