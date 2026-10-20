@@ -1,0 +1,71 @@
+{
+  "recorded_at": "2026-10-20T15:40:00Z",
+  "agent": "Codex (parent), with CCR workers for the async contracts, the acceptance harness, and the read-only boundary audit",
+  "source_revision": "13cec62617a56cfbca65c05ef236c1eb39b2b25c",
+  "source_dirty": false,
+  "scope": "Records the corrections to the disaggregated KV cold tier's serving boundary, the first real consumption path from the tier into the engine's host copy, the Mooncake-style shared pool reference, the opt-in asynchronous coordinator operations, and the bounded B550 acceptance harness. It does not run a model, move a KV byte on real hardware, compile CUDA, or measure performance, memory reduction, or latency.",
+  "checks": [
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "all eight host-safe checks passed; receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "cmake --build build/kv-main-check --target kv_coordinator_test kv_tier_session_test kv_tier_graph_test kv_file_store_test kv_read_batch_test kv_mooncake_store_test kv_placement_test kv_failure_injection_test && ctest --test-dir build/kv-main-check -R '^kv_' --output-on-failure",
+      "exit": 0,
+      "result": "8/8 passed: coordinator, session, file store, graph split, read batch, shared store, placement, failure injection"
+    },
+    {
+      "command": "c++ -std=c++17 -Wall -Wextra -Iinclude -fsyntax-only src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp src/core/kv_mooncake_store.cpp",
+      "exit": 0,
+      "result": "every touched host C++ translation unit compiles clean with warnings enabled"
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts/tests -p 'test_b550_acceptance.py' -v",
+      "exit": 0,
+      "result": "10/10 harness unit tests passed"
+    },
+    {
+      "command": "ruff check scripts/b550_acceptance.py scripts/tests/test_b550_acceptance.py",
+      "exit": 0,
+      "result": "no lint findings in the new harness"
+    },
+    {
+      "command": "bash -n tools/b550_watch.sh && shellcheck --severity=warning tools/b550_watch.sh && git diff --check",
+      "exit": 0,
+      "result": "the repaired reachability watcher passes syntax, ShellCheck at warning severity, and the whitespace check"
+    },
+    {
+      "command": "nc -vz -G 3 192.168.1.171 22 ; nc -vz -G 3 10.243.130.224 22 ; ssh -o BatchMode=yes -o ConnectTimeout=8 B550 'hostname; uptime -p'",
+      "exit": 255,
+      "result": "the B550 hardware gate did not run: the home LAN times out, the ZeroTier address has no route, and the configured proxy path closed before SSH banner exchange. The main machine's LAN is 192.168.12.134/24 and the B550's ZeroTier node is absent from the peer table."
+    }
+  ],
+  "findings": [
+    "The commit boundary served only the stage's first QSA ordinal, so a layer split served one layer's cold tier and left the others untouched. The commit now covers every QSA ordinal the session owns.",
+    "The session opened exactly one file store, whose identity was layer 0, and then created a coordinator for every layer that asked for one, so a non-primary layer's publish was refused by the store's own identity check. The session now owns one fixed-layout file per QSA layer, and the session test publishes and reads both layer 0 and layer 1.",
+    "The selection matrix was one buffer shared by every layer, so each layer's top-k overwrote the previous layer's selection, and the resolve hook read one row of a multi-row window's selection. The matrix is now indexed by layer and window row, and the resolve reads every row of the window.",
+    "The store's path was used as a file prefix, so the per-layer files landed beside the tier directory instead of inside it, outside the mode-0700 directory the operations procedure requires. The path is now the tier directory and the per-layer files live inside it.",
+    "The largest defect was that the tier's bytes never reached the engine. The engine's attention reads the pinned host copy through kv_stream_resolve inside the captured graph, and the coordinator's L1 was a parallel copy that nothing consumed, so the tier was write-only. The resolve hook now scatters each ready cold group into the engine's exact per-run host layout, in the same run order the append used, and counts the restores as engine_host_restores.",
+    "The layer-split and batch modes are now refused explicitly rather than silently mis-served, because the coordinator's key must carry a stage and a slot and the session singleton has neither.",
+    "The session's identity was zero, so two engines could alias each other's object keys in one store. It is now a random per-process value, and a server request advances the epoch before the next request writes.",
+    "The shared store's quota was per-store accounting with a hard refusal, which is not a pool. The pool now owns admission, bounded LRU eviction across every layer store, one immutable object per key, and an eviction counter, which is the Master-side role the architecture assigns to it.",
+    "The asynchronous coordinator was a set of declarations with no implementation. It is now real: one serialized worker owns the store I/O, a read owns its L1 slot until its completion is consumed, a put owns an immutable snapshot rather than the evictable slot, a canceled operation never installs bytes, and the synchronous path stays the default.",
+    "A segfault during the async work was a use-after-move of the shared job pointer, found with LLDB and repaired; the duplicate declarations the worker had introduced were removed.",
+    "The repository's own B550 watcher had a defect that made it exit before its first probe: it stamped its log lines with GNU date -Is, which macOS rejects, and it now uses a portable format.",
+    "The acceptance harness hard-coded the designated device's model and serial swapped relative to the recorded receipt (the model is PHKS826300DP750BGN and the serial is ET000750KWJTF), and the harness's first unit-test run had four failures; both are corrected and the suite is green.",
+    "The engine never printed the tier report the acceptance harness parses, so the harness could never have seen the counters it requires. The session now flushes and prints the report at shutdown, and the report carries the new engine_host_restores counter.",
+    "An independent read-only worker reached the same two serving-boundary findings from its own trace of the same files, which cross-validates the parent audit."
+  ],
+  "non_claims": [
+    "No KV byte moved between tiers on real hardware. Every host test exercises the coordinator, the stores, and the hooks without a model.",
+    "No CUDA backend was compiled and no performance, latency, or context figure is claimed.",
+    "The engine's pinned host allocation is NOT reduced by this work. The restore path repopulates the copy the attention reads, and evicting a group from the tier's L1 does not yet free the engine's pinned host bytes. The RAM-saving goal is not met.",
+    "The B550 hardware gate did not run: the CUDA sm86 build, the identity gate, the matched NLL control, the forced cold reads, the 600K and 800K scale gates, and any cold-tier benefit measurement are all unrun.",
+    "The shared pool is a reference implementation over the narrow transport interface, not a deployed Mooncake client. No Mooncake binary, library, or service was installed, started, or contacted.",
+    "The Mooncake semantics were read from the upstream design documentation over the network, not from a vendored source tree, and no upstream repository was cloned, modified, or pushed.",
+    "The device the repository calls the Optane is recorded as HPE OEM Intel ET000750KWJTF, and no live SMART read in this session confirmed whether it is 3D XPoint. The Optane-class naming is unverified.",
+    "The layer-split and batch modes of the cold tier are refused, not supported. The coordinator's stage and slot scoping is not implemented.",
+    "The harness's Optane mount, GPU occupancy, and build steps have never executed against the real host, so only their unit-tested parsing and control flow are proven."
+  ]
+}
