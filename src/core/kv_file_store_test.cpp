@@ -1,5 +1,6 @@
 // src/core/kv_file_store_test.cpp - the L2 file store's durability, identity, and refusal contracts.
 #include "strata/core/kv_file_store.hpp"
+#include "strata/core/kv_mooncake_store.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -46,9 +47,33 @@ uint64_t checksum_of(const std::vector<uint8_t>& data) {
     return KvFileStore::payload_checksum(data.data(), data.size());
 }
 
+/// Every KV store must agree with the coordinator about the checksum of a
+/// group: the writer hashes the bytes, the reader verifies them, and a
+/// disagreement refuses every group that is ever read back.  The stores
+/// therefore expose the SAME function, and this test pins that they do.
+void check_one_checksum_function() {
+    const std::vector<uint8_t> payload = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    const uint64_t shared = kv_payload_checksum(payload.data(), payload.size());
+    if (KvFileStore::payload_checksum(payload.data(), payload.size()) != shared) {
+        std::printf("the file store's checksum differs from the shared one\n");
+        return;
+    }
+    if (KvMooncakeStore::payload_checksum(payload.data(), payload.size()) != shared) {
+        std::printf("the shared store's checksum differs from the shared one\n");
+        return;
+    }
+    // A change of one byte must change the checksum.
+    std::vector<uint8_t> changed = payload;
+    changed[3] ^= 0x01;
+    if (kv_payload_checksum(changed.data(), changed.size()) == shared) {
+        std::printf("the checksum ignores a changed byte\n");
+    }
+}
+
 }  // namespace
 
 int main() {
+    check_one_checksum_function();
     const std::string path = "/tmp/strata-kv-file-store-test.bin";
     std::remove(path.c_str());
 

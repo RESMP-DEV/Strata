@@ -8,14 +8,9 @@ namespace strata::core {
 
 namespace {
 
+// The one checksum function, from the shared header.
 uint64_t fnv1a(const void* data, size_t bytes) {
-    const uint8_t* p = static_cast<const uint8_t*>(data);
-    uint64_t h = 1469598103934665603ull;
-    for (size_t i = 0; i < bytes; ++i) {
-        h ^= p[i];
-        h *= 1099511628211ull;
-    }
-    return h;
+    return kv_payload_checksum(data, bytes);
 }
 
 }  // namespace
@@ -201,7 +196,9 @@ bool KvMooncakeStore::matches(const KvBlockKey& key) const {
            key.format_id == options_.format_id && (options_.layer < 0 || key.layer == options_.layer);
 }
 
-uint64_t KvMooncakeStore::checksum_of(const void* data, size_t bytes) const { return fnv1a(data, bytes); }
+uint64_t KvMooncakeStore::checksum_of(const void* data, size_t bytes) const {
+    return kv_payload_checksum(data, bytes);
+}
 
 uint64_t KvMooncakeStore::remaining_bytes() const {
     if (options_.quota_bytes == 0) return UINT64_MAX;

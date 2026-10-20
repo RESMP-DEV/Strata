@@ -32,12 +32,7 @@ constexpr uint64_t kEntryBytes = 40;
 constexpr uint32_t kFormatVersion = 1;
 
 uint64_t crc32(const uint8_t* data, size_t bytes) {
-    uint64_t crc = 0xffffffffffffffffull;
-    for (size_t i = 0; i < bytes; ++i) {
-        crc ^= data[i];
-        for (int b = 0; b < 8; ++b) crc = (crc >> 1) ^ (0x82f63b7833eba0aeULL & (0ULL - (crc & 1ULL)));
-    }
-    return ~crc;
+    return kv_payload_checksum(data, bytes);
 }
 
 uint64_t align_up(uint64_t value, uint64_t alignment) { return (value + alignment - 1) / alignment * alignment; }

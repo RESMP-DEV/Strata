@@ -20,16 +20,9 @@ std::string key_string(const KvBlockKey& key) {
 
 namespace {
 
-uint64_t fnv1a(const void* data, size_t bytes);
-
-uint64_t fnv1a(const void* data, size_t bytes) {
-    const uint8_t* p = static_cast<const uint8_t*>(data);
-    uint64_t h = 1469598103934665603ull;
-    for (size_t i = 0; i < bytes; ++i) {
-        h ^= p[i];
-        h *= 1099511628211ull;
-    }
-    return h;
+// The one checksum function, from the shared header.
+uint64_t payload_checksum(const void* data, size_t bytes) {
+    return kv_payload_checksum(data, bytes);
 }
 
 }  // namespace
@@ -55,7 +48,7 @@ bool KvMemoryStore::get(const KvBlockRequest& request, std::string& error) {
     // The store verifies its own payload: a group whose bytes do not match the checksum it was written with is
     // refused, never returned as a zero fill or as the bytes the caller happens to hold.
     {
-        const uint64_t actual = fnv1a(it->second.payload.data(), it->second.payload.size());
+        const uint64_t actual = payload_checksum(it->second.payload.data(), it->second.payload.size());
         if (actual != it->second.checksum) {
             error = "kv store: the group's checksum does not match";
             return false;
@@ -179,7 +172,7 @@ uint64_t KvTierCoordinator::group_checksum(int32_t layer, int32_t group) const {
     if (slot < 0) return 0;
     const uint64_t bytes = group_bytes();
     if (bytes == 0) return 0;
-    return fnv1a(slot_bytes_.data() + (size_t) slot * (size_t) bytes, (size_t) bytes);
+    return payload_checksum(slot_bytes_.data() + (size_t) slot * (size_t) bytes, (size_t) bytes);
 }
 
 bool KvTierCoordinator::rewind(std::string& error) {
@@ -468,7 +461,7 @@ bool KvTierCoordinator::submit_group(int32_t layer, int32_t group, std::string& 
     job->key = operation_key(layer, group);
     job->payload.assign(slot_bytes_.begin() + (ptrdiff_t) ((size_t) slot * (size_t) bytes),
                         slot_bytes_.begin() + (ptrdiff_t) (((size_t) slot + 1) * (size_t) bytes));
-    job->checksum = fnv1a(job->payload.data(), job->payload.size());
+    job->checksum = payload_checksum(job->payload.data(), job->payload.size());
 
     std::lock_guard<std::mutex> lock(io_mutex_);
     if (pending_put_locked(layer, group) != 0 || pending_read_locked(layer, group) != 0) {

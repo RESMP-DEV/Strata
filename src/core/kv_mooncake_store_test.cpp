@@ -34,12 +34,9 @@ KvBlockKey key(int32_t layer, int32_t group, uint32_t epoch = 0) {
 }
 
 uint64_t checksum_of(const std::vector<uint8_t>& data) {
-    uint64_t h = 1469598103934665603ull;
-    for (const uint8_t byte : data) {
-        h ^= byte;
-        h *= 1099511628211ull;
-    }
-    return h;
+    // The one checksum function, from the shared header: a writer and a reader
+    // must not have two checksum implementations.
+    return kv_payload_checksum(data.data(), data.size());
 }
 
 }  // namespace

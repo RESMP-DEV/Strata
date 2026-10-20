@@ -57,6 +57,25 @@ struct KvCoordinatorScope {
 /// its valid marker is committed only after the entire payload.
 inline constexpr int32_t kKvGroupBlocks = 32;
 
+/// The checksum over a group's payload, in layout order.
+///
+/// There is exactly ONE checksum function for the KV tiers, and every writer
+/// and every reader uses it.  A writer that hashed the bytes differently from
+/// the reader that verifies them refuses every group it published, and a cold
+/// read can never succeed: the defect is invisible until a group is read back
+/// from a store, which is exactly what the hardware gate does.
+inline uint64_t kv_payload_checksum(const void* data, size_t bytes) {
+    const uint8_t* p = static_cast<const uint8_t*>(data);
+    uint64_t crc = 0xffffffffffffffffull;
+    for (size_t i = 0; i < bytes; ++i) {
+        crc ^= p[i];
+        for (int b = 0; b < 8; ++b) {
+            crc = (crc >> 1) ^ (0x82f63b7833eba0aeULL & (0ULL - (crc & 1ULL)));
+        }
+    }
+    return ~crc;
+}
+
 /// The bytes of one K/V block for a format, as the runs that make it up, in layout order. The coordinator never
 /// interprets the payload; only the store and the engine do.
 struct KvBlockRun {

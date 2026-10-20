@@ -80,6 +80,13 @@ public:
     /// The object key for a block key. It is the key Strata owns and the transport only carries.
     static std::string object_key(const KvBlockKey& key);
 
+    /// The checksum over an object's payload, in layout order. It is the ONE
+    /// checksum function of the KV tiers, exposed here so a writer and a reader
+    /// cannot disagree about what "the same bytes" means.
+    static uint64_t payload_checksum(const void* data, size_t bytes) {
+        return kv_payload_checksum(data, bytes);
+    }
+
 private:
     bool matches(const KvBlockKey& key) const;
     uint64_t checksum_of(const void* data, size_t bytes) const;
