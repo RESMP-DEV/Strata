@@ -442,6 +442,7 @@ def verify_build(
     parallel: int,
     expected_revision: str,
     ggml_dir: str = "",
+    linker_flags: list[str] | None = None,
     allow_dirty: bool = False,
 ) -> dict[str, Any]:
     """Check out by revision, configure only sm_86, and build the engine/device probes."""
@@ -496,6 +497,7 @@ def verify_build(
             "-DCMAKE_CUDA_ARCHITECTURES=86",
             f"-DCMAKE_CUDA_COMPILER={nvcc}",
             *([f"-DSTRATA_GGML_DIR={ggml_dir}"] if ggml_dir else []),
+            *([f"-DCMAKE_EXE_LINKER_FLAGS={' '.join(linker_flags)}"] if linker_flags else []),
         ],
     )
     build = harness.remote(
@@ -543,6 +545,7 @@ def verify_build(
         "remote_dirty": bool(status.stdout.strip()) if status.passed else None,
         "build_dir": build_dir,
         "ggml_dir": ggml_dir or None,
+        "linker_flags": linker_flags or [],
     }
     harness.facts.update(facts)
     return facts
@@ -1214,6 +1217,12 @@ def _build_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         default="",
         help="verified pinned llama.cpp checkout to use instead of FetchContent",
     )
+    parser.add_argument(
+        "--linker-flag",
+        action="append",
+        default=[],
+        help="repeat a host-specific executable linker flag; the receipt records it",
+    )
     parser.add_argument("--allow-dirty", action="store_true")
     return parser
 
@@ -1301,6 +1310,7 @@ def _run_gates(arguments: argparse.Namespace) -> tuple[Harness, dict[str, Any]]:
                 parallel=arguments.parallel,
                 expected_revision=arguments.revision,
                 ggml_dir=arguments.ggml_dir,
+                linker_flags=arguments.linker_flag,
                 allow_dirty=arguments.allow_dirty,
             )
             harness.assert_clean()
@@ -1383,6 +1393,7 @@ def main(argv: list[str] | None = None) -> int:
                 parallel=arguments.parallel,
                 expected_revision=arguments.revision,
                 ggml_dir=arguments.ggml_dir,
+                linker_flags=arguments.linker_flag,
                 allow_dirty=arguments.allow_dirty,
             )
         elif arguments.command == "acceptance":
