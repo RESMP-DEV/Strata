@@ -3259,14 +3259,14 @@ bool Verifier::commit(int n_keep, std::string& err) {
             if (!selection.empty()) {
                 const int32_t* layer_selection =
                     selection.data() + (size_t) j * (size_t) last_t_ * (size_t) cap_;
-                KvTierSession::note_phase(kvTierPhaseSelection);
-                KvTierSession::note_phase(kvTierPhaseReadiness);
+                KvTierSession::note_phase(kKvTierPhaseSelection);
+                KvTierSession::note_phase(kKvTierPhaseReadiness);
                 if (!kv_tier_resolve(layer, ss_->qsa_states[layer], *g_, layer_selection,
                                      (int64_t) last_t_ * (int64_t) cap_, tier_error)) {
                     err = tier_error;
                     return false;
                 }
-                KvTierSession::note_phase(kvTierPhaseResolve);
+                KvTierSession::note_phase(kKvTierPhaseResolve);
             }
         }
     }
