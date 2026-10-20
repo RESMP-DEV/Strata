@@ -994,10 +994,14 @@ def _artifact_hashes(
     # bind the exact bytes the engine read, not a path name.
     expanded: list[str] = []
     for item in files:
-        if harness.remote(f"artifact-is-file-{item}", ["test", "-f", item]).passed:
+        # The probes are informational: a directory is not a failure, it is the
+        # other case the hash step handles.
+        is_file = harness.remote(f"artifact-is-file-{item}", ["test", "-f", item], required=False)
+        if is_file.passed:
             expanded.append(item)
             continue
-        if not harness.remote(f"artifact-is-dir-{item}", ["test", "-d", item]).passed:
+        is_dir = harness.remote(f"artifact-is-dir-{item}", ["test", "-d", item], required=False)
+        if not is_dir.passed:
             harness.require(False, f"the artifact {item} is neither a file nor a directory")
             continue
         listing = harness.remote(f"artifact-list-{item}", ["find", item, "-type", "f", "-print"])
@@ -1416,7 +1420,10 @@ def _run_gates(arguments: argparse.Namespace) -> tuple[Harness, dict[str, Any]]:
                 max_context=arguments.context,
                 work_dir=arguments.work_dir,
             )
-            harness.assert_clean()
+            # The identity gate reports its own result and does not stop the
+            # other gates: each gate is a separate claim, and one gate's
+            # finding must not hide another's measurement.  The gate's own
+            # failures stay in the receipt, so the run still reports as failed.
         if "cold-control" in arguments.phase:
             gates["matched_cold_control"] = run_cold_control(
                 harness,
