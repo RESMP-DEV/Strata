@@ -345,6 +345,47 @@ def probe_reachability(harness: Harness, address: str, zero_tier_address: str) -
     return lanes
 
 
+def _is_ipv4(value: str) -> bool:
+    """True when the value is a dotted-quad IPv4 literal."""
+    parts = value.split(".")
+    return len(parts) == 4 and all(part.isdigit() and 0 <= int(part) <= 255 for part in parts)
+
+
+def _resolve_lan_name(name: str) -> str:
+    """The A record for a router-served name, from the live gateway."""
+    gateway = ""
+    try:
+        completed = subprocess.run(
+            ["/usr/sbin/netstat", "-rn", "-f", "inet"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        for line in completed.stdout.splitlines():
+            fields = line.split()
+            if len(fields) >= 2 and fields[0] == "default":
+                gateway = fields[1]
+                break
+    except OSError:
+        gateway = ""
+    if not gateway:
+        return name
+    try:
+        completed = subprocess.run(
+            ["/usr/bin/dig", "+time=2", "+tries=1", "+short", f"@{gateway}", name, "A"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return name
+    for line in completed.stdout.splitlines():
+        candidate = line.strip()
+        if _is_ipv4(candidate):
+            return candidate
+    return name
+
+
 def verify_identity(
     harness: Harness, expected_address: str, expected_hostname: str, optane_mount: str
 ) -> dict[str, Any]:
@@ -355,10 +396,17 @@ def verify_identity(
             key, separator, value = line.partition(" ")
             if separator and key in {"hostname", "user", "port"}:
                 config_values[key] = value
+        # The alias may name a host (a DNS name) or an address.  Identity is the
+        # address the alias reaches right now, so a name is resolved through the
+        # live router and compared with the expected address; a literal address
+        # is compared as written.  A fixed LAN address is never an identity.
+        configured = config_values.get("hostname", "")
+        resolved = configured if _is_ipv4(configured) else _resolve_lan_name(configured)
         harness.require(
-            config_values.get("hostname") == expected_address,
-            f"SSH alias resolves to {config_values.get('hostname')!r}, not {expected_address!r}",
+            resolved == expected_address,
+            f"SSH alias reaches {resolved!r}, not {expected_address!r}",
         )
+        config_values["resolved_address"] = resolved
 
     hostname = harness.remote("reported-hostname", ["hostname"])
     harness.require(
