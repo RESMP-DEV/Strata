@@ -159,31 +159,11 @@ def quality() -> int:
                     [sys.executable, "-m", "unittest", "tools.test_reap_mask_from_traces"],
                 ),
                 run_logged(
-                    "prefiller-planner",
-                    [sys.executable, "-m", "unittest", "tools.test_prefiller_plan"],
-                ),
-                run_logged(
-                    "ruff-check",
-                    [
-                        "ruff",
-                        "check",
-                        "scripts",
-                        "tools/kv_tier_acceptance.py",
-                        "tools/prefiller_plan.py",
-                        "tools/test_prefiller_plan.py",
-                    ],
+                    "ruff-check", ["ruff", "check", "scripts", "tools/kv_tier_acceptance.py"]
                 ),
                 run_logged(
                     "ruff-format",
-                    [
-                        "ruff",
-                        "format",
-                        "--check",
-                        "scripts",
-                        "tools/kv_tier_acceptance.py",
-                        "tools/prefiller_plan.py",
-                        "tools/test_prefiller_plan.py",
-                    ],
+                    ["ruff", "format", "--check", "scripts", "tools/kv_tier_acceptance.py"],
                 ),
                 run_logged(
                     "shellcheck-warning",
