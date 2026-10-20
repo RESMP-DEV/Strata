@@ -1,0 +1,415 @@
+# Disaggregated KV-cache architecture
+
+Status: target design. This document is the architecture contract for the
+multi-tier KV work; it is not an implementation claim. The current
+`--kv-disk` prototype remains experimental, is not wired into the serving
+verify path, and must not be treated as accepted.
+
+## Goal
+
+Serve extremely long agentic coding sessions with a hot KV window in VRAM, a
+bounded working set in pinned host RAM, and a cold tail on local Optane/NVMe
+or a remote KV store. The target context envelope is 600K cells initially and
+800K cells next. The MTP drafter ring and model experts remain outside this
+tier.
+
+The important property is not merely "KV can be placed on disk." The tier must
+own placement, I/O, metadata, validation, and observability as one system.
+
+## Non-goals
+
+- Do not replace the hot VRAM window.
+- Do not make a whole-session checkpoint act like a live cache.
+- Do not require a particular KV numeric format; fp16, INT8, Q4_0, and K8V4
+  are layout inputs.
+- Do not hide a partial or unavailable cold tier behind zero-filled KV.
+- Do not promote any implementation to a default before a matched live-model
+  perplexity control passes.
+
+## Layer model
+
+```text
+             Selection / append boundary
+                        |
+                KvTierCoordinator
+        (one per session, stage, and batch slot)
+                        |
+      +-----------------+-----------------+------------------+
+      |                 |                 |                  |
+  L0 VRAM hot       L1 host cache     L2 local store     L3 shared store
+  existing CLOCK    pinned, bounded   Optane/NVMe        optional Mooncake
+  resident pages    working set       append-only groups replicated pool
+      |                 |                 |                  |
+      +-------- KvBlockStore ABI ------ KvBlockStore ------ KvBlockStore
+``+
+
+### L0: VRAM hot window
+
+The existing `--kv-resident` page slots and CLOCK resolver remain the hot tier.
+The disaggregated manager may ask the existing resolver to load a block, but it
+must not duplicate the VRAM page table.
+
+### L1: pinned host cache
+
+The host tier is a bounded set of page slots, not a full-context authoritative
+pool. Each slot has:
+
+- logical block key;
+- format and geometry epoch;
+- resident/pending/invalid state;
+- pin count for in-flight reads and the open tail block;
+- host address valid for captured CUDA graphs;
+- sequence number used by CLOCK or another explicit policy.
+
+The host cache is deliberately sized by bytes and working-set behavior. It is
+not assumed to be "realistic" at any particular fraction of the context.
+
+### L2: local Optane/NVMe store
+
+Local storage uses immutable, fixed-size groups. A group is the smallest
+write, checksum, read, and validity unit. The payload is a pure byte object;
+it does not need to understand QSA arithmetic.
+
+The group size is derived from the selected KV format:
+
+```text
+blocks_per_group = 4096 / gcd(block_bytes, 4096)
+```
+
+For the current Qwen geometry:
+
+| KV format | Bytes per 4-cell block | Blocks/group | Group bytes | 4 KiB pages |
+| --- | ---: | ---: | ---: | ---: |
+| FP16 | 8,192 | 1 | 8,192 | 2 |
+| INT8 | 4,224 | 32 | 135,168 | 33 |
+| Q4_0 | 2,304 | 16 | 36,864 | 9 |
+| K8V4 | 4,416 | 64 | 282,624 | 69 |
+
+The format is therefore an input, not a reason to redesign the tier. A format
+comparison must measure quality, cold bytes moved, and decode latency together.
+
+### L3: shared/remote store
+
+An optional Mooncake-compatible store is part of the same ABI, not a separate
+engine path. Mooncake's useful roles are:
+
+- a quota-bounded, pinned restore/client buffer;
+- asynchronous batch transfer;
+- object placement and replication across hosts;
+- local SSD/NVMe or NVMe-oF backing;
+- a shared pool once more than one inference host exists.
+
+Strata still owns the QSA block key, page geometry, format fingerprint,
+residency ordering, and validation. Mooncake treats KV bytes as opaque values,
+which is the correct boundary for an adapter.
+
+## Block identity
+
+A logical key names one immutable group:
+
+```text
+{session_id, geometry_id, format_id, layer_ordinal, group_index, epoch}
+```
+
+For local storage the key can map positionally to a fixed slot. For a shared
+store it becomes the object key. `epoch` changes on rewind or conversation
+reset; a new epoch never reinterprets old bytes.
+
+The open tail block is not immutable. It remains pinned in L1 and is published
+only when its final cell has been appended.
+
+## Core objects
+
+### `KvTierCoordinator`
+
+One coordinator owns the KV residency graph for one session, stage, and batch
+slot. It is the only component allowed to change a logical block's tier.
+
+Responsibilities:
+
+- size and own L1 slots;
+- issue L2/L3 reads and writes;
+- maintain readiness and pin state;
+- update device-side host-slot tables;
+- publish completed groups;
+- invalidate on reset, rewind, or checkpoint restore;
+- export counters and traces.
+
+Layer-split and batch modes require one coordinator per stage/slot. Sharing a
+coordinator across those modes is forbidden because the same layer ordinal can
+refer to different states.
+
+### `KvBlockStore`
+
+```cpp
+struct KvBlockKey {
+    uint64_t session_id;
+    uint64_t geometry_id;
+    uint64_t format_id;
+    int32_t layer;
+    int32_t group;
+    uint32_t epoch;
+};
+
+class KvBlockStore {
+public:
+    virtual bool contains(const KvBlockKey& key) const = 0;
+    virtual bool get(const KvBlockRequest& request, std::string& error) = 0;
+    virtual bool put(const KvBlockPut& request, std::string& error) = 0;
+    virtual bool invalidate(const KvBlockKey& key, std::string& error) = 0;
+};
+```
+
+`get` and `put` are asynchronous request objects, not synchronous file calls.
+The initial implementation may complete synchronously behind the same ABI, but
+the ABI must not expose that shortcut as architecture.
+
+### `KvReadBatch`
+
+A read batch is produced from the actual attention selection. It contains:
+
+- logical blocks, deduplicated;
+- target L1 slots;
+- CUDA event/stream dependencies;
+- priority and deadline;
+- whether the request is foreground, prefetch, or migration.
+
+The batch is the unit of I/O scheduling. It prevents one token from issuing
+hundreds of independent tiny reads.
+
+## Engine integration
+
+The current prototype's central defect is that its hooks are in `qsa_layer`,
+while the serving path writes and resolves QSA KV directly in `verify.cpp`.
+The target integration is:
+
+```text
+verify.cpp append:
+  kv_append_q8_steps / kv_append_q8_step
+      -> append into the pinned host slot named by the coordinator
+      -> coordinator publishes an immutable group
+
+verify.cpp selection:
+  qsa_block_scores + qsa_block_topk
+      -> GPU produces a deduplicated block-read plan
+      -> coordinator waits only for unavailable L1 blocks
+      -> device host-slot table is ready
+
+verify.cpp resolve:
+  qsa_kv_resolve
+      -> copies selected blocks from the named L1 slot into L0 VRAM
+      -> attention proceeds only after every plan entry is ready
+```
+
+The same coordinator must be called by the token path (`qsa_layer`) and prompt
+path. There cannot be one pager for generation and a second implicit policy
+for serving.
+
+### Graph-boundary rule
+
+A CUDA graph cannot perform host-side file I/O or update a host cache from a
+CPU thread. The captured sequence must therefore split at the selection
+boundary:
+
+1. selection graph/kernel produces the read plan;
+2. CPU/I/O coordinator makes L1 slots ready;
+3. resolve/attention graph consumes only ready slots.
+
+The first correctness implementation may make this a synchronous split. The
+target is asynchronous read batches with prefetch overlap.
+
+## Write and eviction policy
+
+1. Append writes the pinned open tail block in L1 and the existing VRAM slot
+   when resident.
+2. When a block completes, the coordinator marks it publishable.
+3. A complete group is serialized, checksummed, and submitted as one store put.
+4. The store's valid marker is committed only after the entire payload.
+5. An L1 group becomes evictable only after its L2/L3 put is complete.
+6. L0 remains governed by the existing CLOCK residency map.
+7. A read failure or checksum mismatch is a miss/refusal, never a zero fill.
+
+The tail is pinned. No incomplete block may be evicted or exposed to the
+resolver.
+
+## Read policy
+
+- Foreground: blocks named by the current selection and absent from L1.
+- Tail prefetch: the next expected append group.
+- Selection prefetch: likely blocks inferred from the previous layer/token,
+  but speculation can never replace the foreground plan.
+- Migration: groups moving between local and shared stores.
+
+Admission should begin with CLOCK, matching the existing VRAM policy. A more
+placement-aware policy must beat CLOCK in a matched control before replacing
+it.
+
+## Integrity and metadata
+
+Local file header:
+
+- magic and format version;
+- geometry and KV-format identity;
+- block and group bytes;
+- block count;
+- payload offset;
+- clean-shutdown marker;
+- header checksum.
+
+Group entry:
+
+- valid bit;
+- payload checksum;
+- write epoch;
+- completion identity.
+
+The payload checksum covers all block runs in layout order. The header is the
+single source of truth for its layout; readers must not independently
+recompute a second layout. A group with an invalid marker or bad checksum is
+absent, not corrupt garbage to return.
+
+## Observability
+
+Every accepted run must report:
+
+- foreground reads, prefetch reads, and bytes;
+- group writes and bytes;
+- L1 evictions and pins;
+- read latency p50/p95/p99;
+- time the GPU spent waiting for cold reads;
+- checksum refusals and store failures;
+- distribution of distinct cold blocks per attention call;
+- L0 hit rate separately from L1 hit rate.
+
+A run with zero foreground cold reads cannot be presented as a cold-tier
+measurement.
+
+## Engineering quality gates
+
+The first implementation iteration failed because it was built against the
+wrong execution path. Every subsequent PR must include a path inventory before
+code:
+
+| Concern | Required live call sites |
+| --- | --- |
+| Serving append | `verify.cpp` `kv_append_q8_steps` / `kv_append_q8_step` (and format equivalents) |
+| Serving selection | `verify.cpp` `qsa_block_scores` / `qsa_block_topk` |
+| Serving resolve | `verify.cpp` `qsa_kv_resolve`, both row and batch forms |
+| Token path | `layer.cpp` `qsa_layer` append and resolve |
+| Prompt path | prefill append and staging entry points |
+| Capture boundary | every graph that contains selection or resolve |
+
+Additional PR rules:
+
+- one coordinator implementation; no private second policy in verify or prefill;
+- every public constructor/state transition has a test or an explicit non-claim;
+- all supported formats run the same page movement test;
+- no synchronous I/O call may be hidden inside a graph-capturable function;
+- no new configuration default changes until live-model acceptance passes;
+- telemetry is enabled in test builds and asserted by integration tests;
+- failure injection covers I/O error, short read, checksum mismatch, invalid
+  epoch, pinned allocation failure, and coordinator shutdown;
+- code that changes paging behavior must cite the measured call path and the
+  counters proving that path ran.
+
+Review must reject a diff solely because its unit tests pass: the serving-path
+integration and live counters are part of the definition of done.
+
+## Acceptance gates
+
+### Unit and kernel parity
+
+1. Every supported KV format round-trips byte-exactly after forced eviction.
+2. Partial final groups remain readable.
+3. Torn headers and payloads are refused.
+4. Random host-slot mappings produce identical resolver output to identity
+   mappings.
+5. Rewind/reset invalidates prior epochs.
+6. One coordinator per stage/slot is exercised by a multi-state test.
+
+### Live-model correctness
+
+Matched RAM control and cold tier on the same model, artifact, context, prompt,
+seed, expert cache state, MTP state, and numeric KV format:
+
+- identical token IDs and targets;
+- zero argmax mismatches over the scored trace;
+- mean NLL delta within the pre-registered tolerance, initially `1e-4`;
+- the cold arm must report nonzero foreground cold reads and evictions;
+- report max absolute log-probability delta, not only perplexity.
+
+Perplexity is a sanity check for "not garbage"; byte-exact page movement is
+the stronger internal invariant.
+
+### Scale and performance
+
+- 600K context correctness run, then 800K;
+- decode and prefill throughput against same-day full-host-RAM control;
+- cold-read p50/p95/p99 and GPU wait time;
+- host-cache byte budget sweep;
+- KV format comparison only after correctness passes.
+
+No speed or context-support claim is valid without those controls.
+
+## Implementation phases
+
+### Phase A: stabilize the boundary
+
+- Quarantine the current one-file pager behind the `KvBlockStore` ABI.
+- Move all verify append and resolve hooks to the coordinator.
+- Keep synchronous reads, but make readiness explicit.
+- Add resolver parity tests for all four KV formats.
+
+### Phase B: correct serving path
+
+- Split verify capture at selection/read-plan/resolve.
+- Publish complete groups from the actual append path.
+- Force cold misses in a small controlled test.
+- Run the live-model NLL control.
+
+### Phase C: asynchronous I/O
+
+- Add read batches, double-buffered pinned slots, and background writes.
+- Prefetch the open tail.
+- Overlap store reads with independent GPU work.
+- Add latency and GPU-wait metrics.
+
+### Phase D: shared tier
+
+- Add the Mooncake-compatible `KvBlockStore`.
+- Keep a native local store for single-host operation.
+- Use one key and byte-object mapping across both stores.
+- Introduce a second host only after local correctness and scale gates pass.
+
+### Phase E: placement optimization
+
+- Sweep host-cache size and admission policy.
+- Study per-layer and selection-aware placement.
+- Consider local/shared replication for shared agent prefixes.
+- Promote a policy only from matched measurements.
+
+## Known risks
+
+| Risk | Guard |
+| --- | --- |
+| Selection touches many scattered cold blocks | Log distinct blocks/call; batch reads; measure p99 |
+| Graph capture hides a host dependency | Selection/resolve split and readiness assertion |
+| Append and resolve use different mappings | Shared coordinator and resolver parity test |
+| Layer split or batch aliases state | Coordinator key includes stage/slot |
+| NVMe latency dominates decode | GPU-wait metric and foreground/prefetch separation |
+| Filesystem dirty state loses metadata | Clean unmount and `fsck.exfat -n` procedure |
+| Smaller KV format hides a correctness bug | Format parameter included in parity and live controls |
+
+## Current prototype status
+
+The existing experimental pager has useful primitives:
+
+- checksummed immutable groups;
+- bounded L1 slot cache;
+- partial-group handling;
+- torn-payload refusal;
+- forced-eviction round-trip tests.
+
+It is not the target architecture and is not serving-path accepted. Its group
+format and tests may be absorbed into Phase A; its integration points must be
+replaced.

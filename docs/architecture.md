@@ -97,7 +97,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
 | GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight, `tools/reap_mask_from_traces.py`, and the tiny Qwen4-Exp/RCO CPU plus Modal-L4 compatibility probes. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
-| KV disk tier | Use native Optane session files for whole-conversation parking; live inference remains VRAM plus pinned host RAM | A live NVMe pager needs measured multi-session RAM pressure, asynchronous QSA block I/O, correctness/failure tests, and a same-day decode control; Mooncake is reserved for a concrete multi-host shared-pool requirement |
+| Disaggregated KV tier | Target design is [KV disaggregation](KV_DISAGGREGATION.md): a coordinator owns L0 VRAM, L1 pinned host slots, L2 local Optane/NVMe groups, and optional L3 shared storage through one `KvBlockStore` ABI. The current `--kv-disk` prototype is quarantined experimental code, not serving-path acceptance | Phase A must move append/read hooks into the actual verify path and support all KV formats; live acceptance requires zero argmax mismatches, mean NLL within `1e-4`, nonzero forced cold reads/evictions, then 600K and 800K matched controls |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
 
@@ -1449,6 +1449,47 @@ optimization target is the decode pipeline, not memory. Full measurements,
 including the explicit hugepage state and what was not measured, are in
 [long-session evidence](../evidence/qwen-b550-longrun-256k.json).
 
+### Cold KV disk tier, native packs, and Optane operations, 2026-10-20
+
+An earlier revision of this record treated Optane as a parking-only destination
+and proposed a canonical Q2_0 pack for the cold tier. Both assumptions were
+wrong and are corrected here.
+
+First, the staged artifact is enough. The IQ2_XS pack's `--spec T` requirement is
+an EXPERT-path requirement, not a KV-path one: a native (IQ) pack serves its
+experts from the GGUF and decodes through verify windows, and those windows
+resolve the MAIN QSA layers' K/V through `qsa_kv_resolve` (verify.cpp:1231,1244),
+which is exactly the state the pager owns. An earlier revision refused `--spec`
+with `--kv-disk` on the reasoning that a native pack "needs the MTP ring", which
+conflated the verify window with the drafter. The drafter's own state is a ring
+over its last window, sized by that window rather than by the context, so the
+ring is still refused while `--spec` is allowed.
+
+Second, the pager has an explicit durability position. The disk granule is 32
+blocks = 135,168 B = 33 x 4 KiB exactly, because a single 4,224 B block is 128 B
+past a 4 KiB boundary and could never be an aligned direct transfer. A group's
+payload is written whole and its valid bit only after, and every read verifies a
+CRC over the payload and refuses the group rather than returning torn bytes.
+That tolerance ends at the filesystem: exFAT has no journal, so the mount's
+unmount discipline, not the pager, protects the directory. Five unclean
+unmounts were observed in one session on this host and the volume then surveyed
+clean (`fsck.exfat -n`: 21 directories, 101 files). The operating rules are
+`docs/OPTANE_KV_TIER.md`.
+
+Two defects were found by the pager's own tests rather than by a model run, and
+both are recorded because the second would have produced plausible wrong
+answers: `scatter_block` did not skip the first block's byte run, so a write and
+its read agreed on the same wrong offset and a torn payload passed undetected;
+and the loader recomputed the file layout instead of adopting the header's own
+values, so a corrupt header was reported as a configuration mismatch. The header
+checksum is now verified on open, and the header's `payload_offset` is the one
+source of truth for the reader and the writer.
+
+Nothing here is a measured decode result. The engine builds on B550 and the
+pager's unit tests pass there, but the cold tier has NOT yet been compared
+against the RAM path on real text, and no throughput, latency, or context
+figure for it is claimed.
+
 ### B550 Optane session parking and the Mooncake boundary, 2026-10-20
 
 Strata already has two distinct KV placement mechanisms, and only one of them is
@@ -1490,3 +1531,35 @@ Strata-native asynchronous block pager if local multi-session RAM pressure is
 measured, and Mooncake only when a second inference host needs a shared or
 replicated KV pool. Full measurements and non-claims are in
 [Optane session evidence](../evidence/qwen-b550-optane-session-store.json).
+
+### Disaggregated KV target architecture supersedes the prototype decisions, 2026-10-20
+
+The conclusions above about a bespoke pager and a multi-host-only Mooncake
+boundary are historical observations, not the current architecture. The target
+is now [KV disaggregation](KV_DISAGGREGATION.md): one coordinator owns L0 VRAM,
+L1 pinned host slots, L2 local Optane/NVMe groups, and optional L3 shared
+storage through a common `KvBlockStore` ABI. Mooncake is not rejected because
+it lacks QSA semantics; the Strata adapter supplies the block key, geometry,
+epoch, and validation, while the store treats payloads as opaque bytes.
+
+Four corrections to the experimental iteration are binding:
+
+1. The serving path is authoritative. `verify.cpp` appends QSA K/V directly
+   with `kv_append_q8_steps`/`kv_append_q8_step` and resolves through
+   `qsa_kv_resolve`; hooks in `qsa_layer` alone cannot serve the model. The
+   existing prototype is therefore quarantined until its append/read boundary
+   moves into verify and shares one coordinator with the token path.
+2. KV format is an input, not an architecture decision. FP16, INT8, Q4_0, and
+   K8V4 all have format-specific aligned group sizes; the first INT8-only
+   implementation was a control-compatibility shortcut, not a constraint.
+3. The MTP drafter ring is separate bounded state and can coexist with the
+   main-layer tier. It must not be managed as if it were a full-context QSA
+   pool, but its presence is not a reason to refuse `--mtp` or `--spec`.
+4. The observed 5.20-versus-14.25 perplexity comparison is void: the cold arm
+   truncated attention to the small host cache and did not exercise paging.
+   It is retained only as a failure example, not as a measurement.
+
+Phase A must establish the coordinator and actual serving-path hooks; Phase B
+must pass a matched live-model NLL control with forced cold reads and
+evictions; Phases C-E add asynchronous I/O, shared storage, and placement
+optimization. No current implementation satisfies those gates.
