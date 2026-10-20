@@ -24,7 +24,7 @@
   },
   "contamination_incident": {
     "what_happened": "A first pass of these arms measured 50-73 tok/s, far below the 227 tok/s control, and the placement logs showed only 2.99 GiB free and 1628 cache slots instead of 20.04 GiB and 12288.",
-    "root_cause": "Another session's live job, a Ming ASR teacher transcription (tmux ming-full-none, /home/kearm/salm-lora/asr_teachers, started 16:33:50), held ~17.5 GB on each GPU (PIDs 68886 and 68888). The 17,459 MiB difference in free VRAM matches that footprint exactly.",
+    "root_cause": "Another session's live job, a Ming ASR teacher transcription (tmux ming-full-none, /home/kearm/salm-lora/asr_teachers, started 16:33:50), held ~17.5 GB on each GPU (PIDs 68886 and 68888). The ~17,459 MiB difference in free VRAM (20.04 GiB expected against 2.99 GiB observed, 1024-based units) matches that footprint, to the precision the two-decimal GiB inputs allow.",
     "handling": "The foreign job was NOT stopped or disturbed; it was allowed to finish (500/500 on both arms, hyps written) and then the arms were re-run on a clean GPU.",
     "lesson": "A pre-flight guard that aborts when any foreign process holds GPU memory is now part of the arm script (clean_arms.sh); the guard printed 0,1 / 1,33 MiB before the clean run started."
   },
@@ -181,5 +181,5 @@
     "No change was made to any deployed configuration: the finding is a recommendation with evidence, not an applied default.",
     "The contamination incident and the foreign job are recorded because they changed what could be measured; the foreign job's own results are not evaluated here."
   ],
-  "recording_note": "recorded_at is the UTC time of the commit that added the measurements (ISO-8601 with a Z suffix, the repository evidence schema's required form)."
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset."
 }

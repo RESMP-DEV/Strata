@@ -3,7 +3,7 @@
   "agent": "Codex",
   "source_revision": "5bf8cb4046c06d709574b4a1a271ad4df3d7c7b0",
   "source_dirty": false,
-  "authorization": "The user asked whether the MXFP4 embedder is built for acceleration on Strix and said Strix could host it; the user also authorized stopping B550 embedding services for Strata work.",
+  "authorization": "The user asked whether the MXFP4 embedder is built for acceleration on Strix and said Strix could host it. That question did not require stopping the B550 embedding services, and they were not stopped for the Strix work: the separate B550 concurrency and layer-split work did stop them, under the user's standing authorization to stop them for Strata work, and is recorded in evidence/qwen-b550-concurrency-fallback.json and evidence/qwen-b550-layer-split-topology.json.",
   "scope": "Determine by live measurement whether the sindexer Jina MXFP4 embedder can run on Strix (RTX 5070 Laptop, SM120) and whether its output matches the B550 reference, then compare the three embedding tiers.",
   "host": "strix alias 192.168.1.182 (ROG Strix G615LP, RTX 5070 Laptop 8GB, compute capability 12.0, driver 595.99.02, kernel 7.0.0-38, 91GiB RAM)",
   "question_answered": {
@@ -92,5 +92,5 @@
     "strix": "embedder running standalone on 127.0.0.1:1236, 1324 MiB VRAM, model and venv in place",
     "b550": "both GPU embedding units active, serving the same 1536-dim model; no Strata server left running"
   },
-  "recording_note": "recorded_at is the UTC time of the commit that added the measurements (ISO-8601 with a Z suffix, the repository evidence schema's required form)."
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements, in the ISO-8601 Z form scripts/check_structure.py requires. The value was cross-checked against the wall clock of the Mac, B550, and Strix, which agreed at 2026-10-20T00:31:41Z; the commit's own author and committer dates in local time (2026-10-19T17:xx:xx-07:00) are the same instants expressed in the machine's PDT offset."
 }
