@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-19T16:41:16-07:00",
+  "recorded_at": "2026-10-19T23:41:16Z",
   "agent": "Codex",
   "source_revision": "5bf8cb4046c06d709574b4a1a271ad4df3d7c7b0",
   "source_dirty": false,
@@ -9,8 +9,9 @@
   "question_answered": {
     "mxfp4_on_strix_cuda": "YES. The Triton MXFP4 matmul_ogs kernel from kernels-community/gpt-oss-triton-kernels compiles and runs on SM120. A direct probe with packed E2M1 weights and E8M0 scales returned MXFP4_MATMUL_OK shape (8, 64) dtype torch.bfloat16 finite True.",
     "real_embedder_on_strix": "YES. The unmodified cuda_embed_server.py serving jina-code-embeddings-1.5b-block-gptq-mxfp4-32k was deployed on Strix and returns 1536-dim embeddings.",
-    "output_agreement": "cosine 0.99990560 (row 0) and 0.99990414 (row 1) against the B550 RTX 3090 Ti reference for the same two code inputs; max absolute element difference 1.241e-3 and 2.521e-3. The residual difference is MXFP4 kernel ordering/rounding between Ampere and Blackwell, not a correctness failure.",
-    "npu_path": "NOT TESTED. The Intel Arrow Lake NPU (/dev/accel/accel0) was not exercised; the MXFP4 embedder as shipped is a CUDA/Triton path, so an NPU route would need a different implementation."
+    "output_agreement": "cosine 0.99990560 (row 0) and 0.99990414 (row 1) against the B550 RTX 3090 Ti reference for the same two code inputs; max absolute element difference 1.241e-3 and 2.521e-3. The residual difference is likely MXFP4 kernel ordering/rounding between Ampere and Blackwell (a hypothesis: no ablation isolates the cause and only two rows were compared).",
+    "npu_path": "NOT TESTED. The Intel Arrow Lake NPU (/dev/accel/accel0) was not exercised; the MXFP4 embedder as shipped is a CUDA/Triton path, so an NPU route would need a different implementation.",
+    "output_agreement_cause_hypothesis": "likely MXFP4 kernel ordering/rounding between Ampere and Blackwell; not isolated by an ablation"
   },
   "environment_alignment": {
     "b550_working_combination": "transformers 5.17.0, kernels 0.16.0, torch 2.14.1, triton 3.8.0",
@@ -27,19 +28,23 @@
     "b550_gpu_rtx3090ti_mxfp4_1536dim": {
       "single_request_s": 0.081,
       "batch32_items_per_s": 183.1,
-      "note": "measured through the nginx :1238 balancer"
+      "note": "measured through the nginx :1238 balancer",
+      "provenance": "reused from evidence/qwen-b550-concurrency-fallback.json (measured 2026-10-19T23:07Z in that session), not re-measured in this session",
+      "path": "measured through the nginx :1238 balancer (least_conn over :1236 and :1237)"
     },
     "strix_gpu_rtx5070laptop_mxfp4_1536dim": {
       "single_request_s": 0.036,
       "batch32_items_per_s": 15.9,
-      "note": "direct :1236 on Strix; 2.25x lower single-request latency than the B550 GPU path, about 11.5x lower bulk throughput; 1324 MiB VRAM resident"
+      "note": "direct :1236 on Strix; 2.25x lower single-request latency than the B550 GPU path, about 11.5x lower bulk throughput; 1324 MiB VRAM resident",
+      "path": "measured direct on Strix :1236"
     },
     "b550_cpu_qwen3_0_6b_q8_1024dim": {
       "single_request_s": 0.02,
       "batch32_items_per_s": 38.8,
       "note": "always-on llama.cpp on :1235; a DIFFERENT model and dimensionality, so not drop-in interchangeable with the 1536-dim collection without a reindex"
     },
-    "tier_role": "Strix fits the interactive/low-volume slot (lowest GPU-path latency) and can host the exact 1536-dim MXFP4 model, which the CPU embedder cannot. B550's 3090 Ti remains the bulk-throughput tier."
+    "tier_role": "Strix fits the interactive/low-volume slot (lowest GPU-path latency) and can host the exact 1536-dim MXFP4 model, which the CPU embedder cannot. B550's 3090 Ti remains the bulk-throughput tier.",
+    "path_asymmetry_note": "The 2.25x single-request latency ratio compares the B550 balancer path (:1238) with the direct Strix path (:1236), so it is not a GPU-only comparison."
   },
   "commands": [
     {
@@ -79,11 +84,13 @@
     "Two input rows on one host pair are not a parity suite; the 0.9999 cosine is a spot check, not a bit-exact acceptance gate.",
     "Strix throughput numbers are from one batch of 32 and five single reps on an otherwise idle host; no sustained-load or thermal behavior was measured.",
     "The invalid HF token on Strix is worked around, not fixed.",
-    "No B550 embedding service was stopped or modified for the Strix work; both B550 units remained active throughout."
+    "No B550 embedding service was stopped or modified for the Strix work; both B550 units remained active throughout.",
+    "The B550 GPU and CPU tier values are reused from evidence/qwen-b550-concurrency-fallback.json, not re-measured in this session.",
+    "The B550 GPU latency was measured through the nginx :1238 balancer and the Strix latency direct on :1236; the 2.25x latency ratio includes that path difference and is not a GPU-only comparison."
   ],
   "final_host_state": {
     "strix": "embedder running standalone on 127.0.0.1:1236, 1324 MiB VRAM, model and venv in place",
     "b550": "both GPU embedding units active, serving the same 1536-dim model; no Strata server left running"
   },
-  "recording_note": "recorded_at is the commit time of the commit that added this record; the measurements were taken before it."
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements (ISO-8601 with a Z suffix, the repository evidence schema's required form)."
 }

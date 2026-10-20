@@ -1288,7 +1288,8 @@ probe with packed E2M1 weights and E8M0 scales returned
 `jina-code-embeddings-1.5b-block-gptq-mxfp4-32k` on Strix, returning 1536-dim
 embeddings that agree with the B550 RTX 3090 Ti reference at cosine 0.99990560
 and 0.99990414 on two code inputs (max absolute element difference 1.241e-3 and
-2.521e-3, the residual being MXFP4 kernel ordering between Ampere and Blackwell).
+2.521e-3; the residual is likely MXFP4 kernel ordering between Ampere and
+Blackwell, a hypothesis no ablation isolates).
 
 Strix's environment needed one alignment to the proven B550 combination:
 `transformers` 5.20.2 there requires `kernels` >= 0.17.2, a different package
@@ -1321,9 +1322,9 @@ measurements and non-claims are in
 ### B550 layer-split topology optimization, 2026-10-20
 
 B550's two cards are not symmetric on the host bus, and the difference is
-larger than the card order. The PCI tree puts GPU0 (`0000:00:04.0`) behind the
+larger than the card order. The PCI tree puts GPU0 (`00000000:04:00.0`, bus 04) behind the
 AMD 500-series chipset at Gen3 x4, 2.9 GB/s host-to-device as the engine probes
-it, while GPU1 (`0000:08:00.0`) is CPU-root at Gen4 x16, 25.4 GB/s. The engine's
+it, while GPU1 (`00000000:08:00.0`, bus 08) is CPU-root at Gen4 x16, 25.4 GB/s. The engine's
 auto placement search already scales each stage's miss cost by its probed link
 (x6.96 against x1.00 here), so the question was whether an explicit placement
 beats the search on this asymmetric pair.

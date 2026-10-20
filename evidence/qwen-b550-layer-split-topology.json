@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-19T17:13:44-07:00",
+  "recorded_at": "2026-10-20T00:13:44Z",
   "agent": "Codex",
   "source_revision": "445c8f6488201a4d046ef90aeecb1adae860d204",
   "source_dirty": false,
@@ -8,18 +8,19 @@
   "host": "B550 alias 192.168.1.171, dual RTX 3090 Ti 24GB, kernel 7.0.0-38, custom open NVIDIA module 595.99.02 (build tag kearm@b550)",
   "topology_facts": {
     "gpu0": {
-      "bus": "0000:00:04.0",
+      "bus": "00000000:04:00.0 (domain 0000, bus 04, device 0, function 0)",
       "pcie_path": "AMD 500 Series Chipset (00:01.2) -> [04]",
       "link": "Gen3 x4, 2.9 GB/s host->device probed",
       "miss_cost_scale": "x6.96"
     },
     "gpu1": {
-      "bus": "0000:08:00.0",
+      "bus": "00000000:08:00.0 (domain 0000, bus 08, device 0, function 0)",
       "pcie_path": "CPU root (00:03.1) -> [08]",
       "link": "Gen4 x16, 25.4 GB/s host->device probed",
       "miss_cost_scale": "x1.00"
     },
-    "note": "GPU0 is chipset-attached at Gen3 x4 while GPU1 is CPU-root Gen4 x16, an 8.7x host-bandwidth asymmetry. The engine's auto placement search already scales each stage's miss cost by its probed link."
+    "note": "GPU0 is chipset-attached at Gen3 x4 while GPU1 is CPU-root Gen4 x16, an 8.7x host-bandwidth asymmetry. The engine's auto placement search already scales each stage's miss cost by its probed link.",
+    "pci_identifier_note": "The identifiers are the values nvidia-smi reports as pci.bus_id on this host. Note the bus numbers are 04 and 08, not 00: the earlier note wrote 0000:00:04.0, which reads as a device on bus 00 and would select the wrong PCI device."
   },
   "contamination_incident": {
     "what_happened": "A first pass of these arms measured 50-73 tok/s, far below the 227 tok/s control, and the placement logs showed only 2.99 GiB free and 1628 cache slots instead of 20.04 GiB and 12288.",
@@ -180,5 +181,5 @@
     "No change was made to any deployed configuration: the finding is a recommendation with evidence, not an applied default.",
     "The contamination incident and the foreign job are recorded because they changed what could be measured; the foreign job's own results are not evaluated here."
   ],
-  "recording_note": "recorded_at is the commit time of the commit that added this record; the measurements were taken before it."
+  "recording_note": "recorded_at is the UTC time of the commit that added the measurements (ISO-8601 with a Z suffix, the repository evidence schema's required form)."
 }
