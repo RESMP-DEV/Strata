@@ -353,6 +353,55 @@ No speed or context-support claim is valid without those controls.
 
 ## Implementation phases
 
+### Phase 0: establish the performance integration base
+
+The coordinator must be built against the newer verify/prefill shape, not the
+October 8 `fb58e0d` engine from the quarantined prototype.
+
+1. Keep `upstream-v0.1.45-engine` as the imported runtime base and build the
+   coordinator on `feature/kv-disaggregation-v0145`.
+2. Import the coherent upstream `v0.1.45` runtime, tests, and stable server
+   adapter, plus the sibling SM86 commit `2725c23f746e`; do not merge the
+   October 19 0.2.0 app/package/release tree.
+3. Preserve the local accelerator-plugin ABI and DeepSeek host contracts on
+   top of that tree. The engine source must remain exactly the upstream SM86
+   tree plus those owned additions until a ticket says otherwise.
+4. Build CUDA sm86 on B550 and run the existing calibrated Qwen control before
+   porting any coordinator hook.
+5. Apply post-`v0.1.45` engine work only as ordered clusters with matched B550
+   controls. The latest serving/app iterations are not performance inputs and
+   do not justify a wholesale merge.
+
+No coordinator integration is based on the old engine after this point.
+
+### Upstream intake ledger, 2026-10-20
+
+`v0.1.45` is `477ac13cbe8e`; the audited October 19 tip is
+`e88ee39d1d6b`, dominated by 0.2.0 packaging and app work. `2725c23f746e` and
+the I/O/CPU/prefill branches are siblings. A tree diff between siblings can
+delete `nv_defaults`, so only ordered clusters may be imported.
+
+| Cluster | Commits | Decision | Required B550 control |
+| --- | --- | --- | --- |
+| Imported SM86 exact-kernel stack | `2725c23f746e` | Present in the base; upstream's 3060/A4000 numbers are provenance only | Same-day `STRATA_SM86_PERF=1/0`, token/logit identity, decode and prefill throughput |
+| Host-aware prefill planner | `e77f1dfc3fa1`, `d8471050bde2`, `8253477bf9be` | First post-baseline candidate; portable and directly relevant to long context | Host-plan on/off, token identity, prefill tok/s, page-cache and drive counters |
+| CPU pool planner | `5ece068f7e45`, `036c8f6ec3b5`, `bec4c838ab18` | Apply only after a B550 worker sweep proves benefit | automatic versus explicit worker counts, decode, RSS, worker warnings |
+| Expert I/O mechanics | `c85cc6dd19d2`, `2044864dba32`, `8b1139d026c9` | Import only the opt-in mechanics after the planner; keep all defaults off | `STRATA_IO_STATS=1`, identity gate, cold/read-ahead and device-I/O counters |
+| Linux expert-tier defaults | `82c80ac4d76a`, `c3136797` | Do not import yet; extract only cgroup clean-page accounting if needed | Forced expert-cold control plus KV foreground latency before any default change |
+| Multi-GPU/concurrency | split overlap `56146c4c4906`, prefill pipe `125025a770c4`, concurrent reads `bc90e1acffde`/`34b726e09051`/`073d079d27d2` | Keep off until per-stage/per-slot coordinator keys exist and B550's serial queue policy is retested | Greedy-output identity, hang/watchdog proof, separate GPU0/GPU1 timing, and why `concurrent_read_off()` reports active or inactive |
+| Gyro/Trellis SwiGLU guard | `8837cb6f` | Defer; current target is the calibrated Qwen IQ2_XS/Q2_0 artifact | Needed only when a Trellis format becomes executable |
+| HIP/gfx12, SM120, packaging, release wiring | architecture-specific branches after `v0.1.45` | Reject for this B550 CUDA lane | No control applies until a different target host/model is selected |
+
+Post-`v0.1.45` serving commits through the audited tip are protocol, packaging,
+monitor, browser, picture-reader, and release-wiring changes. They contain no
+B550 engine-performance claim. A selected correctness/UX fix may be ported
+after the coordinator if its behavior is needed, but it is not part of Phase 0
+performance intake.
+
+The planner's host model must eventually include L1 KV bytes and L2 foreground
+read bandwidth. Expert prefetch and KV reads must share one deadline/priority
+view; two independent bandwidth policies are a defect.
+
 ### Phase A: stabilize the boundary
 
 - Quarantine the current one-file pager behind the `KvBlockStore` ABI.
@@ -387,6 +436,34 @@ No speed or context-support claim is valid without those controls.
 - Study per-layer and selection-aware placement.
 - Consider local/shared replication for shared agent prefixes.
 - Promote a policy only from matched measurements.
+
+## Execution backlog
+
+A ticket is not ready unless it names its path inventory, changed paths, and
+counters. Upstream commit-message measurements are provenance, not acceptance.
+
+| ID | Phase | Deliverable | Primary files | Acceptance |
+| --- | --- | --- | --- | --- |
+| U0 | 0 | Owned integration branch from the imported base | branch only | dirty prototype preserved elsewhere and ancestry receipt |
+| U1 | 0 | `v0.1.45` runtime/tests/server import without 0.2.0 packaging | imported source tree | host quality plus exact-tree comparison receipt |
+| U2 | 0 | Preserve accelerator-plugin ABI and DeepSeek host contracts | owned runtime additions | plugin/DeepSeek checks and CUDA link |
+| U3 | 0 | Validate SM86 exact-kernel stack on real B550 | `nv_defaults.*`, `generate.cpp`, kernels | `STRATA_SM86_PERF=1/0` identity and same-day throughput control |
+| U4 | 0 | Import and validate host-aware prefill planner | prefill plan/generate files | host-plan on/off long-prompt control with page-cache counters |
+| U5 | 0 | Sweep and import CPU-pool planner only if beneficial | CPU pool/plan files | automatic versus explicit workers, decode, RSS, warnings |
+| U6 | 0 | Import opt-in expert I/O mechanics; keep defaults unchanged | expert source/prefill/pool files | identity, I/O counters, forced expert-cold control |
+| U7 | 0 | Build and run calibrated Qwen baseline before coordinator work | B550 runtime | exact configured control, source/model hashes, receipt |
+| K1 | A | `KvBlockStore` ABI and local store adapter | new core KV files | all-format group-size and checksum tests |
+| K2 | A | `KvTierCoordinator` state machine and epoch keys | new coordinator files | reset/rewind/failure and cross-stage collision tests |
+| K3 | A | Move serving append boundary into coordinator | `verify.cpp` append sites | counters prove every append and no orphan producer |
+| K4 | A | Move serving read-plan/resolve boundary into coordinator | `verify.cpp` selection/resolve sites | readiness assertion and explicit sync-read proof |
+| K5 | A | Share token/prompt-path coordinator hooks | `layer.cpp`, prefill append sites | one policy and no duplicate residency state |
+| K6 | A | Graph split proof | verify capture code | capture log contains selection/readiness and resolve phases |
+| K7 | B | Real-source matched NLL control | B550 runtime | zero argmax mismatch, mean NLL delta at most `1e-4`, forced cold reads and L1 evictions nonzero |
+| K8 | B | 600K scale gate | B550 runtime | correctness first, then throughput and cold-latency receipt |
+| K9 | B | 800K scale gate | B550 runtime | correctness first, then throughput and cold-latency receipt |
+| K10 | C | Async read batches and background group writes | coordinator/store | GPU-wait metric falls and no foreground write dependency |
+| K11 | D | Mooncake-compatible opaque-object adapter | `KvBlockStore` implementation | round trip, quota, failure injection, and replication contract |
+| K12 | E | Placement and bandwidth policy sweep | coordinator policy | beats CLOCK in matched control without starving expert reads |
 
 ## Known risks
 

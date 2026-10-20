@@ -1563,3 +1563,24 @@ Phase A must establish the coordinator and actual serving-path hooks; Phase B
 must pass a matched live-model NLL control with forced cold reads and
 evictions; Phases C-E add asynchronous I/O, shared storage, and placement
 optimization. No current implementation satisfies those gates.
+
+### Upstream v0.1.45 performance intake, 2026-10-20
+
+The implementation base is now isolated from both the quarantined pager and
+upstream's 0.2.0 release tree. `upstream-v0.1.45-engine` imported the coherent
+`v0.1.45` runtime/tests/server tree and sibling SM86 stack through
+`2725c23f`; `feature/kv-disaggregation-v0145` carries the disaggregation
+architecture on that base. A source comparison proves the engine tree is the
+upstream SM86 tree plus the owned accelerator-plugin ABI and DeepSeek host
+contracts, not a partial hand merge.
+
+Post-`v0.1.45` performance intake is selective. The host-aware prefill planner
+is the first candidate, followed by a measured CPU-pool planner and opt-in
+expert-I/O mechanics. The Linux expert-tier default flip stays out. Split
+overlap, prefill pipelining, and concurrent prompt reads stay off until the KV
+coordinator owns per-stage/per-slot state and B550's serial queueing policy is
+retested. The latest app/serve iterations are packaging, protocol, monitor,
+browser, picture-reader, or release changes rather than B550 engine
+performance inputs. Full commit clusters, controls, and the B550 reachability
+blocker are recorded in
+[upstream intake evidence](../evidence/upstream-v0145-performance-intake.json).

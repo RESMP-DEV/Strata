@@ -1,0 +1,86 @@
+{
+  "recorded_at": "2026-10-20T06:24:12Z",
+  "agent": "Codex",
+  "source_revision": "b47bc2b559e73cbe5aa6c90d86af696844ca2a3c",
+  "source_dirty": true,
+  "scope": "Read-only upstream audit and integration planning for the disaggregated KV lane. The receipt records the imported runtime boundary, candidate ordering, host-safe gate, and the live B550 reachability blocker. It does not apply or measure a post-v0.1.45 candidate.",
+  "upstream": {
+    "merge_base": "fb58e0dbc8399662c0e47c76578c6e878b14f6cf",
+    "stable_tag_v0_1_45": "477ac13cbe8e582c20484871ce459d20d82df09d",
+    "sm86_stack": "2725c23f746e21bbbe08c55173bc72b1c39f2ec5",
+    "audited_tip": "e88ee39d1d6be6e3364183af3b39b62a7ed6f211",
+    "tip_observation": "October 19 has no src/include engine commits; the visible tip is 0.2.0 app, protocol, packaging, monitor, and release wiring."
+  },
+  "owned_branch": {
+    "imported_base": "e8a1be9add1e0e95f6983efb72d2b373d04e46e4",
+    "architecture_cherry_pick": "253a28da6ade3ce7e768b541094bb9660430fcba",
+    "new_branch": "feature/kv-disaggregation-v0145",
+    "engine_tree_proof": "git diff --name-status 2725c23f..HEAD -- src include CMakeLists.txt reports only the owned accelerator-plugin and DeepSeek geometry/test/build additions."
+  },
+  "candidate_order": [
+    {
+      "name": "host-aware-prefill-planner",
+      "commits": [
+        "e77f1dfc3fa1",
+        "d8471050bde2",
+        "8253477bf9be"
+      ]
+    },
+    {
+      "name": "cpu-pool-planner",
+      "commits": [
+        "5ece068f7e45",
+        "036c8f6ec3b5",
+        "bec4c838ab18"
+      ],
+      "condition": "B550 worker sweep must show a benefit"
+    },
+    {
+      "name": "expert-io-mechanics",
+      "commits": [
+        "c85cc6dd19d2",
+        "2044864dba32",
+        "8b1139d026c9"
+      ],
+      "condition": "all defaults remain off"
+    },
+    {
+      "name": "linux-expert-defaults",
+      "commits": [
+        "82c80ac4d76a",
+        "c3136797"
+      ],
+      "decision": "rejected for now; only cgroup clean-page accounting is a possible extraction"
+    }
+  ],
+  "checks": [
+    {
+      "command": "git fetch upstream --prune --tags",
+      "exit": 0,
+      "result": "upstream/main remained e88ee39d; no newer engine-core commits arrived"
+    },
+    {
+      "command": "git diff --stat 2725c23f..HEAD -- src include CMakeLists.txt",
+      "exit": 0,
+      "result": "only nine owned plugin/DeepSeek paths differ; the imported engine source equals the upstream SM86 stack"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed=true at e8a1be9a before this documentation change; receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 B550 '...'",
+      "exit": 255,
+      "result": "Connection closed by UNKNOWN port 65535 before authentication",
+      "followup": "LAN 192.168.1.171 and ZeroTier 10.243.130.224 both timed out; one known wake packet was sent and SSH did not return in 120 seconds"
+    }
+  ],
+  "non_claims": [
+    "No upstream candidate after the SM86 stack has been cherry-picked onto the owned branch.",
+    "No CUDA backend build, model run, performance A/B, or SM86 identity gate has run on B550.",
+    "Upstream throughput numbers in commit messages are provenance only and were not reproduced.",
+    "The latest serving changes were classified by source audit; none was promoted to a performance claim.",
+    "B550 hardware state, GPU occupancy, Optane mount, and SMART state remain unverified because both network routes were unreachable."
+  ]
+}
