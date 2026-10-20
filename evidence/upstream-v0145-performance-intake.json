@@ -1,7 +1,7 @@
 {
-  "recorded_at": "2026-10-20T06:24:12Z",
+  "recorded_at": "2026-10-20T06:26:58Z",
   "agent": "Codex",
-  "source_revision": "b47bc2b559e73cbe5aa6c90d86af696844ca2a3c",
+  "source_revision": "042704af0ffbab779bd19fd1a5a144a1ebde281f",
   "source_dirty": true,
   "scope": "Read-only upstream audit and integration planning for the disaggregated KV lane. The receipt records the imported runtime boundary, candidate ordering, host-safe gate, and the live B550 reachability blocker. It does not apply or measure a post-v0.1.45 candidate.",
   "upstream": {
@@ -15,9 +15,17 @@
     "imported_base": "e8a1be9add1e0e95f6983efb72d2b373d04e46e4",
     "architecture_cherry_pick": "253a28da6ade3ce7e768b541094bb9660430fcba",
     "new_branch": "feature/kv-disaggregation-v0145",
-    "engine_tree_proof": "git diff --name-status 2725c23f..HEAD -- src include CMakeLists.txt reports only the owned accelerator-plugin and DeepSeek geometry/test/build additions."
+    "engine_tree_proof": "Before telemetry import, git diff --name-status 2725c23f..HEAD -- src include CMakeLists.txt reported only the owned accelerator-plugin and DeepSeek geometry/test/build additions.",
+    "imported_measurement_patch": "79d8ea066a6f93bfd9e4a8eaf4c7c2d15daa3287"
   },
   "candidate_order": [
+    {
+      "name": "batch-stage-telemetry",
+      "commits": [
+        "79d8ea066a6f"
+      ],
+      "decision": "imported as an opt-in measurement dependency"
+    },
     {
       "name": "host-aware-prefill-planner",
       "commits": [
@@ -70,6 +78,16 @@
       "result": "aggregate_passed=true at e8a1be9a before this documentation change; receipt build/reports/quality/receipt.json"
     },
     {
+      "command": "c++ -std=c++17 -Iinclude src/core/batch_telemetry_test.cpp -o build/upstream-intake/batch_telemetry_test && ./build/upstream-intake/batch_telemetry_test",
+      "exit": 0,
+      "result": "batch telemetry sampler: OK after resolving the cherry-pick against the SM86 concurrent-read context"
+    },
+    {
+      "command": "cmake -S . -B build/upstream-intake-host -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTRATA_BUILD_TESTS=ON -DSTRATA_ENABLE_CUDA=OFF -DSTRATA_ENABLE_HIP=OFF -DSTRATA_ENABLE_SYCL=OFF && cmake --build build/upstream-intake-host --target batch_telemetry_test -j 4 && ctest --test-dir build/upstream-intake-host -R '^batch_telemetry_test$' --output-on-failure",
+      "exit": 0,
+      "result": "host configure completed with fetched llama.cpp 3cf03257f; target built and CTest passed 1/1"
+    },
+    {
       "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 B550 '...'",
       "exit": 255,
       "result": "Connection closed by UNKNOWN port 65535 before authentication",
@@ -77,7 +95,7 @@
     }
   ],
   "non_claims": [
-    "No upstream candidate after the SM86 stack has been cherry-picked onto the owned branch.",
+    "No performance-changing upstream candidate after the SM86 stack has been cherry-picked onto the owned branch; only default-disabled batch telemetry was imported.",
     "No CUDA backend build, model run, performance A/B, or SM86 identity gate has run on B550.",
     "Upstream throughput numbers in commit messages are provenance only and were not reproduced.",
     "The latest serving changes were classified by source audit; none was promoted to a performance claim.",

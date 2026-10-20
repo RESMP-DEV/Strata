@@ -1579,8 +1579,10 @@ is the first candidate, followed by a measured CPU-pool planner and opt-in
 expert-I/O mechanics. The Linux expert-tier default flip stays out. Split
 overlap, prefill pipelining, and concurrent prompt reads stay off until the KV
 coordinator owns per-stage/per-slot state and B550's serial queueing policy is
-retested. The latest app/serve iterations are packaging, protocol, monitor,
-browser, picture-reader, or release changes rather than B550 engine
-performance inputs. Full commit clusters, controls, and the B550 reachability
-blocker are recorded in
+retested. The isolated opt-in batch/stage telemetry patch (`79d8ea06`) was
+imported because those controls need per-window and per-stage evidence; it is
+disabled unless `STRATA_BATCH_TELEMETRY=1`. The latest app/serve iterations are
+packaging, protocol, monitor, browser, picture-reader, or release changes
+rather than B550 engine performance inputs. Full commit clusters, controls, and
+the B550 reachability blocker are recorded in
 [upstream intake evidence](../evidence/upstream-v0145-performance-intake.json).

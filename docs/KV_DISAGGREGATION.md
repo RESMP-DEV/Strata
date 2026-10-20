@@ -383,6 +383,7 @@ delete `nv_defaults`, so only ordered clusters may be imported.
 
 | Cluster | Commits | Decision | Required B550 control |
 | --- | --- | --- | --- |
+| Batch/stage telemetry | `79d8ea066a6f` | Imported on the owned base as an opt-in measurement dependency; disabled unless `STRATA_BATCH_TELEMETRY=1` | Sampler unit test plus B550 batch and split-stage telemetry during the existing controls |
 | Imported SM86 exact-kernel stack | `2725c23f746e` | Present in the base; upstream's 3060/A4000 numbers are provenance only | Same-day `STRATA_SM86_PERF=1/0`, token/logit identity, decode and prefill throughput |
 | Host-aware prefill planner | `e77f1dfc3fa1`, `d8471050bde2`, `8253477bf9be` | First post-baseline candidate; portable and directly relevant to long context | Host-plan on/off, token identity, prefill tok/s, page-cache and drive counters |
 | CPU pool planner | `5ece068f7e45`, `036c8f6ec3b5`, `bec4c838ab18` | Apply only after a B550 worker sweep proves benefit | automatic versus explicit worker counts, decode, RSS, worker warnings |
@@ -397,6 +398,13 @@ monitor, browser, picture-reader, and release-wiring changes. They contain no
 B550 engine-performance claim. A selected correctness/UX fix may be ported
 after the coordinator if its behavior is needed, but it is not part of Phase 0
 performance intake.
+
+The stable base is not merely the tag snapshot. Through `2725c23f` it already
+contains the audited prefill MoE scatter, SM86 MMVQ/QSA kernel clusters,
+conversation-cache prefix/park work, admission/slot-copy machinery, split
+overlap, prefill pipe, and concurrent-read code. Presence is not promotion:
+their runtime switches remain explicit or retain upstream defaults until the
+named B550 controls run.
 
 The planner's host model must eventually include L1 KV bytes and L2 foreground
 read bandwidth. Expert prefetch and KV reads must share one deadline/priority
