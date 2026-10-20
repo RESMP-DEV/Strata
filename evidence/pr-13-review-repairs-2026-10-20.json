@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-20T23:13:30Z",
+  "agent": "Codex parent",
+  "source_revision": "b71fb3f6664d8654b67078c93f83750569da87fb",
+  "source_dirty": true,
+  "pull_request": "https://github.com/RESMP-DEV/Strata/pull/13",
+  "reviewers": [
+    "CodeRabbit",
+    "Codex read-only combined-diff subagent 01a15b86-5b30-7573-bd64-d4a3188929cb"
+  ],
+  "reviewed_revision": "2fb5f7b23e4831d636c452e9f7a52cd8c0bf02df",
+  "repairs": [
+    {
+      "finding": "Routed-expert element counts for 64, 128 and 256 experts per layer were inconsistent with the byte accounting.",
+      "change": "Corrected docs/PREFILLER.md to 15,099,494,400; 30,198,988,800; and 60,397,977,600 elements. Byte values were already correct."
+    },
+    {
+      "finding": "Weighted router coverage treated zero weights as unit activations, mixing serve-mode activation counts into router-weight share.",
+      "change": "Weighted mode now rejects a zero weight and directs the user to --unweighted; unweighted mode still counts activations."
+    },
+    {
+      "finding": "Duplicate-heading anchor suffixes could repeat after a third heading with the same text.",
+      "change": "Heading slug generation now tracks each base slug independently so GitHub-style -1 and -2 suffixes remain unique."
+    },
+    {
+      "finding": "The durable prefiller receipt contained a one-character source-revision typo.",
+      "change": "Rebound it to the existing base commit 1e8263888c38d7c2cde6deee2bded975efd38d94."
+    },
+    {
+      "finding": "Native-expert validation treated offsets as uniform without relating each row's blob_bytes to its 512-expert stride.",
+      "change": "The parser now requires cumulative blob_bytes * n_expert offsets and exact final byte accounting."
+    },
+    {
+      "finding": "Out-of-range profile pairs could be silently discarded and replaced by geometric fills.",
+      "change": "Profile loading now rejects every layer/expert pair outside Flash-Next's 48x512 geometry."
+    },
+    {
+      "finding": "The README contract checker did not require the status heading before counting table rows.",
+      "change": "A README without 'Project status and governance' now fails explicitly."
+    },
+    {
+      "finding": "The architecture common-quality description omitted the newly wired docs and prefiller checks.",
+      "change": "Updated the canonical quality-mode row to name README/docs navigation and both planner test domains."
+    }
+  ],
+  "tests_added": [
+    "zero router weight is rejected in weighted mode and counted in unweighted mode",
+    "third duplicate Markdown heading produces the -2 GitHub suffix",
+    "native-expert stride accounting",
+    "out-of-range profile pairs",
+    "missing README status heading"
+  ],
+  "validation": [
+    {
+      "command": "python3 -m unittest tools.test_prefiller_plan scripts.tests.test_check_docs -v",
+      "exit": 0,
+      "result": "16 focused tests passed"
+    },
+    {
+      "command": "python3 scripts/check_docs.py",
+      "exit": 0,
+      "result": "all four documentation checks passed"
+    },
+    {
+      "command": "ruff check tools/prefiller_plan.py tools/test_prefiller_plan.py scripts/check_docs.py scripts/tests/test_check_docs.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "ruff format --check tools/prefiller_plan.py tools/test_prefiller_plan.py scripts/check_docs.py scripts/tests/test_check_docs.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed=true at 2026-10-20T23:12:58Z; all checks exit 0",
+      "receipt": "build/reports/quality/receipt.json"
+    }
+  ],
+  "non_claims": [
+    "The corrected element counts are metadata arithmetic, not a new model run or benchmark.",
+    "No engine, trainer, accelerator or runtime behavior changed.",
+    "CodeRabbit ast-grep subprocess warnings on test argv lists were not repaired because the tests use argv lists without a shell; this is recorded as reviewer tooling noise, not an accepted code defect."
+  ]
+}

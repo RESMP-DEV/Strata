@@ -128,6 +128,12 @@ def quality() -> int:
         REPORT.unlink(missing_ok=True)
         state = git_state()
         structural_passed = _structural_checks(checks)
+        docs_checks = run_logged(
+            "docs-index",
+            [sys.executable, "scripts/check_docs.py"],
+        )
+        checks.append(docs_checks)
+        structural_passed = structural_passed and docs_checks["exit"] == 0
         checks.extend(
             [
                 run_logged(
@@ -159,11 +165,31 @@ def quality() -> int:
                     [sys.executable, "-m", "unittest", "tools.test_reap_mask_from_traces"],
                 ),
                 run_logged(
-                    "ruff-check", ["ruff", "check", "scripts", "tools/kv_tier_acceptance.py"]
+                    "prefiller-planner",
+                    [sys.executable, "-m", "unittest", "tools.test_prefiller_plan"],
+                ),
+                run_logged(
+                    "ruff-check",
+                    [
+                        "ruff",
+                        "check",
+                        "scripts",
+                        "tools/kv_tier_acceptance.py",
+                        "tools/prefiller_plan.py",
+                        "tools/test_prefiller_plan.py",
+                    ],
                 ),
                 run_logged(
                     "ruff-format",
-                    ["ruff", "format", "--check", "scripts", "tools/kv_tier_acceptance.py"],
+                    [
+                        "ruff",
+                        "format",
+                        "--check",
+                        "scripts",
+                        "tools/kv_tier_acceptance.py",
+                        "tools/prefiller_plan.py",
+                        "tools/test_prefiller_plan.py",
+                    ],
                 ),
                 run_logged(
                     "shellcheck-warning",
