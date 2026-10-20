@@ -1,9 +1,9 @@
 {
-  "recorded_at": "2026-10-20T07:52:11Z",
+  "recorded_at": "2026-10-20T07:56:25Z",
   "agent": "Codex",
-  "source_revision": "9c19ea2b00e048571bfe28b1cc82dafd38744697",
+  "source_revision": "801e3a4a00000000000000000000000000000000",
   "source_dirty": false,
-  "scope": "Records the Phase A build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, the read batch, the serving-path append, resolve, and token-path hooks behind an opt-in switch, and the graph-split proof. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
+  "scope": "Records the build-out of the disaggregated KV tiers: the KvBlockStore ABI, the block identity with epoch rules, the KvTierCoordinator state machine, the session that owns the coordinators, the L2 local file store, the read batch, the L3 Mooncake-compatible shared store, the placement policy and its matched control, the serving-path append, resolve, and token-path hooks behind an opt-in switch, and the graph-split proof. It does not run a model, move a KV byte through a real engine, compile CUDA, or measure performance.",
   "checks": [
     {
       "command": "just quality",
@@ -11,9 +11,9 @@
       "result": "aggregate_passed=true; the kv-coordinator check runs five contract suites; receipt build/reports/quality/receipt.json"
     },
     {
-      "command": "ctest --test-dir build/kv-coordinator-check -R '^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test|kv_tier_graph_test|kv_read_batch_test)$' --output-on-failure",
+      "command": "ctest --test-dir build/kv-coordinator-check -R '^kv_' --output-on-failure",
       "exit": 0,
-      "result": "5/5 passed: 9 coordinator cases, 16 session cases, 8 file-store cases, 11 graph-split cases, 5 read-batch cases"
+      "result": "7/7 passed: coordinator, session, file store, graph split, read batch, shared store, placement"
     },
     {
       "command": "c++ -std=c++17 -Wall -Wextra -Iinclude -fsyntax-only src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp",
@@ -29,7 +29,9 @@
     "A file store that mixes the layer and the group into its file index grows the file without bound. The store holds one layer, so the index is the group number and a key of another layer is refused by identity.",
     "A group checksum that covers the whole group cannot verify a partial read. The store refuses a partial read outright, because an unverifiable read is exactly the torn read the valid marker exists to prevent.",
     "The token path runs inside a CAPTURED graph and cannot do host I/O, so the token path's publish belongs at the commit boundary, where the window's writes have become host-visible. The same coordinator that serves the window publishes the tokens, so there is one policy rather than a second implicit path.",
-    "The selection's cells are collected into one read batch and deduplicated by group, so a token that names hundreds of blocks issues one request per GROUP rather than one per block. The batch statistics report both the requested and the deduplicated counts."
+    "The selection's cells are collected into one read batch and deduplicated by group, so a token that names hundreds of blocks issues one request per GROUP rather than one per block. The batch statistics report both the requested and the deduplicated counts.",
+    "The shared store keeps the semantic boundary in the right place: Strata owns the key, the geometry, the format, the layer, the group, the epoch, the checksum, and the quota, and the transport carries opaque bytes under a key it does not parse. The epoch is part of the object key, so a rewind's bytes are a different object and cannot be served as current data.",
+    "The placement policy ships with the matched control that a promotion needs: the same workload, the same cache size, and the same pattern with only the policy differing. A control that a policy wins against itself is a broken control, and the test refuses that case."
   ],
   "non_claims": [
     "No KV byte has moved between tiers in a real engine: the store under test is the local file store, exercised without a model.",

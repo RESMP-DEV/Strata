@@ -1666,3 +1666,43 @@ all outstanding, and the cold tier's benefit is unmeasured. B550 was
 unreachable on both the LAN and ZeroTier paths for the whole session, so no
 hardware acceptance gate ran. Full commands and non-claims are in
 [phase A evidence](../evidence/kv-coordinator-phase-a.json).
+
+### Disaggregated KV tiers: shared store and placement policy, 2026-10-20
+
+Two more pieces of the disaggregated KV architecture are now implemented on
+`feature/kv-coordinator-v2`, alongside the coordinator, the L2 file store, the
+read batch, the serving-path hooks, and the graph-split proof.
+
+The L3 shared store keeps the semantic boundary in the right place. Strata owns
+the key, the geometry, the format, the layer, the group, the epoch, the
+checksum, and the quota; the transport carries opaque bytes under a key it does
+not parse. The epoch is part of the object key, so a rewind's bytes are a
+different object and can never be served as current data. A real Mooncake client
+implements the narrow transport interface, and the in-process transport is the
+reference for what that interface must provide. The adapter's contract is
+testable before a second host exists, which is the point: the shared tier must
+not need a second machine to be correct.
+
+The placement policy ships with the matched control a promotion needs: the same
+workload, the same cache size, and the same access pattern with only the policy
+differing. CLOCK is the baseline, because the engine's own device residency map
+uses it and matching it keeps the cold tier comparable with the tier the engine
+already has. A policy that does not beat CLOCK in that control is not promoted.
+A control that a policy wins against itself is a broken control, and the
+contract test refuses that case outright.
+
+The repository gate now runs seven contract suites for the KV tiers: the
+coordinator, the session, the file store, the graph split, the read batch, the
+shared store, and the placement policy.
+
+None of this has run against a model. The CUDA build, the identity gate, the
+matched NLL control, the forced cold reads, and the 600K and 800K gates are all
+outstanding, and the cold tier's benefit is unmeasured. B550 stayed unreachable
+on both the LAN and the ZeroTier path for the whole session: the Mac's own LAN
+moved to a different subnet, so the 192.168.1.0/24 home network is unreachable
+from here, and the B550's ZeroTier node appeared once as a relay peer and then
+left the peer list again. A persistent watcher with both lanes is running and
+will capture the host's uptime, its boot window, the previous boot's kernel
+errors, the Optane mount, the SMART state, and the GPU state on the first
+successful login. Full commands and non-claims are in
+[phase A evidence](../evidence/kv-coordinator-phase-a.json).

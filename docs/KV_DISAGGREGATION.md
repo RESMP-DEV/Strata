@@ -515,6 +515,8 @@ counters. Upstream commit-message measurements are provenance, not acceptance.
 | K5 shared token and prompt path hooks | implemented, not yet run against a model | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K6 graph split proof | implemented, not yet observed on a captured window | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 | K9 read batch | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K10 Mooncake-compatible store adapter | implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
+| K11 placement policy sweep | policy and matched control implemented, host tested | [phase A evidence](../evidence/kv-coordinator-phase-a.json) |
 
 The coordinator is now wired into the serving path behind an opt-in switch:
 `--kv-tier <path>` turns the cold tier on and `--kv-tier-l1 <groups>` sizes
@@ -554,6 +556,22 @@ order. A resolve with no preceding host readiness is a split violation, because
 that means the graph tried to do host work. The counts, the batch statistics, and
 the cold-read counters all appear in the tier's report line, so a run that
 claims the cold tier is in the serving path can show it.
+
+The L3 shared store keeps the semantic boundary in the right place. Strata owns
+the key, the geometry, the format, the layer, the group, the epoch, the
+checksum, and the quota; the transport carries opaque bytes under a key it does
+not parse. The epoch is part of the object key, so a rewind's bytes are a
+different object and cannot be served as current data. A real Mooncake client
+implements the narrow transport interface; the in-process transport is the
+reference for what that interface must provide, and the adapter's contract is
+testable before a second host exists.
+
+The placement policy ships with the matched control a promotion needs: the same
+workload, the same cache size, and the same access pattern with only the policy
+differing. CLOCK is the baseline, because the engine's own device residency map
+uses it. A policy that does not beat CLOCK in that control is not promoted, and
+a control that a policy wins against itself is a broken control, which the
+contract test refuses.
 
 What is not yet true: the hooks have never run against a model. The CUDA
 build, the identity gate, the matched NLL control, the forced cold reads, and
