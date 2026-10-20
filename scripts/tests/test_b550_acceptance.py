@@ -68,6 +68,27 @@ class ParsingTest(unittest.TestCase):
         )
         self.assertFalse(mount["read_only"])
 
+    def test_expected_directory_mode_follows_the_filesystem(self) -> None:
+        exfat = {
+            "source": "/dev/nvme0n1p2",
+            "target": "/mnt/optane",
+            "fstype": "exfat",
+            "options": ["rw", "noatime", "uid=1000", "gid=1000", "dmask=0022"],
+            "read_only": False,
+        }
+        mode, reason = acceptance._expected_directory_mode(exfat)
+        self.assertEqual(mode, 0o755)
+        self.assertIn("dmask", reason)
+        posix = {
+            "source": "/dev/nvme1n1p2",
+            "target": "/",
+            "fstype": "ext4",
+            "options": ["rw", "relatime"],
+            "read_only": False,
+        }
+        mode, _reason = acceptance._expected_directory_mode(posix)
+        self.assertEqual(mode, 0o700)
+
     def test_optane_mount_must_be_the_requested_endpoint(self) -> None:
         optane = {"path": "/dev/nvme0n1"}
         root = {

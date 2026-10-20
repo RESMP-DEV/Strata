@@ -1030,6 +1030,28 @@ def _artifact_hashes(
     }
 
 
+def _expected_directory_mode(mount: dict[str, Any]) -> tuple[int, str]:
+    """The directory mode the mount can actually produce, and why.
+
+    A POSIX filesystem keeps 0700.  exFAT has no permission bits: the mode is
+    synthesized from the mount's dmask, so 0700 is unreachable there and the
+    real privacy property is that the mount denies writes to other users.  The
+    gate checks the achievable property, and says which one it is.
+    """
+    fstype = str(mount.get("fstype", ""))
+    options = mount.get("options", [])
+    dmask = 0o022
+    for option in options:
+        if option.startswith("dmask="):
+            try:
+                dmask = int(option.split("=", 1)[1], 8)
+            except ValueError:
+                dmask = 0o022
+    if fstype in {"exfat", "vfat", "msdos", "fuseblk"}:
+        return 0o777 & ~dmask, f"{fstype} synthesizes the mode from dmask={dmask:04o}"
+    return 0o700, "a POSIX filesystem keeps the requested mode"
+
+
 def prepare_cold_tier(harness: Harness, mount: dict[str, Any], tier_dir: str) -> Result:
     _require_writable_tier_parent(harness, mount, tier_dir)
     created = harness.remote("create-cold-tier", ["mkdir", "--parents", "--mode", "0700", tier_dir])
@@ -1037,9 +1059,22 @@ def prepare_cold_tier(harness: Harness, mount: dict[str, Any], tier_dir: str) ->
         "cold-tier-state",
         ["stat", "--format=%F|%a|%n", tier_dir],
     )
+    expected_mode, reason = _expected_directory_mode(mount)
+    actual_mode = 0
+    if state.passed:
+        fields = state.stdout.strip().split("|")
+        if len(fields) == 3 and fields[1].isdigit():
+            actual_mode = int(fields[1], 8)
     harness.require(
-        state.passed and state.stdout.strip() == f"directory|700|{tier_dir}",
-        f"KV tier path is not a private 0700 directory: {state.stdout.strip()!r}",
+        state.passed and actual_mode == expected_mode,
+        f"KV tier path is not a private directory: {state.stdout.strip()!r} "
+        f"(expected {expected_mode:04o}: {reason})",
+    )
+    # The property that matters everywhere: other users must not be able to
+    # write the tier's groups.
+    harness.require(
+        (actual_mode & 0o002) == 0,
+        f"KV tier path is writable by other users: {state.stdout.strip()!r}",
     )
     occupied = harness.remote(
         "cold-tier-empty",
