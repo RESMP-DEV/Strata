@@ -1,0 +1,151 @@
+{
+  "recorded_at": "2026-10-20T02:41:31Z",
+  "agent": "Codex",
+  "source_revision": "52910877cdba6dc2055640e1f1e3eb935904c042",
+  "source_dirty": false,
+  "authorization": "The user asked whether Strata can put KV state on the B550 Optane, whether native support suffices, and whether Mooncake is needed. The run stopped only the GPU1 embedding unit and left the unrelated GPU0 work untouched.",
+  "scope": "Audit Strata's live KV-streaming and session-file boundaries, then exercise a real 112,626-token Qwen conversation save, engine restart, and restore from the B550 Optane partition. Compare that native path with Mooncake's documented Transfer Engine and Store roles.",
+  "hardware_and_model": {
+    "host": "B550 alias 192.168.1.171, kernel 7.0.0-38, 91 GiB RAM",
+    "gpu": "NVIDIA GeForce RTX 3090 Ti GPU1 at 0000:08:00.0; GPU0 retained foreign mlx_gptq.dflash2_distill PID 100833 and rust-indexer PID 101877",
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata sha256 c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8; remote source revision 83f67c4fff7262ec4af6000f3e7d973db5f21dc0, clean",
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048, pack /home/kearm/strata-scratch/qwen-iq2xs-calibrated/pack-split",
+    "configuration": "single GPU1, --max-context 262144, --kv int8, --kv-resident 32768, --spec 4, --prefill auto, --expert-cache auto, --ple-io direct, MTP bf16 runtime, slot_save_path /mnt/optane/strata-sessions",
+    "storage": {
+      "device": "/dev/nvme1n1 HPE OEM Intel ET000750KWJTF, 750 GB, serial PHKS826300DP750BGN",
+      "filesystem": "/dev/nvme1n1p2 exFAT, mounted only for the measured window; 669 GiB available before the run",
+      "smart": "PASSED at 38 Celsius, 100% spare, 0% percentage used, 0 media and data-integrity errors, 0 error-log entries"
+    }
+  },
+  "implementation_audit": {
+    "live_kv_streaming": "The authoritative streamed QSA K/V is device-mapped pinned host RAM; VRAM holds a hot-cell pool. The test engine reported 32768 of 262144 cells per QSA layer in VRAM and 3.09 GiB pinned RAM. This is not a live NVMe paging tier.",
+    "disk_session_files": "With slot_save_path configured, Strata serializes the running state, deepest checkpoint, every authoritative QSA layer's K/V, and draft K/V. Linux moves the payload in aligned 16 MiB blocks and uses O_DIRECT when the filesystem accepts it, otherwise buffered I/O.",
+    "session_file_restrictions": "Session save/restore is refused with --layer-split, --peer-device, --batch (server parallel slots), or --prompt-cache 0. The successful test therefore used one GPU; the preferred two-GPU split-30 configuration cannot currently use this native file tier.",
+    "mooncake": "Current Mooncake documentation describes an embedded Transfer Engine (segments and asynchronous BatchTransfer across DRAM, accelerator memory, and NVMe-oF) plus Store, a distributed object pool with a Master control plane and local SSD/NVMe tiers. It is Apache-2.0, but it is not a Strata QSA-layout plug-in; a connector must map Strata blocks, fingerprints, residency, and validation to Mooncake objects."
+  },
+  "measurements": {
+    "prompt": {
+      "sha256": "173e79ea333ba49a6f12024bfb31887dfb171dad2dd510bdd271ae89c32b3dce",
+      "bytes": 412274,
+      "tokens": 112626,
+      "prompt_ms": 41232.5,
+      "prompt_tok_s": 2731.5
+    },
+    "server_start": {
+      "initial_ready_s": 74,
+      "restart_ready_s": 26,
+      "kv_stream_line": "32768 of 262144 cells per QSA layer in VRAM, the K/V in 3.09 GiB of pinned RAM"
+    },
+    "save": {
+      "filename": "long-coding-112k-optane-v1.bin",
+      "http": 200,
+      "tokens": 112626,
+      "bytes": 1956182716,
+      "save_ms": 1462.9,
+      "effective_decimal_gb_s": 1.3372,
+      "effective_gib_s": 1.2454,
+      "sha256": "251cd410d7c5a26e865362cf791f6be7fd754dfcdd2fa72cbc18815936c19110"
+    },
+    "cold_process_restore": {
+      "http": 200,
+      "tokens": 112626,
+      "bytes": 1956182716,
+      "restore_ms": 2231.6,
+      "engine_read_check_ms": 2114.9,
+      "effective_decimal_gb_s": 0.8766,
+      "effective_gib_s": 0.8164,
+      "engine_line": "session restored 112626 tokens, 1 checkpoints, 1956182716 bytes in 2225.0 ms (read+check 2114.9 ms)"
+    },
+    "capacity_arithmetic": {
+      "session_bytes_per_token_including_state_and_draft_kv": 17368.84,
+      "free_capacity_in_identical_112626_token_sessions_at_669_gib_free": 367,
+      "linear_256k_projection_bytes": 4553136593,
+      "note": "The projection is capacity arithmetic from this one measured file shape, not a measured 256K save or a claim that file size is exactly linear across all contexts."
+    }
+  },
+  "result": {
+    "native_capability": "Yes for parking and restoring a whole conversation on Optane. A real 112K-token session became a 1.956 GB file in 1.463 s and restored into a new engine process in 2.232 s.",
+    "not_live_offload": "No for a live authoritative NVMe KV tier. During inference the authoritative K/V is pinned host RAM; the Optane file is read only by an explicit restore and is not consulted by the per-token KV resolver.",
+    "mooncake_decision": "Do not introduce Mooncake for one B550 host. Use native session files now. A Strata-native async QSA block pager is the correct local engineering step if many concurrent long sessions exceed RAM. Mooncake becomes useful only for a multi-host shared or replicated KV pool, after Strata has engine-specific block metadata and transfer semantics.",
+    "default_change": "None. This was an opt-in measured server configuration; no deployed runtime or installer default was changed."
+  },
+  "checks": [
+    {
+      "name": "argv-repair",
+      "command": "bash -n run-v2.sh && shellcheck --severity=warning run-v2.sh && jq -e '<flag/value pair assertions>' config.json",
+      "exit": 0,
+      "result": "the old stray positional 2048 was removed; the args end with --max-context 262144 --kv-resident 32768"
+    },
+    {
+      "name": "device-identity-and-health",
+      "command": "lsblk -o NAME,PATH,MODEL,SERIAL,SIZE,TYPE,FSTYPE,MOUNTPOINTS /dev/nvme1n1 && sudo smartctl -H -A /dev/nvme1n1",
+      "exit": 0,
+      "result": "identified ET000750KWJTF serial PHKS826300DP750BGN; SMART passed with zero integrity errors"
+    },
+    {
+      "name": "single-gpu-server",
+      "command": "serve.server --engine strata --config optane-session-server.json --host 127.0.0.1 --port 18800",
+      "exit": 0,
+      "result": "ready in 74 s after argument validation; only GPU1 was used"
+    },
+    {
+      "name": "real-long-prompt",
+      "command": "curl --data-binary @request.json http://127.0.0.1:18800/v1/chat/completions",
+      "exit": 0,
+      "result": "112626 prompt tokens prefilled at 2731.5 tok/s"
+    },
+    {
+      "name": "save-to-optane",
+      "command": "curl -X POST 'http://127.0.0.1:18800/slots/0?action=save' -d '{\"filename\":\"long-coding-112k-optane-v1.bin\"}'",
+      "exit": 0,
+      "result": "112626 tokens and 1956182716 bytes written in 1462.9 ms"
+    },
+    {
+      "name": "restart-and-cold-restore",
+      "command": "stop server; start server; curl -X POST 'http://127.0.0.1:18800/slots/0?action=restore' -d '{\"filename\":\"long-coding-112k-optane-v1.bin\"}'",
+      "exit": 0,
+      "result": "new process ready in 26 s; all 112626 tokens and 1956182716 bytes restored in 2231.6 ms"
+    },
+    {
+      "name": "cleanup-and-foreign-work-guard",
+      "command": "systemctl restart sindexer-embed-gpu@1.service; curl :1237/v1/models; findmnt -T /mnt/optane; nvidia-smi --query-compute-apps=...",
+      "exit": 0,
+      "result": "GPU1 embedding active and answering, Optane unmounted, GPU0 foreign jobs still present and untouched"
+    },
+    {
+      "name": "quality",
+      "command": "just quality",
+      "exit": 0,
+      "result": "all host-safe domains passed and build/reports/quality/receipt.json records aggregate_passed=true; this gate does not compile a GPU backend"
+    }
+  ],
+  "raw_evidence": {
+    "local_ignored_root": "build/reports/optane-session-live/raw",
+    "summary_sha256": "34771469b6599c4193e1bb2a71c8f510eb40003776e620848654dd6cf2eaec00",
+    "driver_sha256": "705a920ca100d2700a43fafbae5c3ece00f2d74ef891ea7675b269531370b501",
+    "engine_sha256": "027d4d338ef318b34a4bd537a6ba0eaa8e27024343865bd0e67e58eba10c15de",
+    "response_sha256": "c10922db2b4d3d8400d59678a324ca4fab330212fb5f88a69de9d3ec2dca9220",
+    "save_json_sha256": "4e773b8f97412f1d375a9911f839f97f37ae89bc6f9d196ea04e1fb883b49372",
+    "restore_json_sha256": "87f43512cc6ae12e2a64b116aeaf75edcd0c9af9fa7691c9f5ef985f37d06e",
+    "first_attempt_note": "The archived first run left the old --max-context value 2048 as a positional argument and did not fail fast. Its logs are under raw/attempt-01-malformed-argv; the corrected strict driver is run-v2.sh."
+  },
+  "references": [
+    {
+      "url": "https://kvcache-ai.github.io/Mooncake/design/architecture.html",
+      "accessed_at": "2026-10-20T02:36:00Z"
+    },
+    {
+      "url": "https://github.com/kvcache-ai/Mooncake/blob/main/LICENSE-APACHE",
+      "accessed_at": "2026-10-20T02:36:00Z"
+    }
+  ],
+  "non_claims": [
+    "This was one real-session run on one exFAT Optane partition; it is not a statistical storage or serving benchmark.",
+    "No continuation request was issued after restore, so output equivalence and follow-up prompt-cache savings are not newly measured here.",
+    "The logs do not state whether exFAT accepted O_DIRECT for this file; the measured number is end-to-end save/restore time with the filesystem and integrity checking included.",
+    "No live per-token NVMe paging, eviction, concurrency, layer-split session support, or multi-host Mooncake connector was implemented.",
+    "The runtime evidence is bound to the existing clean remote engine source revision 83f67c4fff7262ec4af6000f3e7d973db5f21dc0 and binary hash recorded above; that engine was not rebuilt at this receipt's local documentation revision.",
+    "The 256K file-size figure is linear capacity arithmetic from the measured 112,626-token file, not a measured 256K save.",
+    "The Optane remained unmounted after cleanup; the session file remains on that partition and is not copied into the repository."
+  ]
+}
