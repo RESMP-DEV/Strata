@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import platform
 import re
 import shlex
@@ -26,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "build" / "reports" / "b550-acceptance" / "receipt.json"
 EXPECTED_GPU = "NVIDIA GeForce RTX 3090 Ti"
 EXPECTED_COMPUTE_CAPABILITY = "8.6"
-EXPECTED_OPTANE_MODEL = "ET000750KWJTF"
-EXPECTED_OPTANE_SERIAL = "PHKS826300DP750BGN"
+EXPECTED_STORAGE_MODEL = "ET000750KWJTF"
+EXPECTED_STORAGE_SERIAL = "PHKS826300DP750BGN"
 CONTROLLED_ENGINE_FLAGS = {
     "--tokens-file",
     "--max-new",
@@ -36,7 +37,14 @@ CONTROLLED_ENGINE_FLAGS = {
     "--seed",
     "--kv-tier",
     "--kv-tier-l1",
+    "--serve",
+    "--prompt-cache",
+    "--batch",
+    "--slots",
+    "--layer-split",
+    "--peer-device",
 }
+REQUIRED_SERVE_FLAGS = ("--spec", "--prefill")
 
 
 @dataclass
@@ -71,16 +79,22 @@ class RunTrace:
     nll_values: list[float]
     argmax_values: list[int]
     counters: dict[str, int] | None
+    positions: list[int] | None = None
+    done: dict[str, Any] | None = None
 
     def metadata(self) -> dict[str, Any]:
         return {
             "arm": self.arm,
             "prompt_token_count": len(self.prompt_tokens),
             "output_tokens": self.output_tokens,
+            "scored_positions": (
+                [self.positions[0], self.positions[-1]] if self.positions else None
+            ),
             "nll_count": len(self.nll_values),
             "mean_nll": _mean(self.nll_values),
             "perplexity": _perplexity(self.nll_values),
             "counters": self.counters,
+            "request": self.done,
         }
 
 
@@ -94,10 +108,10 @@ class Harness:
     failures: list[str] = field(default_factory=list)
     facts: dict[str, Any] = field(default_factory=dict)
 
-    def local(self, name: str, command: list[str]) -> Result:
-        return self._execute(name, command, remote=False)
+    def local(self, name: str, command: list[str], input: str | None = None) -> Result:
+        return self._execute(name, command, remote=False, input=input)
 
-    def remote(self, name: str, command: list[str]) -> Result:
+    def remote(self, name: str, command: list[str], input: str | None = None) -> Result:
         wrapped = [
             "ssh",
             "-o",
@@ -109,9 +123,9 @@ class Harness:
             self.ssh_host,
             *command,
         ]
-        return self._execute(name, wrapped, remote=True)
+        return self._execute(name, wrapped, remote=True, input=input)
 
-    def _execute(self, name: str, command: list[str], remote: bool) -> Result:
+    def _execute(self, name: str, command: list[str], remote: bool, input: str | None) -> Result:
         started = time.monotonic()
         runner = self.runner or subprocess.run
         try:
@@ -120,6 +134,7 @@ class Harness:
                 check=False,
                 capture_output=True,
                 text=True,
+                input=input,
                 timeout=self.command_timeout,
             )
             result = Result(
@@ -242,8 +257,8 @@ def find_optane(text: str) -> dict[str, Any]:
     matches = [
         node
         for node in disks
-        if node.get("model") == EXPECTED_OPTANE_MODEL
-        and node.get("serial") == EXPECTED_OPTANE_SERIAL
+        if node.get("model") == EXPECTED_STORAGE_MODEL
+        and node.get("serial") == EXPECTED_STORAGE_SERIAL
     ]
     if len(matches) != 1:
         raise ValueError(f"expected one Optane disk, found {len(matches)}")
@@ -264,6 +279,35 @@ def parse_findmnt(text: str) -> dict[str, Any]:
         "options": options,
         "read_only": "ro" in options,
     }
+
+
+def probe_reachability(harness: Harness, address: str, zero_tier_address: str) -> dict[str, Any]:
+    """Probe every documented lane and record what answered.
+
+    The B550 is reachable by SSH alias, by its LAN address, and by its
+    ZeroTier address.  A failure on the alias alone does not say which lane
+    is down, so each lane is probed and the answer is recorded: reachability is
+    a fact, and a missing host is a blocker, never a pass.
+    """
+    lanes: dict[str, Any] = {}
+    for name, target in (("lan", address), ("zero_tier", zero_tier_address)):
+        probe = harness.local(f"reachability-{name}", ["nc", "-G", "5", "-z", target, "22"])
+        lanes[name] = {
+            "target": target,
+            "reachable": probe.passed,
+            "exit_code": probe.exit_code,
+        }
+    alias = harness.remote("reachability-alias", ["hostname"])
+    lanes["ssh_alias"] = {
+        "target": harness.ssh_host,
+        "reachable": alias.passed,
+        "exit_code": alias.exit_code,
+        "error": alias.stderr.strip()[:400],
+    }
+    reachable = any(lane["reachable"] for lane in lanes.values())
+    harness.facts["reachability"] = {"reachable": reachable, "lanes": lanes}
+    harness.require(reachable, "B550 answered on no documented lane; the hardware gate is blocked")
+    return lanes
 
 
 def verify_identity(
@@ -419,6 +463,30 @@ def verify_build(
     )
     harness.require(configure.passed, "CUDA sm_86 configure failed")
     harness.require(build.passed, "CUDA sm_86 engine build failed")
+    require_idle_gpus(harness, "device-identity")
+    device_identity = harness.remote(
+        "strata-device-identity",
+        [f"{build_dir.rstrip('/')}/strata-device", "--selftest"],
+    )
+    device_list = harness.remote(
+        "strata-device-list",
+        [f"{build_dir.rstrip('/')}/strata-device", "--list-devices"],
+    )
+    harness.require(
+        device_identity.passed and "strata-device selftest OK" in device_identity.stdout,
+        "the built engine's runtime device identity selftest failed",
+    )
+    harness.require(
+        "NVIDIA GeForce RTX 3090 Ti" in device_identity.stdout
+        and "compute capability  8.6" in device_identity.stdout,
+        "the built engine did not identify an RTX 3090 Ti as compute capability 8.6",
+    )
+    harness.require(
+        device_list.passed
+        and "cannot run:" not in device_list.stdout
+        and device_list.stdout.count("NVIDIA GeForce RTX 3090 Ti") == 2,
+        "the built engine did not enumerate both RTX 3090 Ti cards as runnable",
+    )
     facts = {
         "remote_source": source,
         "remote_revision": revision.stdout.strip(),
@@ -429,7 +497,9 @@ def verify_build(
     return facts
 
 
-def _remote_quoted(harness: Harness, name: str, command: list[str]) -> Result:
+def _remote_quoted(
+    harness: Harness, name: str, command: list[str], input: str | None = None
+) -> Result:
     wrapped = [
         "ssh",
         "-o",
@@ -441,7 +511,7 @@ def _remote_quoted(harness: Harness, name: str, command: list[str]) -> Result:
         harness.ssh_host,
         " ".join(shlex.quote(part) for part in command),
     ]
-    return harness.local(name, wrapped)
+    return harness.local(name, wrapped, input=input)
 
 
 def require_idle_gpus(harness: Harness, context: str) -> None:
@@ -499,6 +569,12 @@ def parse_engine_output(text: str, arm: str) -> RunTrace:
 
 def parse_tier_report(stderr: str, arm: str) -> dict[str, int]:
     reports = re.findall(r"^strata kv tier \([^)]*\): (.*)$", stderr, flags=re.MULTILINE)
+    if not reports:
+        raise ValueError(
+            f"{arm}: the engine printed no KV-tier report, so the cold-read and eviction "
+            "counters are not observable; the engine has no call site for the tier's "
+            "report, and a run without them cannot prove a cold read happened"
+        )
     if len(reports) != 1:
         raise ValueError(f"{arm}: expected one KV-tier report, found {len(reports)}")
     values = {key: int(value) for key, value in re.findall(r"\b([a-z0-9_]+)=(\d+)\b", reports[0])}
@@ -520,7 +596,9 @@ def parse_tier_report(stderr: str, arm: str) -> dict[str, int]:
     return values
 
 
-def _token_identities(left: RunTrace, right: RunTrace, gate: str) -> list[str]:
+def _token_identities(
+    left: RunTrace, right: RunTrace, gate: str, require_positions: bool = True
+) -> list[str]:
     failures: list[str] = []
     if left.prompt_tokens != right.prompt_tokens:
         failures.append(f"{gate}: prompt token IDs differ")
@@ -533,20 +611,27 @@ def _token_identities(left: RunTrace, right: RunTrace, gate: str) -> list[str]:
         failures.append(f"{gate}: {mismatches} prompt argmax mismatches")
     if len(left.nll_values) != len(right.nll_values):
         failures.append(f"{gate}: NLL sample counts differ")
+    if require_positions and (left.positions or []) != (right.positions or []):
+        failures.append(f"{gate}: the two arms scored different prompt positions")
     return failures
 
 
 def compare_traces(
-    left: RunTrace, right: RunTrace, tolerance: float, exact: bool = False
+    left: RunTrace,
+    right: RunTrace,
+    tolerance: float,
+    exact: bool = False,
+    require_positions: bool = True,
 ) -> dict[str, Any]:
-    failures = _token_identities(left, right, "gate")
+    gate = "identity gate" if exact else "gate"
+    failures = _token_identities(left, right, gate, require_positions)
     left_mean = _mean(left.nll_values)
     right_mean = _mean(right.nll_values)
     deltas = [abs(a - b) for a, b in zip(left.nll_values, right.nll_values, strict=False)]
     max_delta = max(deltas, default=float("inf"))
     mean_delta = abs((right_mean or 0.0) - (left_mean or 0.0))
     if exact and max_delta != 0.0:
-        failures.append(f"identity gate: maximum NLL delta is {max_delta:.9g}, not zero")
+        failures.append(f"identity gate: maximum prompt-NLL delta is {max_delta:.9g}, not zero")
     elif not exact and mean_delta > tolerance:
         failures.append(f"gate: mean NLL delta {mean_delta:.9g} exceeds {tolerance:.9g}")
     return {
@@ -562,6 +647,8 @@ def compare_traces(
         "output_token_sha256_right": _sha256_text(right.output_tokens),
         "argmax_sha256_left": _sha256_text(left.argmax_values),
         "argmax_sha256_right": _sha256_text(right.argmax_values),
+        "left_request": left.done,
+        "right_request": right.done,
     }
 
 
@@ -571,9 +658,9 @@ def _validate_engine_args(args: list[str], kv_resident: int) -> None:
     for flag in CONTROLLED_ENGINE_FLAGS:
         if flag in args:
             raise ValueError(f"the harness owns {flag}; remove it from --engine-arg")
-    for forbidden in ("--serve", "--batch", "--slots"):
-        if forbidden in args:
-            raise ValueError(f"the generate-mode control refuses {forbidden}")
+    for required in REQUIRED_SERVE_FLAGS:
+        if required not in args:
+            raise ValueError(f"serve mode needs {required} in --engine-arg")
 
 
 def _require_writable_tier_parent(harness: Harness, mount: dict[str, Any], tier_dir: str) -> None:
@@ -587,13 +674,116 @@ def _require_writable_tier_parent(harness: Harness, mount: dict[str, Any], tier_
     )
 
 
+def _serve_command(
+    *,
+    engine: str,
+    engine_args: list[str],
+    max_context: int,
+    logpos_path: str,
+    cold_tier: str | None,
+    l1_groups: int,
+    sm86_perf: str | None,
+) -> list[str]:
+    """The engine's serve command line, with the harness's own flags last.
+
+    Serve mode is the only path that writes the teacher-forced log-probabilities
+    (STRATA_LOGPOS) and the only one that runs the KV tier's serving-path hooks,
+    so a live-model NLL control has to drive it.
+    """
+    command = ["env", f"STRATA_LOGPOS={logpos_path}"]
+    if sm86_perf is not None:
+        command.append(f"STRATA_SM86_PERF={sm86_perf}")
+    command.append(engine)
+    command.extend(engine_args)
+    command.extend(["--serve", "--max-context", str(max_context)])
+    if cold_tier is not None:
+        command.extend(["--kv-tier", cold_tier, "--kv-tier-l1", str(l1_groups)])
+    return command
+
+
+def parse_done(line: str) -> dict[str, Any]:
+    """The engine's DONE fields used by correctness and scale receipts."""
+    fields = line.split()
+    if len(fields) < 9:
+        raise ValueError("the DONE line lacks the generated/prompt/timing fields")
+    result: dict[str, Any] = {
+        "generated": int(fields[1]),
+        "prompt_tokens": int(fields[2]),
+        "prompt_ms": float(fields[3]),
+        "decode_ms": float(fields[4]),
+        "finish": fields[5],
+        "drafts_accepted": int(fields[6]),
+        "drafts_offered": int(fields[7]),
+        "reused": int(fields[8]),
+    }
+    if len(fields) >= 15:
+        result["prompt_tokens_read"] = int(fields[14])
+    for item in fields[9:]:
+        key, separator, value = item.partition("=")
+        if separator and key in {"chunk", "experts_streamed"}:
+            result[key] = int(value)
+    return result
+
+
+def parse_serve_output(text: str, arm: str) -> tuple[list[int], str]:
+    """The generated token IDs and the DONE line of a serve run."""
+    tokens: list[int] = []
+    done = ""
+    for line in text.splitlines():
+        if line.startswith("T "):
+            tokens.append(int(line[2:].strip()))
+        elif line.startswith("DONE "):
+            done = line
+    if not tokens:
+        raise ValueError(f"{arm}: the engine emitted no token")
+    if not done:
+        raise ValueError(f"{arm}: the engine did not finish the request")
+    fields = done.split()
+    if len(fields) > 5 and fields[5] in {"cancel", "nonfinite"}:
+        raise ValueError(f"{arm}: the serve request ended {fields[5]}")
+    return tokens, done
+
+
+def parse_logpos(text: str, arm: str) -> tuple[list[int], list[float], list[int]]:
+    """The scored positions, their teacher-forced log-probabilities, and their argmax.
+
+    Only the prompt part that went through the engine's verify windows is
+    scored, so the positions are absolute prompt positions and do not have to
+    start at zero.  They must be contiguous and strictly increasing: a gap
+    means the file is not one run's complete trace.
+    """
+    positions: list[int] = []
+    nll_values: list[float] = []
+    argmax_values: list[int] = []
+    for line in text.splitlines():
+        columns = line.split("\t")
+        if len(columns) < 5:
+            continue
+        try:
+            position = int(columns[0])
+            log_probability = float(columns[2])
+            argmax = int(columns[3])
+        except ValueError:
+            continue
+        if not math.isfinite(log_probability):
+            raise ValueError(f"{arm}: a non-finite log-probability at position {position}")
+        if positions and position != positions[-1] + 1:
+            raise ValueError(f"{arm}: STRATA_LOGPOS positions are not contiguous at {position}")
+        positions.append(position)
+        nll_values.append(log_probability)
+        argmax_values.append(argmax)
+    if not nll_values:
+        raise ValueError(f"{arm}: the engine wrote no teacher-forced log-probabilities")
+    return positions, nll_values, argmax_values
+
+
 def _run_engine(
     harness: Harness,
     *,
     arm: str,
     engine: str,
     engine_args: list[str],
-    tokens_file: str,
+    tokens: list[int],
     max_new: int,
     max_context: int,
     work_dir: str,
@@ -601,49 +791,57 @@ def _run_engine(
     l1_groups: int,
     sm86_perf: str | None,
 ) -> RunTrace:
+    """Run one arm of the control against a live engine on B550."""
     require_idle_gpus(harness, arm)
     harness.remote(f"work-dir-{arm}", ["mkdir", "-p", work_dir])
     harness.assert_clean()
     temporary = harness.remote(f"logpos-path-{arm}", ["mktemp", work_dir + "/logpos.XXXXXX"])
     harness.assert_clean()
     logpos = temporary.stdout.strip()
-    command = [f"STRATA_LOGPOS={logpos}"]
-    if sm86_perf is not None:
-        command.append(f"STRATA_SM86_PERF={sm86_perf}")
-    command.extend([engine, *engine_args])
-    command.extend(
-        [
-            "--tokens-file",
-            tokens_file,
-            "--max-new",
-            str(max_new),
-            "--max-context",
-            str(max_context),
-            "--greedy",
-        ]
+    command = _serve_command(
+        engine=engine,
+        engine_args=engine_args,
+        max_context=max_context,
+        logpos_path=logpos,
+        cold_tier=cold_tier,
+        l1_groups=l1_groups,
+        sm86_perf=sm86_perf,
     )
-    if cold_tier is not None:
-        command.extend(["--kv-tier", cold_tier, "--kv-tier-l1", str(l1_groups)])
-    executed = _remote_quoted(harness, f"engine-{arm}", command)
+    request = harness.remote(f"request-path-{arm}", ["mktemp", work_dir + "/gen.XXXXXX"])
+    harness.assert_clean()
+    request_path = request.stdout.strip()
+    request_body = f"GEN {max_new} " + ",".join(str(token) for token in tokens) + "\n"
+    harness.remote(
+        f"request-{arm}",
+        ["sh", "-c", f"cat > {shlex.quote(request_path)}"],
+        input=request_body,
+    )
+    harness.assert_clean()
+    pipeline = (
+        f"cat -- {shlex.quote(request_path)} | {' '.join(shlex.quote(part) for part in command)}"
+    )
+    executed = _remote_quoted(harness, f"engine-{arm}", ["sh", "-c", pipeline])
     logpos_text = Result("unused", [], 0, "", "", 0.0)
     if executed.passed:
         logpos_text = harness.remote(f"logpos-{arm}", ["cat", "--", logpos])
-    raw_text = (
-        executed.stdout
-        + "\n"
-        + (logpos_text.stdout if executed.passed else "")
-        + "\n"
-        + executed.stderr
-    )
     try:
-        trace = parse_engine_output(raw_text, arm)
-        if cold_tier is not None:
-            trace.counters = parse_tier_report(executed.stderr, arm)
+        output_tokens, done = parse_serve_output(executed.stdout, arm)
+        request = parse_done(done)
+        positions, nll_values, argmax_values = parse_logpos(logpos_text.stdout, arm)
+        counters = parse_tier_report(executed.stderr, arm) if cold_tier is not None else None
     except ValueError as error:
         harness.require(False, str(error))
         raise HarnessFailure(str(error)) from error
-    trace.metadata()
-    return trace
+    return RunTrace(
+        arm,
+        list(tokens),
+        output_tokens,
+        nll_values,
+        argmax_values,
+        counters,
+        positions,
+        request,
+    )
 
 
 def _artifact_hashes(
@@ -715,12 +913,20 @@ def run_identity_gate(
     work_dir: str,
 ) -> dict[str, Any]:
     _validate_engine_args(engine_args, _kv_resident(engine_args))
+    tokens_file_result = harness.remote("tokens-file", ["cat", "--", tokens_file])
+    harness.assert_clean()
+    try:
+        tokens = [int(value) for value in tokens_file_result.stdout.replace(",", " ").split()]
+    except ValueError as error:
+        raise HarnessFailure(f"malformed token file {tokens_file}: {error}") from error
+    harness.require(bool(tokens), "the token file is empty")
+    harness.assert_clean()
     off = _run_engine(
         harness,
         arm="sm86-off",
         engine=engine,
         engine_args=engine_args,
-        tokens_file=tokens_file,
+        tokens=tokens,
         max_new=max_new,
         max_context=max_context,
         work_dir=work_dir,
@@ -733,7 +939,7 @@ def run_identity_gate(
         arm="sm86-on",
         engine=engine,
         engine_args=engine_args,
-        tokens_file=tokens_file,
+        tokens=tokens,
         max_new=max_new,
         max_context=max_context,
         work_dir=work_dir,
@@ -741,7 +947,7 @@ def run_identity_gate(
         l1_groups=0,
         sm86_perf=None,
     )
-    result = compare_traces(off, on, tolerance=0.0, exact=True)
+    result = compare_traces(off, on, tolerance=0.0, exact=True, require_positions=False)
     result["gate"] = "sm86-identity"
     result["artifacts"] = _artifact_hashes(
         harness,
@@ -785,12 +991,20 @@ def run_cold_control(
     if not isinstance(mount, dict):
         raise HarnessFailure("the live Optane mount must be verified before the cold control")
     prepare_cold_tier(harness, mount, tier_dir)
+    tokens_file_result = harness.remote("tokens-file", ["cat", "--", tokens_file])
+    harness.assert_clean()
+    try:
+        tokens = [int(value) for value in tokens_file_result.stdout.replace(",", " ").split()]
+    except ValueError as error:
+        raise HarnessFailure(f"malformed token file {tokens_file}: {error}") from error
+    harness.require(bool(tokens), "the token file is empty")
+    harness.assert_clean()
     off = _run_engine(
         harness,
         arm="cold-off",
         engine=engine,
         engine_args=engine_args,
-        tokens_file=tokens_file,
+        tokens=tokens,
         max_new=max_new,
         max_context=max_context,
         work_dir=work_dir,
@@ -803,7 +1017,7 @@ def run_cold_control(
         arm="cold-on",
         engine=engine,
         engine_args=engine_args,
-        tokens_file=tokens_file,
+        tokens=tokens,
         max_new=max_new,
         max_context=max_context,
         work_dir=work_dir,
@@ -821,7 +1035,6 @@ def run_cold_control(
         "checksum_errors": counters.get("checksum_errors", -1),
         "graph_violations": counters.get("violations", -1),
         "graph_windows": counters.get("windows", 0),
-        "engine_host_restores": counters.get("engine_host_restores", -1),
     }
     if counters.get("l2_reads", 0) <= 0:
         result["failures"].append("gate: the engine reported no L2 cold read")
@@ -926,6 +1139,7 @@ def _identity_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     parser.add_argument("--address", default="192.168.1.171")
     parser.add_argument("--hostname", default="b550")
     parser.add_argument("--optane-mount", default="/mnt/optane")
+    parser.add_argument("--zero-tier-address", default="10.243.130.224")
     return parser
 
 
@@ -1008,6 +1222,7 @@ def _run_gates(arguments: argparse.Namespace) -> tuple[Harness, dict[str, Any]]:
     )
     gates: dict[str, Any] = {}
     try:
+        probe_reachability(harness, arguments.address, arguments.zero_tier_address)
         verify_identity(harness, arguments.address, arguments.hostname, arguments.optane_mount)
         if (
             "build" in arguments.phase
@@ -1090,8 +1305,10 @@ def main(argv: list[str] | None = None) -> int:
     gates: dict[str, Any] = {}
     try:
         if arguments.command == "identity":
+            probe_reachability(harness, arguments.address, arguments.zero_tier_address)
             verify_identity(harness, arguments.address, arguments.hostname, arguments.optane_mount)
         elif arguments.command == "build":
+            probe_reachability(harness, arguments.address, arguments.zero_tier_address)
             verify_identity(harness, arguments.address, arguments.hostname, arguments.optane_mount)
             verify_build(
                 harness,
