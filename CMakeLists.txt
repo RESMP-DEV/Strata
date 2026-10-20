@@ -284,7 +284,7 @@ if(STRATA_BUILD_TESTS)
   add_test(NAME kv_coordinator_test COMMAND kv_coordinator_test)
   # the session's ownership of the coordinators and the tier's opt-in contract
   add_executable(kv_tier_session_test src/core/kv_tier_session_test.cpp src/core/kv_coordinator.cpp
-                                      src/core/kv_tier_session.cpp)
+                                      src/core/kv_tier_session.cpp src/core/kv_file_store.cpp)
   target_include_directories(kv_tier_session_test PRIVATE include)
   add_test(NAME kv_tier_session_test COMMAND kv_tier_session_test)
   # the L2 file store's durability, identity, and refusal contracts
