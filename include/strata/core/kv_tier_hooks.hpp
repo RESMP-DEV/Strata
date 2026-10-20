@@ -8,6 +8,7 @@
 #pragma once
 
 #include "strata/core/kv_coordinator.hpp"
+#include "strata/core/kv_read_batch.hpp"
 #include "strata/core/kv_tier_session.hpp"
 #include "strata/core/layer.hpp"
 
@@ -45,7 +46,22 @@ bool kv_tier_commit(int32_t layer, const QsaState& st, const ModelGeometry& g, i
 
 /// The resolve hook. The selection names the blocks the attention needs; the coordinator makes the groups that are
 /// not in L1 ready, so the attention never waits on a missing group.
+///
+/// The selection's cells are collected into ONE read batch, deduplicated by group, so a token that names hundreds
+/// of blocks does not issue hundreds of separate store reads.
 bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, const int32_t* ids, int64_t n_ids,
                      std::string& error);
+
+/// The read batches the session has issued, for the telemetry and for the test.
+struct KvReadBatchStats {
+    uint64_t batches = 0;          ///< the batches the session issued
+    uint64_t groups = 0;           ///< the groups the batches asked for, after deduplication
+    uint64_t requested = 0;        ///< the groups the selections named, before deduplication
+    uint64_t foreground = 0;       ///< the foreground batches
+    uint64_t prefetch = 0;         ///< the prefetch batches
+};
+
+/// The read-batch statistics.
+KvReadBatchStats kv_tier_batch_stats();
 
 }  // namespace strata::core

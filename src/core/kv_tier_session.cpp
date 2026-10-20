@@ -1,6 +1,8 @@
 // src/core/kv_tier_session.cpp - see include/strata/core/kv_tier_session.hpp.
 #include "strata/core/kv_tier_session.hpp"
 
+#include "strata/core/kv_tier_hooks.hpp"
+
 #include <cstdio>
 #include <mutex>
 
@@ -139,11 +141,13 @@ void KvTierSession::note_phase(int phase) {
 void KvTierSession::report(const char* tag) {
     const KvTierCounters c = counters();
     const KvTierGraphPhases phases = graph_phases();
+    const KvReadBatchStats batches = kv_tier_batch_stats();
     std::fprintf(stderr,
                  "strata kv tier (%s): l1_hits=%llu l1_misses=%llu l1_evictions=%llu l2_reads=%llu "
                  "l2_read_failures=%llu l2_read_bytes=%llu l2_write_bytes=%llu published_groups=%llu "
                  "checksum_errors=%llu readiness_waits=%llu | graph_split: selection=%llu readiness=%llu "
-                 "resolve=%llu windows=%llu violations=%llu\n",
+                 "resolve=%llu windows=%llu violations=%llu | batches: batches=%llu groups=%llu requested=%llu "
+                 "foreground=%llu\n",
                  tag ? tag : "report", (unsigned long long) c.l1_hits, (unsigned long long) c.l1_misses,
                  (unsigned long long) c.l1_evictions, (unsigned long long) c.l2_reads,
                  (unsigned long long) c.l2_read_failures, (unsigned long long) c.l2_read_bytes,
@@ -151,7 +155,9 @@ void KvTierSession::report(const char* tag) {
                  (unsigned long long) c.checksum_errors, (unsigned long long) c.readiness_waits,
                  (unsigned long long) phases.selection, (unsigned long long) phases.readiness,
                  (unsigned long long) phases.resolve, (unsigned long long) phases.windows,
-                 (unsigned long long) phases.split_violations);
+                 (unsigned long long) phases.split_violations, (unsigned long long) batches.batches,
+                 (unsigned long long) batches.groups, (unsigned long long) batches.requested,
+                 (unsigned long long) batches.foreground);
 }
 
 void KvTierSession::reset_counters() {

@@ -274,29 +274,36 @@ add_executable(strata-dequant src/artifact/dequant.cpp)
 target_link_libraries(strata-dequant PRIVATE strata_artifact)
 # this file is now nothing but the CLI entry point, and its inherited guard spells that as a "selftest"
 target_compile_definitions(strata-dequant PRIVATE STRATA_DEQUANT_SELFTEST)
+# The disaggregated KV tier's host sources. The engine links this library, and so does every contract test, so
+# the tests exercise the same objects the engine runs.
+add_library(strata_kv_tier STATIC src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp
+                                src/core/kv_file_store.cpp src/core/kv_tier_hooks.cpp src/core/kv_read_batch.cpp)
+target_include_directories(strata_kv_tier PUBLIC include)
+
 if(STRATA_BUILD_TESTS)
   add_executable(batch_telemetry_test src/core/batch_telemetry_test.cpp)
   target_include_directories(batch_telemetry_test PRIVATE include)
   add_test(NAME batch_telemetry_test COMMAND batch_telemetry_test)
   # the disaggregated KV coordinator's state machine, epoch rules, and the store's refusal paths (host only)
-  add_executable(kv_coordinator_test src/core/kv_coordinator_test.cpp src/core/kv_coordinator.cpp)
-  target_include_directories(kv_coordinator_test PRIVATE include)
+  add_executable(kv_coordinator_test src/core/kv_coordinator_test.cpp)
+  target_link_libraries(kv_coordinator_test PRIVATE strata_kv_tier)
   add_test(NAME kv_coordinator_test COMMAND kv_coordinator_test)
   # the session's ownership of the coordinators and the tier's opt-in contract
-  add_executable(kv_tier_session_test src/core/kv_tier_session_test.cpp src/core/kv_coordinator.cpp
-                                      src/core/kv_tier_session.cpp src/core/kv_file_store.cpp)
-  target_include_directories(kv_tier_session_test PRIVATE include)
+  add_executable(kv_tier_session_test src/core/kv_tier_session_test.cpp)
+  target_link_libraries(kv_tier_session_test PRIVATE strata_kv_tier)
   add_test(NAME kv_tier_session_test COMMAND kv_tier_session_test)
   # the L2 file store's durability, identity, and refusal contracts
-  add_executable(kv_file_store_test src/core/kv_file_store_test.cpp src/core/kv_coordinator.cpp
-                                    src/core/kv_file_store.cpp)
-  target_include_directories(kv_file_store_test PRIVATE include)
+  add_executable(kv_file_store_test src/core/kv_file_store_test.cpp)
+  target_link_libraries(kv_file_store_test PRIVATE strata_kv_tier)
   add_test(NAME kv_file_store_test COMMAND kv_file_store_test)
   # the graph-split proof: the captured sequence must split at the selection boundary
-  add_executable(kv_tier_graph_test src/core/kv_tier_graph_test.cpp src/core/kv_coordinator.cpp
-                                    src/core/kv_tier_session.cpp src/core/kv_file_store.cpp)
-  target_include_directories(kv_tier_graph_test PRIVATE include)
+  add_executable(kv_tier_graph_test src/core/kv_tier_graph_test.cpp)
+  target_link_libraries(kv_tier_graph_test PRIVATE strata_kv_tier)
   add_test(NAME kv_tier_graph_test COMMAND kv_tier_graph_test)
+  # the read batch's deduplication and layering rules
+  add_executable(kv_read_batch_test src/core/kv_read_batch_test.cpp)
+  target_link_libraries(kv_read_batch_test PRIVATE strata_kv_tier)
+  add_test(NAME kv_read_batch_test COMMAND kv_read_batch_test)
   add_executable(logit_bias_test src/core/logit_bias_test.cpp)
   target_include_directories(logit_bias_test PRIVATE include)
   add_test(NAME logit_bias_test COMMAND logit_bias_test)
@@ -605,9 +612,10 @@ if(STRATA_ENABLE_CUDA OR STRATA_ENABLE_HIP)
     src/core/expert_cache.cpp src/core/native_head.cpp src/core/native_dense.cpp src/core/verify.cpp src/core/mtp.cpp
     src/core/conversation_snapshot.cpp src/core/conversation_state.cpp src/core/conversation_memory.cpp src/core/peer_experts.cpp
     src/core/arch_defaults.cpp src/core/nv_defaults.cpp src/core/vmm.cpp src/core/conversation_file.cpp
-    src/core/kv_coordinator.cpp src/core/kv_tier_session.cpp src/core/kv_tier_hooks.cpp src/core/kv_file_store.cpp)
+)
   target_include_directories(strata_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(strata_engine PUBLIC strata_core strata_kernels strata_kernels_cpu ${_strata_gpu_runtime_target})
+  target_link_libraries(strata_engine PUBLIC strata_core strata_kernels strata_kernels_cpu strata_kv_tier
+                        ${_strata_gpu_runtime_target})
   if(STRATA_BUILD_TESTS AND STRATA_ENABLE_CUDA AND NOT STRATA_HIP_GFX906)
     add_executable(host_graph_launch_test tests/core/host_graph_launch_test.cu)
     target_include_directories(host_graph_launch_test PRIVATE include)

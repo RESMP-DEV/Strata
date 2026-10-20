@@ -32,13 +32,15 @@ def main() -> int:
             "kv_tier_session_test",
             "kv_file_store_test",
             "kv_tier_graph_test",
+            "kv_read_batch_test",
         ],
         [
             "ctest",
             "--test-dir",
             str(BUILD),
             "-R",
-            "^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test|kv_tier_graph_test)$",
+            "^(kv_coordinator_test|kv_tier_session_test|kv_file_store_test|kv_tier_graph_test"
+            "|kv_read_batch_test)$",
             "--output-on-failure",
         ],
     )
@@ -55,7 +57,7 @@ def main() -> int:
 def quick_commands() -> tuple[str, ...]:
     return (
         "cmake --build build/kv-coordinator-check --target kv_coordinator_test"
-        " kv_tier_session_test kv_file_store_test kv_tier_graph_test",
+        " kv_tier_session_test kv_file_store_test kv_tier_graph_test kv_read_batch_test",
         "python3 scripts/check_kv_coordinator.py",
     )
 

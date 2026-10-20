@@ -12,6 +12,9 @@ namespace strata::core {
 
 namespace {
 
+KvReadBatchStats g_batch_stats;
+
+
 /// The runs of one block, in the engine's layout order. This is the same order `kv_stream.cu` copies, so the
 /// cold tier's payload is the engine's bytes and not a second layout.
 std::vector<KvBlockRun> block_runs(const QsaState& st, const ModelGeometry& g) {
@@ -163,20 +166,30 @@ bool kv_tier_resolve(int32_t layer, const QsaState& st, const ModelGeometry& g, 
     if (ids == nullptr || n_ids <= 0) return true;
 
     // The selection names CELLS; the coordinator's granularity is the block, so the cells are mapped to the
-    // blocks that contain them and deduplicated before any read is issued.
+    // blocks that contain them and collected into ONE batch, deduplicated by group. A token that names hundreds
+    // of blocks then issues one request per GROUP, not one per block.
     const int64_t cells_per_block = qsa_shapes(g).idx_block;
     if (cells_per_block <= 0) return true;
-    std::set<int32_t> groups;
+    KvReadBatch batch(layer, KvReadKind::kForeground);
     for (int64_t i = 0; i < n_ids; ++i) {
         const int32_t cell = ids[i];
         if (cell < 0) continue;
         const int32_t block = cell / (int32_t) cells_per_block;
-        groups.insert(block / coordinator->blocks_per_group());
+        batch.add(layer, block / coordinator->blocks_per_group(), -1);
     }
-    for (const int32_t group : groups) {
-        if (!coordinator->read(layer, group, error)) return false;
+    if (batch.empty()) return true;
+
+    ++g_batch_stats.batches;
+    g_batch_stats.groups += batch.size();
+    g_batch_stats.requested += batch.requested();
+    ++g_batch_stats.foreground;
+
+    for (const KvReadItem& item : batch.items()) {
+        if (!coordinator->read(layer, item.group, error)) return false;
     }
     return true;
 }
+
+KvReadBatchStats kv_tier_batch_stats() { return g_batch_stats; }
 
 }  // namespace strata::core
