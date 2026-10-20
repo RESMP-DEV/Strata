@@ -54,6 +54,10 @@ REQUIRED_SERVE_FLAGS = ("--spec", "--prefill")
 # requires it, so a control can never measure a path that does not exercise
 # the tier.
 REQUIRED_SHORT_READ = 512
+# The control's fixed request seed.  The draft acceptance path samples, so two
+# arms of the same control must share a seed or their generated tokens can
+# differ for reasons that have nothing to do with the tier.
+CONTROL_SEED = 20261020
 
 
 @dataclass
@@ -926,7 +930,12 @@ def _run_engine(
     request = harness.remote(f"request-path-{arm}", ["mktemp", work_dir + "/gen.XXXXXX"])
     harness.assert_clean()
     request_path = request.stdout.strip()
-    request_body = f"GEN {max_new} " + ",".join(str(token) for token in tokens) + "\n"
+    # The request's seed is fixed: the draft acceptance path samples, and without
+    # a fixed seed two arms of the same control can differ in the generated
+    # tokens even though their teacher-forced log-probabilities are identical.
+    request_body = (
+        f"GEN {max_new} " + ",".join(str(token) for token in tokens) + f" seed={CONTROL_SEED}\n"
+    )
     harness.remote(
         f"request-{arm}",
         ["sh", "-c", f"cat > {shlex.quote(request_path)}"],
@@ -976,14 +985,30 @@ def _artifact_hashes(
         if flag in {"--pack", "--native", "--model"} and index + 1 < len(engine_args):
             model_args.append(engine_args[index + 1])
     files = [engine, *model_args, tokens_file]
-    hashed = harness.remote("artifact-hashes", ["sha256sum", *files])
+    # A pack is a directory, so it is hashed by its contents: the receipt must
+    # bind the exact bytes the engine read, not a path name.
+    expanded: list[str] = []
+    for item in files:
+        if harness.remote(f"artifact-is-file-{item}", ["test", "-f", item]).passed:
+            expanded.append(item)
+            continue
+        if not harness.remote(f"artifact-is-dir-{item}", ["test", "-d", item]).passed:
+            harness.require(False, f"the artifact {item} is neither a file nor a directory")
+            continue
+        listing = harness.remote(f"artifact-list-{item}", ["find", item, "-type", "f", "-print"])
+        members = [line.strip() for line in listing.stdout.splitlines() if line.strip()]
+        harness.require(bool(members), f"the artifact directory {item} is empty")
+        expanded.extend(members)
+    hashed = harness.remote("artifact-hashes", ["sha256sum", *expanded])
     hashes: dict[str, str] = {}
     if hashed.passed:
         for line in hashed.stdout.splitlines():
             digest, separator, path = line.partition(" ")
             if separator and len(path) >= 1 and path[0] in " *":
                 hashes[path[1:]] = digest
-    harness.require(set(hashes) == set(files), "could not hash every engine/model/token artifact")
+    harness.require(
+        set(hashes) == set(expanded), "could not hash every engine/model/token artifact"
+    )
     return {
         "engine": engine,
         "engine_args": engine_args,
