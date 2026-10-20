@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-10-20T06:32:52Z",
+  "recorded_at": "2026-10-20T07:01:31Z",
   "agent": "Codex",
   "source_revision": "042704af0ffbab779bd19fd1a5a144a1ebde281f",
   "source_dirty": true,
@@ -95,12 +95,22 @@
     {
       "command": "git bundle create /tmp/strata-pr10-v0145.bundle feature/kv-disaggregation-v0145 && git bundle verify /tmp/strata-pr10-v0145.bundle",
       "exit": 0,
-      "result": "complete-history bundle for head 8f76974d verified; 24 MiB, ready for B550 once a route returns"
+      "result": "complete-history bundle for the then-current head 45e19220 verified; 24 MiB, ready for B550 once a route returns"
     },
     {
       "command": "cmake --build build/upstream-intake-host --target strata -j 8",
       "exit": 1,
       "result": "Ninja reports no strata target when CUDA/HIP are disabled on macOS; the sampler target and full configure remain the available host checks"
+    },
+    {
+      "command": "gh pr view 10 --repo RESMP-DEV/Strata --json statusCheckRollup,comments",
+      "exit": 0,
+      "result": "CodeRabbit reports SUCCESS as a skip: the mechanical 312-file import exceeds its 100-file review limit"
+    },
+    {
+      "command": "ocr review --from e8a1be9add1e0e95f6983efb72d2b373d04e46e4 --to HEAD --effort high --concurrency 4 --timeout 20 --format json --output /tmp/strata-pr10-ocr.json",
+      "exit": 1,
+      "result": "terminated after 31 minutes with no final JSON; session state shows one evidence group completed with zero comments, the code group aborted, no LLM failure, and no substantive review"
     },
     {
       "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 B550 '...'",
@@ -114,6 +124,7 @@
     "No CUDA backend build, model run, performance A/B, or SM86 identity gate has run on B550.",
     "Upstream throughput numbers in commit messages are provenance only and were not reproduced.",
     "The latest serving changes were classified by source audit; none was promoted to a performance claim.",
-    "B550 hardware state, GPU occupancy, Optane mount, and SMART state remain unverified because both network routes were unreachable."
+    "B550 hardware state, GPU occupancy, Optane mount, and SMART state remain unverified because both network routes were unreachable.",
+    "CodeRabbit's skip and OpenCodeReview's hung/aborted focused pass are reviewer unavailability, not approvals or completed substantive review."
   ]
 }
