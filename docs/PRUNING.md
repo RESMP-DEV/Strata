@@ -165,12 +165,21 @@ The Strata-owned artifact should be generated from the pinned Flash-Next BF16
 master and retain the GGUF's uniform per-layer expert count. The first matrix to
 evaluate is:
 
-| Candidate | Routed experts/layer | Expert bytes | Retained expert precision | Why evaluate |
-| --- | ---: | ---: | ---: | --- |
-| Coder control | 256 | 25.146 GB / 23.419 GiB | 3.3307 bpw exact (3.5 release-level) | Establishes the measured external baseline |
-| Primary custom | 256 | about 29.75 GB / 27.7 GiB | about 3.9-4.0 bpw | Existing UD-IQ4_XS-style paths with more precision per retained weight |
-| Coverage control | 288 | 28.289 GB / 26.347 GiB | 3.3307 bpw | More retained experts without increasing per-expert precision |
-| Later capacity lane | 384 | 37.719 GB / 35.129 GiB | 3.3307 bpw | Evaluate only after the first two gates pass |
+| Candidate | Routed experts/layer | Experts removed per layer | Routed experts removed in total | Expert bytes | Retained expert precision | Why evaluate |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Coder control | 256 | 256 (50%) | 12,288 of 24,576 (50%) | 25.146 GB / 23.419 GiB | 3.3307 bpw exact (3.5 release-level) | Establishes the measured external baseline |
+| Primary custom | 256 | 256 (50%) | 12,288 of 24,576 (50%) | about 29.75 GB / 27.7 GiB | about 3.9-4.0 bpw | Existing UD-IQ4_XS-style paths with more precision per retained weight |
+| Coverage control | 288 | 224 (43.75%) | 10,752 of 24,576 (43.75%) | 28.289 GB / 26.347 GiB | 3.3307 bpw | More retained experts without increasing per-expert precision |
+| Later capacity lane | 384 | 128 (25%) | 6,144 of 24,576 (25%) | 37.719 GB / 35.129 GiB | 3.3307 bpw | Evaluate only after the first two gates pass |
+
+The vendor parent example, the Coder artifact, is the 256-of-512 case: it
+removes 256 of the 512 routed experts in every one of the 48 layers, so half of
+the model's 24,576 routed experts are gone (12,288 removed, 12,288 kept). The
+28.8 GB IQ4_NL n-gram shard is neither pruned nor searched, and the vendor's
+1.89 bpw figure is the effective width over the original 176.9B-parameter
+transformer, not over the retained experts. 256 of 512 is also the most
+aggressive budget the current physical-expert sidecar contract admits: it
+accepts 256, 288, 384, or 512 physical slots per layer.
 
 The first custom decoder should use an existing executable native recipe
 (IQ3_S-class gate/up with IQ4_NL or Q8_0-class down paths), not MXFP4 or NVFP4.
@@ -211,6 +220,37 @@ one unmeasured artifact:
 
 The 27B NVFP4 release remains the format/training template. It is not a
 Flash-Next decoder, mask, or prefiller dependency.
+
+## Calibration and kernel cost of a 4-bit path, 2026-10-21
+
+Choosing a retained-expert precision is a kernel question, not only a size
+question. The one model family where both a GPTQ-calibrated MXFP4 artifact and
+a llama.cpp iMatrix-calibrated artifact exist as runnable CUDA artifacts is
+Qwen3.8-27B, so the pair was measured on B550 from the same base revision
+`1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`:
+
+| Arm | Artifact | Precision | Engine | Long cold prompt (13,97x tokens) | Short prompt |
+| --- | --- | ---: | --- | --- | --- |
+| A | RESMP-DEV GPTQ MXFP4A16 compressed-tensors | 4-bit W4A16, group 32 | vLLM 0.32.0, Marlin W4A16 on Ampere | 1,347.9 tok/s prefill, 13.47 tok/s decode | 13.47 tok/s decode |
+| B | ISTA GSQ-RCO IQ3_XXS with the published 1,000-chunk iMatrix | 3.00 bpw | llama.cpp 3cf03257, CUDA sm_86, all layers offloaded | 1,256.0 tok/s prefill, 50.06 tok/s decode | 53.32 tok/s decode |
+
+The 3.00 bpw iMatrix-calibrated artifact decodes about 3.7x faster than the
+4-bit MXFP4 artifact on this host, while MXFP4 is about 7% faster on the long
+prefill. MXFP4 is 1.79x larger on disk (18.0 GB against 10.1 GB) and needs
+20.8 GiB of VRAM against 10.9 GiB. The arms differ in precision, artifact
+size, engine, and weight container at once, so the measurement does not
+isolate the cause of the decode gap. For a pruned Flash-Next artifact at about
+3 bits per weight, the mixed i-quant path is the candidate to measure first;
+an MXFP4 expert path would need both a converter and a Flash-Next MXFP4 expert
+kernel that do not exist yet, and Flash-Next decode speed under either format
+is unmeasured.
+
+This comparison mixes the calibration recipe with the serving stack (vLLM and
+compressed-tensors against llama.cpp and GGUF), uses a 4-bit arm against a
+3-bit arm, and runs on Qwen3.8-27B rather than Flash-Next. It is not a
+kernel-only or like-for-like bit-width result, and it measured no quality.
+Full artifact hashes, commands, and the exact boundaries are in
+[quantization comparison evidence](../evidence/qwen27b-mxfp4-vs-imatrix-cuda-2026-10-21.json).
 
 ## Decision gates
 
