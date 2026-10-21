@@ -38,10 +38,28 @@ serve verify-window trace with unit weights. Its activation-coverage ladder is:
 | 192 | 100% | 24.179 GiB |
 | 256 | 100% | 31.650 GiB |
 
-This ladder is in-sample decode coverage. It does not describe prompt-prefill
-routing and does not predict quality. The engine currently records routed ids
-only in verify-window pool callbacks; a prompt-prefill routing capture seam is
-required before training a prefiller-specific expert mask.
+This ladder is in-sample decode coverage. It does not describe prompt routing
+and does not predict quality. A separate forced-short-read diagnostic captured
+14,020 prompt positions through verify windows on B550:
+
+| Retained experts/layer | Prompt activation coverage |
+| ---: | ---: |
+| 32 | 38.98% |
+| 64 | 55.61% |
+| 96 | 66.67% |
+| 128 | 74.72% |
+| 192 | 85.58% |
+| 256 | 92.31% |
+
+The prompt touched 23,813 of 24,576 layer/expert pairs, so a decode-only mask
+would dramatically overstate prompt coverage: the exact top-64 mask selected
+from the earlier decode trace covers only 14.80% of these prompt activations.
+This forced-window trace is not
+the literal normal batched `Prefill::run` path: a direct one-shot negative
+control produced only 48 final-window records for 13,963 batched prompt
+positions. A batched-prefill routing capture seam is still required before
+training a prefiller-specific expert mask. Evidence is in
+[prompt routing](../evidence/flash-next-prompt-routing-2026-10-20.json).
 
 ## Prototype A: vendor Coder as-is
 

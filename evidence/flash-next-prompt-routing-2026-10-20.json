@@ -1,0 +1,175 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T02:33:00Z",
+  "agent": "Codex parent",
+  "source_revision": "cd3b6f4ec45994b5cf1151b350476eac7cc0abfc",
+  "source_dirty": true,
+  "dirty_scope": [
+    "docs/PREFILLER.md",
+    "docs/PRUNING.md",
+    "docs/architecture.md",
+    "evidence/flash-next-prompt-routing-2026-10-20.json",
+    "evidence/flash-next-prompt-routing-2026-10-20.bin.zst",
+    "evidence/flash-next-batched-prefill-routing-negative-control-2026-10-20.bin"
+  ],
+  "runtime_launch_state": "The repository working tree was clean at source revision cd3b6f4ec45994b5cf1151b350476eac7cc0abfc when the B550 capture launched; only ignored build helpers existed. The documented dirty scope is the receipt authoring state after capture.",
+  "purpose": "Capture a prompt-position routed-expert activation trace and test whether the existing normal batched prefill path reaches the host routing callback.",
+  "hardware_and_engine": {
+    "host": "B550",
+    "machine_id": "27e232eefb5743a48b55b58e0fb997a0",
+    "gpu": "NVIDIA GeForce RTX 3090 Ti, GPU-e9401801-96fd-7936-9985-c104d7081308",
+    "engine_source_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048 split pack",
+    "shard1_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+    "shard2_sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+    "pack_index_sha256": "dcfd110970ea49b376bae9a4eb038da122e04775c8d9f85592e23ff5bfbe165f",
+    "native_experts_sha256": "5eca070c6aef89f13e1afb09efb1e8174a1a9320473394963534423506ae8544",
+    "expert_profile_sha256": "8f59b4aa8873209dff11c11e37bcda9529a1335b724a1afeea37bf6388975baf"
+  },
+  "capture": {
+    "method": "Fresh single-request serve.server process on loopback port 18803, with --short-read 16384 forcing every fresh text segment through verify windows",
+    "configuration": [
+      "--gpu 1",
+      "--max-context 16384",
+      "--kv-resident 2048",
+      "--kv int8",
+      "--ple-io direct",
+      "--expert-cache auto",
+      "--prefill auto",
+      "--spec 4",
+      "--mtp-max-t 4",
+      "--suffix-draft 0",
+      "--prompt-cache 0",
+      "--short-read 16384",
+      "--dump-routing prompt-routing.bin"
+    ],
+    "request": {
+      "messages": 1,
+      "temperature": 0,
+      "max_tokens": 1,
+      "cached_tokens": 0,
+      "reported_prompt_tokens": 14020,
+      "completion_tokens": 1,
+      "prompt_sha256": "7cac70e4a0a73673f1194dd9f882a6245f0dc2869e0a51eb566b4fb9e432a8"
+    },
+    "route_override_environment": "The capture helper did not set STRATA_CKPT_REREAD, STRATA_PIPELINE_SWITCH, STRATA_ADMIT_MERGE_FIRST, STRATA_ROUTE_*, or STRATA_LOGPOS; a post-run noninteractive SSH probe also found them absent. A full child-environment blob was not retained.",
+    "engine_log_sha256": "067f16a1a760ce906d751c9221970097a9d87c6ea269ee0bfa94a6e98c783559",
+    "server_stdout_sha256": "0be9d91c2c840ae08c3bd866b5bd7d97cacf4b4b2d0e8c9a0b0b0cffad58d546",
+    "server_exit": 0,
+    "gpus_after_capture": "Both B550 GPUs idle and no Strata engine/server process remained."
+  },
+  "trace": {
+    "compressed_path": "evidence/flash-next-prompt-routing-2026-10-20.bin.zst",
+    "compressed_sha256": "daf27c9e79f16df9e1807e77679e76375dc5ab7cc655ca87b3bb96d4cf1677ac",
+    "decompressed_sha256": "b91e23a824830084804fcb2d0fab66ef9d950c79ced00d6377934451d10ce97c",
+    "decompressed_bytes": 59220480,
+    "records": 672960,
+    "layers": 48,
+    "records_per_layer": 14020,
+    "top_k": 10,
+    "weight_payload": "All 6,729,600 float weights are zero; the serve callback contract interprets them as unit routed activations.",
+    "distinct_layer_expert_pairs": 23813,
+    "source_pair_universe_per_layer": 512
+  },
+  "activation_coverage": {
+    "32": {
+      "selected": 2623353,
+      "total": 6729600,
+      "share": 0.38982302068473607
+    },
+    "64": {
+      "selected": 3742205,
+      "total": 6729600,
+      "share": 0.55608134213029
+    },
+    "96": {
+      "selected": 4486924,
+      "total": 6729600,
+      "share": 0.666744531621493
+    },
+    "128": {
+      "selected": 5028179,
+      "total": 6729600,
+      "share": 0.7471735318592487
+    },
+    "192": {
+      "selected": 5758938,
+      "total": 6729600,
+      "share": 0.8557623038516405
+    },
+    "256": {
+      "selected": 6211924,
+      "total": 6729600,
+      "share": 0.9230747741321921
+    }
+  },
+  "batched_prefill_negative_control": {
+    "path": "evidence/flash-next-batched-prefill-routing-negative-control-2026-10-20.bin",
+    "sha256": "c246571f6b1fa9755ba62b89543de06ded684cff32f525d50c594ccd4be2bb8d",
+    "method": "Direct one-shot engine run over 13,964 raw token IDs with normal batched prefill and max-new 1",
+    "engine_prefill_tokens": 13963,
+    "records": 48,
+    "records_per_layer": 1,
+    "top_k": 10,
+    "interpretation": "Normal batched prefill did not emit prompt-position records into the current host routing callback; the 48 records are the final generation window, not the 13,963 prefilled positions."
+  },
+  "interpretation": {
+    "prompt_breadth": "The prompt touched 23,813 of 24,576 possible layer/expert pairs. A top-activation mask of 256 experts per layer covered only 92.3075% of prompt routed activations.",
+    "decode_comparison": "The earlier 25-record decode-only trace showed 92.0833% coverage at 64 experts per layer; this 14,020-token prompt trace shows 55.6081% at the same count. Decode-only coverage must not select a prompt-state mask alone.",
+    "decode_mask_control": "Applying the exact deterministic top-64 mask selected from the earlier decode trace to this prompt trace covered 995,768 of 6,729,600 routed activations, or 14.7968%.",
+    "remaining_seam": "This is a forced verify-window prompt-position diagnostic, not a literal trace of the normal multi-token batched Prefill::run routing path. A batched-prefill routing capture seam is still required for exact path coverage and true router weights."
+  },
+  "validation": [
+    {
+      "command": "zstd -d -c evidence/flash-next-prompt-routing-2026-10-20.bin.zst | shasum -a 256",
+      "exit": 0,
+      "result": "Round-tripped to b91e23a824830084804fcb2d0fab66ef9d950c79ced00d6377934451d10ce97c"
+    },
+    {
+      "command": "python3 tools/prefiller_plan.py --index ... --native-experts ... prompt-routing.bin --unweighted --hot-experts {32,64,96,128,192,256}",
+      "exit": 0,
+      "result": "All six planner runs accepted 672,960 records with exactly 14,020 per layer and reproduced the exact integer coverage numerators and denominator above."
+    },
+    {
+      "command": "parse both binary traces with strict struct.unpack_from validation",
+      "exit": 0,
+      "result": "Serve trace: 48 layers, 14,020 records each, k=10, all weights zero. Negative control: 48 layers, one record each, k=10."
+    },
+    {
+      "command": "rank the durable decode trace with the planner's (-score, expert-id) tie order and replay its top-64 mask over the prompt trace",
+      "exit": 0,
+      "result": "995,768 of 6,729,600 prompt routed activations covered, exactly 14.79683785068949%."
+    },
+    {
+      "command": "post-run B550 identity/GPU/process probe",
+      "exit": 0,
+      "result": "Machine ID matched; GPU0 used 1 MiB, GPU1 used 33 MiB, both 0% utilization, and no Strata process remained."
+    }
+  ],
+  "non_claims": [
+    "The forced verify-window path is not the normal batched Prefill::run path and its timing is not a prefill performance measurement.",
+    "The callback does not surface router weights, so all coverage here is routed-activation coverage.",
+    "One real 40,000-byte source document plus a nonce is not a representative many-agent prompt corpus.",
+    "Activation coverage does not predict KL, perplexity, answer quality, or acceptable pruning.",
+    "The raw prompt negative control and chat-template forced capture have different token counts; the negative control proves only that normal batched prefill emitted no prompt records to the existing callback.",
+    "No default runtime, installer, engine behavior, or pruning artifact changed."
+  ],
+  "subagent_audits": [
+    {
+      "thread_id": "01a15c3e-05e0-7243-b4a6-1ceb951f6938",
+      "scope": "forced short-read capture semantics",
+      "result": "confirmed the per-segment short-read conditions, unit-weight semantics, required sidecar metadata, and that literal batched Prefill::run remains uncaptured"
+    },
+    {
+      "thread_id": "01a15c3e-3982-7fe1-b586-acd0b727fdb3",
+      "scope": "physical-expert planner namespaces",
+      "result": "confirmed future 256/288/384-expert plans need explicit physical-versus-source ID mappings and cannot treat profiles as source-domain IDs"
+    },
+    {
+      "thread_id": "01a15c51-a5fb-7023-a083-468d7c543eef",
+      "scope": "prompt-routing evidence review",
+      "result": "independently reproduced trace structure, all six coverage ladders, hash round-trip, pair breadth, negative-control boundary, and exact engine-path separation; identified the receipt dirty-state ambiguity corrected here"
+    }
+  ]
+}
