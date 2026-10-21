@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-21T14:32:36Z",
+  "agent": "Codex",
+  "task": "Extend native logits collection with the aligned verifier residual rows required by the Qwen4Exp MTP cell.",
+  "source_revision": "d83190b3",
+  "source_dirty": true,
+  "implementation": {
+    "flag": "--dump-native-residual PATH",
+    "requirement": "--dump-native-logits PATH",
+    "format": "Two little-endian int32 values [feature_width, row_count], followed by float32 rows.",
+    "feature_width": 10240,
+    "alignment": "Residual row i, logits row i, and native-logits.windows.tsv row i share one accepted verifier row."
+  },
+  "hardware": {
+    "host_alias": "strix",
+    "gpu": "NVIDIA GeForce RTX 5070 Laptop GPU",
+    "gpu_uuid": "GPU-b8dfe31e-0e7e-ba02-cd75-bb2c39d58542",
+    "driver": "595.99.02"
+  },
+  "bank": {
+    "root": "strix:/home/kearm/mlx-gptq-dflash2/strix-mtp-qat-banks/fable-coding-0067-first512-flashnext-20261021T003",
+    "rows": 512,
+    "mtp_pairs": 511,
+    "prompt": "fable-coding-0067 from train896, first 512 pinned qwen35 tokens",
+    "logits_sha256": "35626e63326f0fd0741c3ea1fdfc8e3de0afafb94d966b651fc5a364f6ed3e09",
+    "residual_sha256": "b785dc94ff21683c39341a7100eda335c13ec8e930920ec31aa0b62a84d40ff6",
+    "sidecar_sha256": "311c5bb811f7eea20aab21e121c0e98809a13a49355770ae9e0d539725a8fed5",
+    "training_manifest_sha256": "9347b9714d9f0c0967b287105ddbd3f2f46eed66fb42b30ecbc4de541cc1cce4",
+    "bank_receipt_sha256": "57b656c6dac5373d98fd1c6dad8c76574efff7697fabd59cd8438a464b7d58c2",
+    "collector_binary_sha256": "513aad163eb24591adb695a9ae7190281afb851cdb9f8778b2fc369b3eeaf9d0",
+    "elapsed_seconds": 23.37,
+    "decode_tokens_per_second": 33.75,
+    "prefill_tokens_per_second": 387.68,
+    "time_to_first_token_ms": 2052.2
+  },
+  "validation": {
+    "logits_header": [
+      248320,
+      512
+    ],
+    "residual_header": [
+      10240,
+      512
+    ],
+    "all_values_finite": true,
+    "argmax_sidecar_agreement": true,
+    "positions": "511 through 1022 inclusive",
+    "input_chain": "Prompt-final token followed by each prior target argmax.",
+    "loader": "mlx-stack NativeMTPPairDataset checked every one of 511 two-ahead pairs.",
+    "pairing": "Source residual row i plus input token at i+1; teacher logits row i+1 predicts i+2.",
+    "embedding_service": "127.0.0.1:1236 remained resident before and after; pid 7228 used about 2538 MiB."
+  },
+  "checks": [
+    {
+      "command": "Dedicated SM120 incremental build after adding residual collection.",
+      "exit": 0
+    },
+    {
+      "command": "Four-row deterministic smoke with logits and residuals.",
+      "exit": 0
+    },
+    {
+      "command": "512-row private collection and full header/finiteness/argmax/position/input-chain validation.",
+      "exit": 0
+    }
+  ],
+  "non_claims": [
+    "No MTP weights were trained or modified.",
+    "This is internal row alignment, not cross-run generation determinism.",
+    "No exact MTP forward parity, QAT result, live acceptance, or Colab T4 allocation is claimed."
+  ]
+}

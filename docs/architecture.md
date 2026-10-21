@@ -2112,3 +2112,12 @@ embedding service on `127.0.0.1:1236` remained resident. The complete hashes and
 
 This establishes collection plumbing only. These are Flash-Next logits, not inputs for the existing
 Qwen3.8-27B DFlash2 head, and no Flash-Next-specific QAT trainer or live acceptance gate has run.
+
+The collection boundary moved one step closer to the executable target on the same day. The verifier now
+also exposes `--dump-native-residual PATH`, required alongside the logits dump, and writes the accepted
+10,240-float final residual row for every aligned teacher row. The Qwen4Exp MTP cell is two-ahead: residual
+row `i` plus the token at `i+1` trains against verifier logits row `i+1`, not row `i`. The first aligned
+private bank contains 512 rows and 511 such pairs, with all logits and residuals finite and the same
+contiguous 511..1022 input chain. Hashes and the non-claims are in
+[native MTP residual evidence](../evidence/flash-next-native-mtp-residual-capture-2026-10-21.json).
+No MTP weights were trained or modified.
