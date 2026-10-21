@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-21T01:46:59Z",
+  "agent": "Codex",
+  "task": "Collect accepted-context full-vocabulary logits from the native Qwen3.8-Flash-Next pack on Strix without disturbing the resident embedding service.",
+  "source_revision": "240489eec3195bae4339cecf6ef16008d7dfd2f0",
+  "source_dirty": true,
+  "implementation": {
+    "flag": "--dump-native-logits PATH",
+    "format": "Two little-endian int32 values [vocab_size, row_count], followed by float32 full-vocabulary rows.",
+    "sidecar": "PATH.windows.tsv with round, position, window size, row, input token, argmax, and accepted draft count.",
+    "semantics": "Emit only verify-window rows 0..accepted, bounded by max-new. Rejected speculative rows are omitted because their conditioning can leave the committed target trajectory."
+  },
+  "hardware": {
+    "host_alias": "strix",
+    "gpu": "NVIDIA GeForce RTX 5070 Laptop GPU",
+    "gpu_uuid": "GPU-b8dfe31e-0e7e-ba02-cd75-bb2c39d58542",
+    "driver": "595.99.02",
+    "cuda_architecture": "120"
+  },
+  "model": {
+    "family": "Qwen3.8-Flash-Next",
+    "artifact": "standard-256x2048 deterministic IQ2_XS native pack",
+    "gguf_sha256": "f88ddbabfe3a7c307c4685ae524efddcceada6e5b427d0d5aa574a53a767cc08"
+  },
+  "private_subset": {
+    "source_prompt_id": "fable-coding-0067",
+    "partition": "fable-coding-train896",
+    "token_count": 512,
+    "ids_sha256": "82fbabd73cda3730783fb57e009ab57923750c2cfb0e197bc055e73975385db7",
+    "tokenizer_pre": "qwen35",
+    "tokenizer_config_sha256": "c0bd435efbc6c3b28964b47999afe16c4ad268c7c7c4e8cb3af410796a6f30bf",
+    "tokenizer_vocab_sha256": "4ba64f0332abcfb0b600b7df1537d1e836e68009d5fb7cdb77339738dc6365c4"
+  },
+  "collection": {
+    "bank_root": "strix:/home/kearm/mlx-gptq-dflash2/strix-logits-banks/fable-coding-0067-first512-flashnext-20261021T002",
+    "collector_binary_sha256": "3c735f3929ee74e766209637d11180162a72a537f31156e4e9a9aaf6c8fa3aec",
+    "bank_receipt_sha256": "97d221e4620e9dd5abddb9a370a32eb90c4a83cb83505d7997d7922a1280a4c3",
+    "rows": 512,
+    "vocab": 248320,
+    "logits_bytes": 508559368,
+    "logits_sha256": "74ec338832c0b17feb1eae545424c3f8ca77c6627cde5fd0afc5568e024adcc2",
+    "sidecar_sha256": "d2fc54bcbbcd3453e04392f62a5b73de70ed5c0fd142982f92b9fb9e34a68a9c",
+    "elapsed_seconds": 22.04,
+    "decode_tokens_per_second": 37.19,
+    "prefill_tokens_per_second": 387.48,
+    "time_to_first_token_ms": 2053.2
+  },
+  "validation": {
+    "header_vocab_rows": [
+      248320,
+      512
+    ],
+    "all_float32_values_finite": true,
+    "binary_argmax_matches_sidecar": true,
+    "positions": "511 through 1022 inclusive",
+    "input_chain": "The first input is prompt token 511; every later input equals the prior emitted argmax.",
+    "unique_round_row_keys": true,
+    "embedding_service": "127.0.0.1:1236 remained resident before and after; pid 7228 used about 2538 MiB."
+  },
+  "checks": [
+    {
+      "command": "cmake -S . -B build-collector -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=/usr/bin/g++-13 -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc -DSTRATA_ENABLE_CUDA=ON -DSTRATA_NATIVE_EXPERTS=ON -DSTRATA_BUILD_TESTS=OFF -DCMAKE_CUDA_ARCHITECTURES=120 -DSTRATA_GGML_DIR=/home/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src && cmake --build build-collector --target strata -j12",
+      "exit": 0,
+      "scope": "Dedicated SM120 CUDA build in a separate Strix worktree."
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "receipt": "build/reports/quality/receipt.json",
+      "scope": "Host-safe repository gate at base 240489ee with the collector diff."
+    },
+    {
+      "command": "Full header, finite, argmax, sidecar, position, input-chain, and service-occupancy validation on the 512-row bank.",
+      "exit": 0
+    }
+  ],
+  "non_claims": [
+    "This is Flash-Next logits collection, not Qwen3.8-27B DFlash2 training data.",
+    "It does not prove a Flash-Next-specific drafter/trainer adaptation, QAT improvement, or live acceptance result.",
+    "The first cold dedicated-binary invocation paid one-time CUDA initialization; only the warm steady-state timing is reported as collection cost.",
+    "A row-0-only 356-row intermediate file was superseded and is not a training bank.",
+    "No Colab T4 was allocated."
+  ]
+}

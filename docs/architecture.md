@@ -2652,3 +2652,23 @@ candidate. The earlier 13.47 tok/s W4A16 and 50.06 tok/s vendor GSQ-RCO numbers 
 non-controlled Qwen3.8-27B runtime measurements and are not promoted to RCO measurement results. No
 process was killed and no GPU measurement ran. Full inventory and commands are in
 [RCO measurement readiness evidence](../evidence/rco-measurement-readiness-2026-10-23.json).
+
+### Native-pack logits collection, 2026-10-21
+
+The native Flash-Next path now has an opt-in teacher-row collector. `--dump-native-logits PATH` emits the
+same two-int32-headed float32 format as `--dump-logits`, but takes rows from the speculative verifier. It
+keeps only rows `0..accepted` (bounded by `--max-new`) and omits rejected drafts, because a rejected draft
+can condition later rows on a token the target did not commit. `PATH.windows.tsv` records the round,
+position, window row, input token, argmax, and accepted-draft count needed to align the bank without
+embedding private prompt text in the repository.
+
+The first real private subset came from train896 prompt `fable-coding-0067`, capped to 512 pinned qwen35
+tokens. On Strix's RTX 5070 Laptop GPU, beside the resident embedding service, the dedicated SM120 build
+collected 512 accepted-context rows over the full 248,320-entry vocabulary in 22.04 seconds. The file is
+508,559,368 bytes; all values are finite, every binary argmax matches the sidecar, positions run contiguously
+from 511 through 1022, and each input token after the prompt-final row is the prior target argmax. The
+embedding service on `127.0.0.1:1236` remained resident. The complete hashes and non-claims are in
+[native logits evidence](../evidence/flash-next-native-logit-collector-2026-10-21.json).
+
+This establishes collection plumbing only. These are Flash-Next logits, not inputs for the existing
+Qwen3.8-27B DFlash2 head, and no Flash-Next-specific QAT trainer or live acceptance gate has run.

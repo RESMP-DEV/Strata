@@ -421,6 +421,7 @@ struct Options {
     float top_p = 0.95f;
     float temperature = 1.0f;
     std::string dump_logits;          // one line of logits per generated position
+    std::string dump_native_logits;   // native verify-window row 0 per generated position
     int64_t logits_stride = 1;        // storage selection; all prompt tokens remain conditioned
     /// **THE RESIDUAL, SO THE HEAD CAN BE CHECKED WITHOUT THE LAYERS.**
     ///
@@ -875,6 +876,9 @@ void usage() {
                  "  --seed S             enable sampling with this Philox seed\n"
                  "  --top-k N --top-p F --temperature F\n"
                  "  --dump-logits PATH   write one line of raw logits per position\n"
+                 "  --dump-native-logits PATH\n"
+                 "                       write each accepted native verify-window row; rejected drafts are\n"
+                 "                       omitted, and PATH.windows.tsv aligns positions and argmax ids\n"
                  "  --logits-stride N    store every Nth row plus final input (default 1); N>1 requires --max-new 1\n"
                  "  --dump-residual PATH write the final R (hc x n_embd, f32) for head bisection\n"
                  "  --dump-layers PATH   write R after EVERY layer, per position: the C1 bisection ladder\n"
@@ -2413,6 +2417,7 @@ int main(int argc, char** argv) {
         else if (a == "--top-p") o.top_p = (float) std::atof(next("--top-p"));
         else if (a == "--temperature") o.temperature = (float) std::atof(next("--temperature"));
         else if (a == "--dump-logits") o.dump_logits = next("--dump-logits");
+        else if (a == "--dump-native-logits") o.dump_native_logits = next("--dump-native-logits");
         else if (a == "--logits-stride") {
             if (have_logits_stride) { std::fprintf(stderr, "--logits-stride must be supplied only once\n"); return 2; }
             if (!strata::program::logits_selection::parse_stride(next("--logits-stride"), o.logits_stride)) {
@@ -6901,6 +6906,41 @@ int main(int argc, char** argv) {
         // parsing the header and refusing the file.
         const int32_t n_rows = (int32_t) strata::program::logits_selection::row_count(dump_positions, o.logits_stride);
         hdr[0] = n_vocab; hdr[1] = n_rows;
+    }
+
+    // Native packs run prompt/decode positions through the verifier, not the per-token loop above.  Rows
+    // 0..accepted are the safe teacher rows: every one is conditioned on the committed prefix.  Rejected
+    // draft rows may follow a token the target is about to reject, so this collector omits them.
+    // The binary format matches --dump-logits ([int32 vocab, int32 rows], then float32 rows); the count is
+    // finalized on normal completion because generation can stop at max-new or EOS.
+    std::FILE* native_dump = nullptr;
+    std::FILE* native_windows = nullptr;
+    int64_t native_dump_rows = 0;
+    std::vector<float> native_dump_row;
+    if (!o.dump_native_logits.empty()) {
+        if (n_vocab > INT32_MAX) {
+            std::fprintf(stderr, "strata generate: native logits dump vocabulary exceeds int32\n");
+            return 2;
+        }
+        native_dump = std::fopen(o.dump_native_logits.c_str(), "wb");
+        if (native_dump == nullptr) {
+            std::fprintf(stderr, "strata generate: cannot write %s\n", o.dump_native_logits.c_str());
+            return 1;
+        }
+        const std::string windows_path = o.dump_native_logits + ".windows.tsv";
+        native_windows = std::fopen(windows_path.c_str(), "w");
+        if (native_windows == nullptr) {
+            std::fprintf(stderr, "strata generate: cannot write %s\n", windows_path.c_str());
+            return 1;
+        }
+        const int32_t native_hdr[2] = { (int32_t) n_vocab, 0 };
+        if (std::fwrite(native_hdr, sizeof native_hdr, 1, native_dump) != 1) {
+            std::fprintf(stderr, "strata generate: cannot write native logits header\n");
+            return 1;
+        }
+        std::fprintf(native_windows,
+                     "round\tposition\twindow_size\trow\tinput_token\targmax\taccepted_drafts\n");
+        native_dump_row.resize((size_t) n_vocab);
     }
 
     // ---- THE C1 ORACLE: ONE RESIDUAL SNAPSHOT PER LAYER PER POSITION, so the engine can be bisected against
@@ -15973,6 +16013,36 @@ int main(int argc, char** argv) {
             }
             int a = 0;
             while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
+            if (native_dump != nullptr) {
+                const int64_t remaining = max_new - (int64_t) produced.size();
+                const int emit_rows = (int) std::max<int64_t>(0, std::min<int64_t>(a + 1, remaining));
+                for (int t = 0; t < emit_rows; ++t) {
+                    if (!ver.copy_logits(t, native_dump_row.data())) {
+                        std::fprintf(stderr, "strata generate: cannot copy native logits at position %lld row %d\n",
+                                     (long long) p, t);
+                        return 1;
+                    }
+                    if (!std::all_of(native_dump_row.begin(), native_dump_row.end(),
+                                     [](float value) { return std::isfinite(value); })) {
+                        std::fprintf(stderr, "strata generate: native logits are not finite at position %lld row %d\n",
+                                     (long long) p, t);
+                        return 1;
+                    }
+                    if (std::fwrite(native_dump_row.data(), sizeof(float), native_dump_row.size(), native_dump) !=
+                        native_dump_row.size()) {
+                        std::fprintf(stderr, "strata generate: cannot write native logits at position %lld row %d\n",
+                                     (long long) p, t);
+                        return 1;
+                    }
+                    std::fprintf(native_windows, "%lld\t%lld\t%d\t%d\t%lld\t%d\t%d\n", (long long) rounds,
+                                 (long long) p + t, T, t, (long long) window[(size_t) t],
+                                 (int) outv[(size_t) t], a);
+                    if (++native_dump_rows > INT32_MAX) {
+                        std::fprintf(stderr, "strata generate: native logits dump row count exceeds int32\n");
+                        return 1;
+                    }
+                }
+            }
             if (first_window) {
                 first_window = false;
                 ttft_ms = std::chrono::duration<double, std::milli>(Clock::now() - t_start).count();
@@ -16310,6 +16380,22 @@ int main(int argc, char** argv) {
     }
 
     if (dump != nullptr) std::printf("%-24s %s\n", "logits dumped", o.dump_logits.c_str());
+    if (native_dump != nullptr) {
+        const int32_t final_hdr[2] = { (int32_t) n_vocab, (int32_t) native_dump_rows };
+        if (std::fflush(native_windows) != 0 || std::ferror(native_windows) ||
+            std::fflush(native_dump) != 0 || std::ferror(native_dump) ||
+            std::fseek(native_dump, 0, SEEK_SET) != 0 ||
+            std::fwrite(final_hdr, sizeof final_hdr, 1, native_dump) != 1 || std::fflush(native_dump) != 0) {
+            std::fprintf(stderr, "strata generate: cannot finalize %s\n", o.dump_native_logits.c_str());
+            return 1;
+        }
+        std::fclose(native_dump);
+        native_dump = nullptr;
+        std::fclose(native_windows);
+        native_windows = nullptr;
+        std::printf("%-24s %s (%lld rows)\n", "native logits dumped", o.dump_native_logits.c_str(),
+                    (long long) native_dump_rows);
+    }
 
     strata::core::session_graphs_free(gr);
     strata::core::doorbell_free(db);
