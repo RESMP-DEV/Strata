@@ -30,7 +30,7 @@
     "host": "B550",
     "machine_id": "27e232eefb5743a48b55b58e0fb997a0",
     "gpus": "2 x RTX 3090 Ti, split 30 with the CPU-root card first",
-    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54e95cdbb2b1ed86bfdf8",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
     "engine_source_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
     "server_json_sha256": "e137d847eb1c16d1579325d0bca5b5ef8d990d7135a02fa1724b17135ea68278",
     "engine_log_sha256_after_all_requests": "dbd6751bef1229d12380bf5ba68dcb8e84df46728d7253c499595e3ff437e269",

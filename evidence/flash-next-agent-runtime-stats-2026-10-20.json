@@ -149,7 +149,7 @@
   ],
   "interpretation": {
     "prefix_reuse": "For this workload, a held 13,943-token prefix reduced the median fresh-prompt read from 4,159.5 ms to 192 ms, about 21.7x less fresh-read time. This is prompt-cache reuse, not model speedup.",
-    "current_bottleneck": "With 99.9211% aggregate decode expert-cache hits, this warm full-model workload is not decode-expert-miss bound. Pruning may still improve footprint, startup, cold-agent behavior, concurrency headroom, and cache resilience, but those must be measured.",
+    "expert_cache_interpretation": "The 99.9211% aggregate hit rate leaves 402 misses. Miss-stall time was not attributed separately, so this sweep cannot identify decode's bottleneck. Pruning may still improve footprint, startup, cold-agent behavior, concurrency headroom, miss latency, and cache resilience, but those must be measured.",
     "routing_ladder": "A 64-experts-per-layer hot set covers 92.0833% of routed activations in this decode trace; 96 covers 98.2667% and 128 covers 99.6833%. These are in-sample activation shares, not quality retention or prompt-prefill coverage."
   },
   "validation": [

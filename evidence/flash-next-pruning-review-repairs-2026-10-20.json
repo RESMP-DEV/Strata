@@ -1,14 +1,17 @@
 {
   "schema": 1,
-  "recorded_at": "2026-10-21T01:59:25Z",
+  "recorded_at": "2026-10-21T02:11:16Z",
   "agent": "Codex parent",
   "source_revision": "240489eec3195bae4339cecf6ef16008d7dfd2f0",
   "source_dirty": true,
   "reviewers": [
     "Codex evidence/docs review 01a15c25-aae5-7f11-b72f-499c40b23934",
     "Codex planner review 01a15c25-ca06-76b1-ba91-987f51febd0c",
-    "Codex PR-readiness review 01a15c25-e972-7ab3-bad4-88131fa644c3"
+    "Codex PR-readiness review 01a15c25-e972-7ab3-bad4-88131fa644c3",
+    "CodeRabbit",
+    "OpenCodeReview Inkling (zero inline findings; final verdict pending at repair time)"
   ],
+  "reviewed_revision": "3505cafc3a8dcf49aa9bdb4166e282d81415b5b3",
   "repairs": [
     {
       "finding": "The Coder four-request cold aggregate reversed the direction of the measured generated-tokens-per-second comparison.",
@@ -33,6 +36,18 @@
     {
       "finding": "Removing the version-1 coverage field changed the manifest contract without changing the schema version.",
       "change": "Promoted new plans to strata-prefiller-plan-v2 and documented the v1 field difference."
+    },
+    {
+      "finding": "CodeRabbit: a high aggregate cache-hit rate alone does not prove decode is expert-miss unbound because miss latency was not attributed.",
+      "change": "Replaced the bottleneck conclusion with the 402-miss count and an explicit statement that miss-stall time was not measured."
+    },
+    {
+      "finding": "CodeRabbit: full-model-versus-Coder speed percentages were ambiguous about their denominator.",
+      "change": "The comparison table now states Coder-relative deltas against the full-model baseline for each row."
+    },
+    {
+      "finding": "CodeRabbit: the Coder engine SHA-256 value had only 63 hexadecimal characters.",
+      "change": "Restored the shared engine binary digest to the 64-character value and validated every SHA-256 field in both runtime receipts."
     }
   ],
   "tests_added": [
@@ -66,6 +81,11 @@
       "command": "just quality",
       "exit": 0,
       "result": "all host-safe checks passed after code and documentation repairs"
+    },
+    {
+      "command": "python3 hash-shape validation over both runtime-statistics receipts",
+      "exit": 0,
+      "result": "every declared SHA-256 string matches 64 lowercase hexadecimal characters"
     }
   ],
   "non_claims": [

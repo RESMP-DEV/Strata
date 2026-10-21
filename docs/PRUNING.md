@@ -18,10 +18,11 @@ request carried about 13.96K tokens of real Strata C++/CUDA source.
 | Shared-prefix hit | 9 | 192 ms | 161.1 tok/s over 30-32 fresh tokens | 143.5 tok/s | 75.15% |
 
 The shared-prefix arm reused 13,943 tokens. Aggregate decode expert-cache hits
-were 509,121 of 509,523, or 99.9211%. Therefore this warm workload is already
-not decode-expert-miss bound. Prefix reuse is the immediate latency lever;
-pruning must prove its value through footprint, cold-agent behavior, concurrency
-headroom, startup, or a different routing mixture.
+were 509,121 of 509,523, or 99.9211%, leaving 402 misses. This sweep did not
+time miss stalls separately, so it cannot identify decode's bottleneck. Prefix
+reuse is the observed latency lever; pruning must prove its value through
+footprint, cold-agent behavior, concurrency headroom, startup, miss-latency
+attribution, or a different routing mixture.
 
 The durable raw sweep and decode trace are in
 [runtime evidence](../evidence/flash-next-agent-runtime-stats-2026-10-20.json).
@@ -81,12 +82,12 @@ split-30 configuration:
 
 | Measure | Full model | Current Coder | Result |
 | --- | ---: | ---: | --- |
-| Unique-cold fresh prompt read | 3,355.9 tok/s | 3,681.1 tok/s | Coder 9.7% faster |
-| Unique-cold decode | 132.1 tok/s | 151.7 tok/s | Coder 14.8% faster |
-| Four-request cold client aggregate | 10.39 tok/s | 10.95 tok/s | Coder about 5.4% faster |
-| Shared-prefix fresh read | 192 ms | 210 ms | Full model 9.4% faster |
-| Shared-prefix decode | 143.5 tok/s | 121.7 tok/s | Full model 15.2% faster |
-| Primed concurrent-4 shared burst | 86.1 tok/s | 74.4 tok/s | Full model 13.6% faster |
+| Unique-cold fresh prompt read | 3,355.9 tok/s | 3,681.1 tok/s | Coder 9.7% faster (full-model baseline) |
+| Unique-cold decode | 132.1 tok/s | 151.7 tok/s | Coder 14.8% faster (full-model baseline) |
+| Four-request cold client aggregate | 10.39 tok/s | 10.95 tok/s | Coder about 5.4% faster (full-model baseline) |
+| Shared-prefix fresh read | 192 ms | 210 ms | Coder 9.4% slower (full-model baseline) |
+| Shared-prefix decode | 143.5 tok/s | 121.7 tok/s | Coder 15.2% slower (full-model baseline) |
+| Primed concurrent-4 shared burst | 86.1 tok/s | 74.4 tok/s | Coder 13.6% slower (full-model baseline) |
 | Resident expert arena | 32.23 GiB | 23.42 GiB | Coder saves 8.81 GiB |
 | Resident expert coverage | 23,627 / 24,576 | all 12,288 retained | Coder has full retained-set residency |
 

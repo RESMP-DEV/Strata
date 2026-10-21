@@ -2101,8 +2101,9 @@ The full calibrated Flash-Next decoder ran a real-source 13.96K-token agent-like
 sweep on B550 with four concurrent clients serialized by the split-30 FIFO.
 Unique cold prompts read at a median 3,355.9 tok/s; a held 13,943-token prefix
 reduced the median fresh read from 4,159.5 ms to 192 ms. Decode aggregate
-expert-cache hits were 99.9211%, so this warm workload is not decode-expert-miss
-bound and pruning must prove footprint, cold-agent, startup, concurrency, or
+expert-cache hits were 99.9211%, leaving 402 misses whose stall time was not
+attributed separately. The sweep therefore cannot identify decode's bottleneck;
+pruning must prove footprint, cold-agent, startup, concurrency, miss-latency, or
 quality-adjusted value.
 
 A separate single-GPU serve trace captured all 48 layers with 25 verify-window
