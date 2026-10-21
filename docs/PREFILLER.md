@@ -109,11 +109,13 @@ Serve-mode traces use unit weights because the serve verify path does not
 surface router weights to its host pool callback. The planner names their
 result `aggregate_routed_activation_coverage`, never a router-weight share, and
 records how many trace records each layer contributed. The current durable
-serve trace is decode/verify-window scoped; batched prompt-prefill routing
-still needs a capture seam. Manifests now use `strata-prefiller-plan-v2` with
-explicit `coverage_measure` and `coverage_value` fields; version-1 manifests
-used `aggregate_positive_weight_coverage`. Pruning prototypes and measured
-coverage are in [PRUNING.md](PRUNING.md).
+serve traces are decode/verify-window scoped and a forced-short-read
+prompt-position diagnostic; the literal multi-token batched `Prefill::run`
+path still needs a capture seam. Manifests now use
+`strata-prefiller-plan-v2` with explicit `coverage_measure` and
+`coverage_value` fields; version-1 manifests used
+`aggregate_positive_weight_coverage`. Pruning prototypes and measured coverage
+are in [PRUNING.md](PRUNING.md).
 
 The manifest binds the decoder index and native-expert metadata by SHA-256.
 It validates the declared index tensor count, exact dense role shapes,
