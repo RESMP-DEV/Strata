@@ -1,0 +1,201 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T16:30:20Z",
+  "agent": "Codex parent with implementation writer subagents",
+  "source_revision": "82dd823136f9d1b459dbec6cd30f137a51cf7988",
+  "source_dirty": true,
+  "dirty_scope": [
+    "CMakeLists.txt",
+    "docs/PREFILLER.md",
+    "docs/PRUNING.md",
+    "docs/architecture.md",
+    "evidence/prefill-routing-capture-seam-2026-10-21.json",
+    "evidence/prefiller-expert-id-map-2026-10-21.json",
+    "evidence/prefill-routing-v2-oneshot-2026-10-21.strp.zst",
+    "evidence/prefill-routing-v2-runtime-2026-10-21.json",
+    "include/strata/prefill/prefill.hpp",
+    "include/strata/routing/trace.hpp",
+    "src/core/verify.cpp",
+    "src/prefill/prefill.cpp",
+    "src/program/generate.cpp",
+    "tests/routing/routing_trace_test.cpp",
+    "tools/prefiller_plan.py",
+    "tools/test_prefiller_plan.py"
+  ],
+  "scope": "Build the opt-in literal batched Prefill::run STRP v2 routing seam, consume it with the physical/source-aware planner, and validate real B550 CUDA captures plus HIP compile/test compatibility.",
+  "host": {
+    "alias": "B550",
+    "machine_id": "27e232eefb5743a48455b58e0fb997a0",
+    "identity_method": "SSH alias plus /etc/machine-id and live GPU UUIDs; no LAN address is used as identity",
+    "driver": "595.99.02",
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308",
+        "pci_bus_id": "00000000:04:00.0"
+      },
+      {
+        "index": 1,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
+        "pci_bus_id": "00000000:08:00.0"
+      }
+    ]
+  },
+  "source_and_build": {
+    "base_revision": "82dd823136f9d1b459dbec6cd30f137a51cf7988",
+    "patched_remote_source": "/home/kearm/strata-scratch/prefill-routing-build",
+    "patched_source_dirty": true,
+    "patched_source_dirty_scope": [
+      "CMakeLists.txt",
+      "include/strata/prefill/prefill.hpp",
+      "include/strata/routing/trace.hpp",
+      "src/core/verify.cpp",
+      "src/prefill/prefill.cpp",
+      "src/program/generate.cpp",
+      "tests/routing/routing_trace_test.cpp",
+      "evidence/prefill-routing-capture-seam-2026-10-21.json"
+    ],
+    "cuda_build_dir": "/home/kearm/strata-scratch/prefill-routing-build/build/sm86",
+    "cuda_build_type": "Release",
+    "cuda_architectures": "86",
+    "cuda_capture_engine_sha256": "92d83493ea5f8c061b87d71945a6f3e67e8f563e94a1360dd6de761dcb6dd57e",
+    "cuda_final_engine_sha256": "1c8afee00be53a24a9b3a63f98640c90ca46877ca80bcea9227332d54bad335f",
+    "cuda_final_routing_test_sha256": "71781f7cb2238af248a5e22a91e06c288d8de79ef9d0d2a054976eac33222729",
+    "cuda_targets_passed": ["routing_trace_test", "strata_prefill", "strata"],
+    "cuda_linker_workaround": "-L/usr/lib/gcc/x86_64-linux-gnu/15",
+    "cuda_linker_workaround_reason": "nvcc inserts GCC 13 libstdc++ before GCC 15, leaving __cxa_call_terminate from CXXABI_1.3.15 unresolved",
+    "base_remote_source": "/home/kearm/strata-scratch/prefill-routing-base",
+    "base_engine_sha256": "8adcbf9ee0ebae1d3ba5464e46d4e9900db267a82009e2e75ed803b1af7e4764",
+    "hip_image": "rocm/dev-ubuntu-22.04:10.1.0-full",
+    "hip_image_digest": "sha256:6c11663a93966c040cd56dc73ed6d6761cdb887068f3f8940c4d3fe4e6829f10",
+    "hip_runtime_report": "HIP 7.16.26385, AMD clang 24, gfx1100 target",
+    "hip_initial_engine_sha256": "04fe23d55d2d12e088ffae3ad09fe9ae307dbc4d5521116c6f1136865ce15ab0",
+    "hip_final_engine_sha256": "480ac45b3c726bd6b64e92356f7f47d39e6df53789e6ff9505f67a9e5a73639b",
+    "hip_routing_test_sha256": "e349cf013ca3d4879172d07e7929de918eac9dc6f777c051504faf4c8ed87d10",
+    "hip_targets_passed": ["routing_trace_test", "strata_prefill", "strata"],
+    "hip_routing_test_rerun_on_b550_exit": 0,
+    "final_generate_cpp_sha256": "ad473c6cdc1a3f391eb11e23ac594e353e835579262eab46f909730c9b0b6390",
+    "final_backend_rebuild": "CUDA and HIP targets rebuilt after the VRAM capture guard and HIP kv-tier refusal; both routing tests exited 0.",
+    "hip_kv_tier_refusal": {
+      "command": "./build/hip-rocm/strata --tokens 1 --kv-tier /tmp/kv-tier --kv-resident 2048 --pack /tmp/no-such-pack",
+      "exit": 2,
+      "result": "--kv-tier is not available in HIP builds: the verify commit/resolve hooks are intentionally excluded from that backend"
+    }
+  },
+  "model_binding": {
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix calibrated",
+    "pack": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/pack-split",
+    "index_sha256": "dcfd110970ea49b376bae9a4eb038da122e04775c8d9f85592e23ff5bfbe165f",
+    "native_experts_sha256": "5eca070c6aef89f13e1afb09efb1e8174a1a9320473394963534423506ae8544",
+    "native_layers": 48,
+    "experts_per_layer": 512,
+    "physical_experts_per_layer": 512,
+    "expert_profile": "/home/kearm/strata-main/data/expert-profile.bin",
+    "expert_profile_sha256": "8f59b4aa8873209dff11c11e37bcda9529a1335b724a1afeea37bf6388975baf",
+    "native_shard_1_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+    "native_shard_2_sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036"
+  },
+  "captures": {
+    "one_shot": {
+      "mode": "literal batched Prefill::run",
+      "request_id": 0,
+      "prompt_tokens": 13964,
+      "routed_positions_per_layer": 13963,
+      "chunk_layer_records": 96,
+      "routed_layer_positions": 670224,
+      "distinct_layer_expert_pairs": 23800,
+      "raw_bytes": 53621032,
+      "raw_sha256": "093caa33ee9ba26628c226578139474e1653f70c74e8cfe990287bf84e320548",
+      "compressed_file": "evidence/prefill-routing-v2-oneshot-2026-10-21.strp.zst",
+      "compressed_bytes": 30959486,
+      "compressed_sha256": "9b6eb65f4f915f9dd0c393e79226b1b09eb18d68b7cc90f697f12bb1f0922ad4",
+      "bad_ids": 0,
+      "nonfinite_weights": 0,
+      "nonpositive_weights": 0,
+      "min_positive_weight": 0.00710318,
+      "max_weight": 0.880213,
+      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/prefill-routing.strp"
+    },
+    "serve_two_requests": {
+      "request_ids": [1, 2],
+      "prompt_tokens_per_request": 14010,
+      "routed_positions_per_layer_per_request": 14009,
+      "chunk_layer_records": 192,
+      "raw_bytes": 107595304,
+      "raw_sha256": "3a1e3001ea084be4bf32dfea6f9f2605b54777fc3e35b36368533d181b6c72a2",
+      "compressed_sha256": "1b426523b5122459b252601159c33a9fc830a6dee90af5b102eb0dafdc1cc120",
+      "distinct_request_layer_expert_pairs": 47626,
+      "bad_ids": 0,
+      "nonfinite_weights": 0,
+      "nonpositive_weights": 0,
+      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021/two-requests.strp"
+    },
+    "layer_split_serve": {
+      "request_ids": [1],
+      "prompt_tokens": 14010,
+      "routed_positions_per_layer": 14009,
+      "chunk_layer_records": 96,
+      "raw_bytes": 53797672,
+      "raw_sha256": "4fcca45b8e0175c8c60f66164a6d63bc01d87108c09339cdb8a2b34a7395b2d1",
+      "compressed_sha256": "d5944d2b008cce3dbcd2536c472acf75b58fb6b6e266ea6ec1ecdb677ccf0f03",
+      "distinct_request_layer_expert_pairs": 23825,
+      "bad_ids": 0,
+      "nonfinite_weights": 0,
+      "nonpositive_weights": 0,
+      "split_assignment": "CUDA0 layers 0-29; CUDA1 layers 30-47",
+      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021/two-requests.strp"
+    }
+  },
+  "planner_validation": {
+    "trace_format": "strp-batched-prefill-v2",
+    "trace_records": 670224,
+    "trace_records_per_layer": 13963,
+    "request_layer_position_sets_match": true,
+    "coverage_measure": "aggregate_router_weight_coverage",
+    "coverage_ladder": {
+      "32": 0.44460521650571655,
+      "64": 0.6081839382745929,
+      "96": 0.7115683913165518,
+      "128": 0.7847842850903249,
+      "192": 0.8820748972169801,
+      "256": 0.9401318217431075
+    },
+    "command": "zstd -dc evidence/prefill-routing-v2-oneshot-2026-10-21.strp.zst > build/prefill-routing-v2/oneshot.strp && python3 tools/prefiller_plan.py --index build/prefill-routing-v2/index.txt --native-experts build/prefill-routing-v2/native_experts.txt --trace-domain physical --hot-experts N --out build/prefill-routing-v2/oneshot-plan-N.json build/prefill-routing-v2/oneshot.strp",
+    "exit": 0
+  },
+  "default_path_exact_control": {
+    "hardware": "one B550 RTX 3090 Ti",
+    "capture_flag": "absent",
+    "setup": "same calibrated model, pack, profile, prompt, GPU, cache profile, and seed-free greedy path",
+    "output_token_ids": [16747, 768, 361, 267],
+    "window_hash_sha256": "98c32e00782873789fd14d5842eb21791ff33f8a25cdfa58cec9263c5dc6e419",
+    "final_residual_sha256": "c0f70880b087233d31b9df37626ca17ee9a43ab47da2a7b7df2342f9e0538fd1",
+    "remote_dir": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-20261021",
+    "superseded_empty_logit_attempt": "base.logits and patched.logits are zero bytes by design for this native path; window and residual hashes are the accepted controls"
+  },
+  "final_host_validation": {
+    "recorded_at": "2026-10-21T16:48:01Z",
+    "commands": [
+      "python3 -m unittest tools.test_prefiller_plan -v",
+      "ruff check tools/prefiller_plan.py tools/test_prefiller_plan.py",
+      "ruff format --check tools/prefiller_plan.py tools/test_prefiller_plan.py",
+      "python3 scripts/check_docs.py",
+      "ctest --test-dir build/routing-host -R '^routing_trace_test$' --output-on-failure",
+      "just quality",
+      "git diff --check"
+    ],
+    "exit": 0,
+    "result": "21 planner tests passed; the real one-shot trace still reports 670224 records and 0.6081839382745929 coverage at 64 experts/layer after position-set validation was tightened."
+  },
+  "non_claims": [
+    "No throughput or capture-overhead measurement is claimed; capture adds device-to-host copies and synchronization.",
+    "No model-quality, KL, perplexity, pruning-quality, cache-hit, or trained-prefiller claim is made.",
+    "HIP evidence is compile and routing-test evidence only; no AMD GPU model run is claimed.",
+    "The two-request and layer-split compressed raw files remain remote scratch evidence and are bound here only by hashes and summaries.",
+    "The exact default-path control covers one B550 workload and does not prove bitwise identity across all prompts or hardware.",
+    "The physical/source mapping implementation is synthetic-test validated; no real pruned pack or mapping was run.",
+    "The custom pruned decoder and prefiller trainer remain unbuilt."
+  ]
+}

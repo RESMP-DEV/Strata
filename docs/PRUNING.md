@@ -54,12 +54,30 @@ and does not predict quality. A separate forced-short-read diagnostic captured
 The prompt touched 23,813 of 24,576 layer/expert pairs, so a decode-only mask
 would dramatically overstate prompt coverage: the exact top-64 mask selected
 from the earlier decode trace covers only 14.80% of these prompt activations.
-This forced-window trace is not
-the literal normal batched `Prefill::run` path: a direct one-shot negative
-control produced only 48 final-window records for 13,963 batched prompt
-positions. A batched-prefill routing capture seam is still required before
-training a prefiller-specific expert mask. Evidence is in
+This forced-window table counts unit activations and must not be compared with
+router-weight shares. Evidence for the diagnostic boundary is in
 [prompt routing](../evidence/flash-next-prompt-routing-2026-10-20.json).
+
+A separate real B550 CUDA one-shot run used the opt-in
+`--dump-prefill-routing` seam on the literal 13,963-position batched
+`Prefill::run` path. The STRP v2 file has 96 chunk-layer records, all 48
+layers, 13,963 positions per layer, request ID 0, and true float32 router
+weights. The final planner reproduced this aggregate router-weight ladder:
+
+| Retained experts/layer | Literal prefill router-weight coverage |
+| ---: | ---: |
+| 32 | 44.4605% |
+| 64 | 60.8184% |
+| 96 | 71.1568% |
+| 128 | 78.4784% |
+| 192 | 88.2075% |
+| 256 | 94.0132% |
+
+This is an in-sample routing-weight share for one real source prompt. It is
+not a quality, cache-hit, throughput, or capture-overhead claim. The raw
+compressed capture and complete machine/build bindings are in
+[literal prefill runtime evidence](../evidence/prefill-routing-v2-oneshot-2026-10-21.strp.zst)
+and [runtime acceptance](../evidence/prefill-routing-v2-runtime-2026-10-21.json).
 
 ## Prototype A: vendor Coder as-is
 

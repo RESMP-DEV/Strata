@@ -3231,6 +3231,7 @@ bool Verifier::commit(int n_keep, std::string& err) {
     // The commit boundary is where the window's writes have become visible to the host, and where the graph has
     // finished, so the selection can be copied to a host buffer and the coordinator can do its work. The same
     // coordinator that served the window publishes the tokens, so there is one policy and no second implicit path.
+#if !defined(STRATA_USE_HIP) && !defined(STRATA_HIP_GFX906)
     if (kv_tier_session_on() && g_->n_qsa_layers() > 0) {
         const int64_t n_qsa = ss_->qsa_alloc;
         std::string tier_error;
@@ -3270,6 +3271,7 @@ bool Verifier::commit(int n_keep, std::string& err) {
             }
         }
     }
+#endif
     if (ple_stage())   // stages that share one session must advance it once
         for (int t = 0; t < n_keep; ++t) {
             ss_->ple_prev[0] = ss_->ple_prev[1];

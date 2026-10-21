@@ -3385,6 +3385,20 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                             }
                         }
                     }
+                    if (on_routing) {
+                        std::vector<int32_t> routing_ids((size_t) (T * K));
+                        std::vector<float> routing_weights((size_t) (T * K));
+                        const size_t routing_bytes = routing_ids.size() * sizeof(int32_t);
+                        if (cudaMemcpyAsync(routing_ids.data(), m.ids, routing_bytes, cudaMemcpyDeviceToHost,
+                                            m.cs) != cudaSuccess ||
+                            cudaMemcpyAsync(routing_weights.data(), m.w, routing_bytes, cudaMemcpyDeviceToHost,
+                                            m.cs) != cudaSuccess ||
+                            cudaStreamSynchronize(m.cs) != cudaSuccess) {
+                            err = "prefill: the routing capture's download failed";
+                            return false;
+                        }
+                        if (!on_routing(l, p0, T, K, routing_ids.data(), routing_weights.data(), err)) return false;
+                    }
                     // the shared expert and its scalar gate
                     auto shared_expert = [&]() -> bool {
                         if (!native_proj(m.gemm, wsg, m.mixed_h, m.sgate, T, v.name("ffn_gate_shexp.weight"), err)) return false;

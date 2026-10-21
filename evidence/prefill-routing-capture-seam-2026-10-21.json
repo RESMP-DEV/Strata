@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T15:10:07Z",
+  "agent": "Codex worker",
+  "superseded_by": "evidence/prefill-routing-v2-runtime-2026-10-21.json",
+  "source_revision": "82dd823136f9d1b459dbec6cd30f137a51cf7988",
+  "source_dirty": true,
+  "dirty_scope": [
+    "CMakeLists.txt",
+    "docs/PREFILLER.md",
+    "docs/PRUNING.md",
+    "docs/architecture.md",
+    "include/strata/prefill/prefill.hpp",
+    "include/strata/routing/trace.hpp",
+    "src/prefill/prefill.cpp",
+    "src/program/generate.cpp",
+    "tests/routing/routing_trace_test.cpp",
+    "evidence/prefill-routing-capture-seam-2026-10-21.json"
+  ],
+  "scope": "Implement and review-repair the opt-in literal batched Prefill::run routing seam, phase-specific v2 request-identified binary writer, final-chunk CLI refusals, dynamic short-read override guard, and dependency-free host format contract. The default callback remains null.",
+  "implementation": {
+    "callback": "Prefill::on_routing receives actual post-override token-major ids and F32 router weights after each MoE layer's route kernel and before expert execution. Null performs no copy or synchronization.",
+    "paths": "The callback is wired into one-shot prefill and every serve prompt-path stage, including layer-split stages. Writes are mutex-serialized because split stages can overlap. Serve opens the trace only after final auto-chunk resolution and fit fallback, immediately before callback installation.",
+    "format": "40-byte little-endian STRP v2 header with phase=1 batched_prefill, followed by 32-byte chunk-record headers carrying uint64 request_id, then token-major int32 ids plus F32 weights. One-shot uses request_id 0; serve lazily allocates the next nonzero ordinal on the first callback of each incoming request that prefills.",
+    "refusals": "One-shot use without a multi-token batched prefill refuses startup. Serve use with final short_read >= final prefill_chunk refuses startup. STRATA_PIPELINE_SWITCH short_read overrides are ignored and logged while capture is active; other switch fields remain operative."
+  },
+  "checks": [
+    {
+      "command": "c++ -std=c++20 -Wall -Wextra -Werror -Iinclude tests/routing/routing_trace_test.cpp -o build/routing-v2/routing_trace_test && ./build/routing-v2/routing_trace_test",
+      "exit": 0,
+      "result": "Dependency-free v2 header, request-id record headers, duplicate (position,layer) across request IDs 1 and 2, true-weight payloads, reserved fields, and rejected-record no-write contract passed."
+    },
+    {
+      "command": "cmake -S . -B build/routing-host -DSTRATA_BUILD_TESTS=ON -DSTRATA_ENABLE_CUDA=OFF -DSTRATA_ENABLE_HIP=OFF -DSTRATA_HIP_GFX906=OFF && cmake --build build/routing-host --target routing_trace_test -j 8 && ctest --test-dir build/routing-host -R '^routing_trace_test$' --output-on-failure && python3 scripts/check_docs.py && git diff --check",
+      "exit": 0,
+      "result": "The new CMake test target passed, documentation links passed, and changed-source whitespace passed."
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "Host-safe repository gate passed and wrote build/reports/quality/receipt.json."
+    }
+  ],
+  "non_claims": [
+    "No CUDA, HIP, or SYCL backend was compiled or run; src/prefill/prefill.cpp is shared by CUDA and HIP and still requires both affected-backend builds.",
+    "No real model or GPU produced a prefill trace, so literal-path expert coverage, router-weight sums, output parity, and capture overhead remain unmeasured.",
+    "The existing prefiller planner still consumes legacy --dump-routing records and does not yet parse this phase-header format.",
+    "Exact default-path output identity on real hardware is unmeasured; the source contract claims only that a null callback performs no capture download or synchronization.",
+    "The host CMake configure fetched the existing llama.cpp dependency and built only routing_trace_test; no engine target was built."
+  ],
+  "handoff": {
+    "committed": false,
+    "pushed": false,
+    "worktree": "/Users/kearm/Strata/.worktrees/prefill-routing-capture"
+  }
+}

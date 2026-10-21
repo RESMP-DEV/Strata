@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T16:30:20Z",
+  "agent": "Codex parent and expert-id-map writer subagent",
+  "source_revision": "82dd823136f9d1b459dbec6cd30f137a51cf7988",
+  "source_dirty": true,
+  "dirty_scope": [
+    "docs/PREFILLER.md",
+    "docs/architecture.md",
+    "tools/prefiller_plan.py",
+    "tools/test_prefiller_plan.py",
+    "evidence/prefiller-expert-id-map-2026-10-21.json"
+  ],
+  "scope": "Separate physical deployed expert slots from the 512-expert source universe in the host-only prefiller planner.",
+  "contract": {
+    "sidecar_schema": "strata-expert-id-map-v1",
+    "supported_physical_counts": [256, 288, 384, 512],
+    "source_expert_count": 512,
+    "layers": 48,
+    "identity_allowed_only_for_complete_512_slot_pack": true,
+    "pruned_pack_requires_sidecar": true,
+    "profile_id_domain": "physical",
+    "trace_domains": ["physical", "source"],
+    "source_domain_dropped_experts": "cannot be selected but remain in aggregate coverage denominator",
+    "manifest_fields": [
+      "source IDs",
+      "parallel physical IDs",
+      "sidecar file SHA-256",
+      "canonical mapping SHA-256",
+      "physical-pack and source-universe byte accounting",
+      "detected trace format"
+    ]
+  },
+  "validation": [
+    {
+      "command": "python3 -m unittest tools.test_prefiller_plan -v",
+      "exit": 0,
+      "result": "21 tests passed, including supported counts, sidecar validation, missing-map refusal, profile translation, both trace domains, aligned request positions, and size accounting."
+    },
+    {
+      "command": "ruff check tools/prefiller_plan.py tools/test_prefiller_plan.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "ruff format --check tools/prefiller_plan.py tools/test_prefiller_plan.py",
+      "exit": 0,
+      "result": "passed"
+    }
+  ],
+  "non_claims": [
+    "All mapping and translated-selection checks use synthetic fixtures; no real pruned pack or sidecar was opened.",
+    "No pruned payload, runtime model, trainer, quality, or speed effect is claimed.",
+    "The real STRP one-shot capture came from the deployed complete 512-physical-slot pack and therefore used the implicit identity mapping."
+  ]
+}

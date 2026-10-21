@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import struct
@@ -40,8 +41,69 @@ def write_complete_trace(path: Path, overrides: dict[int, tuple[list[int], list[
     write_trace(path, rows)
 
 
+StrpChunk = tuple[int, int, int, int, int, int, list[list[int]], list[list[float]]]
+
+
+def strp_chunk(
+    layer: int = 0,
+    position: int = 0,
+    token_count: int = 2,
+    ids: list[list[int]] | None = None,
+    weights: list[list[float]] | None = None,
+    count: int = 10,
+    reserved: int = 0,
+    request_id: int = 1,
+) -> StrpChunk:
+    if ids is None:
+        ids = [[1, token + 2, *range(4, 12)] for token in range(token_count)]
+    if weights is None:
+        weights = [[0.5 / (token + 1)] * count for token in range(token_count)]
+    return layer, count, position, token_count, reserved, request_id, ids, weights
+
+
+def write_batched_trace(
+    path: Path,
+    chunks: list[StrpChunk] | None = None,
+    **header_overrides: int,
+) -> Path:
+    if chunks is None:
+        chunks = [strp_chunk(layer=layer) for layer in range(MODULE.N_LAYERS)]
+    header = {
+        "magic": MODULE.TRACE_MAGIC,
+        "version": MODULE.TRACE_VERSION,
+        "phase": MODULE.TRACE_PHASE_PREFILL,
+        "flags": MODULE.TRACE_FLAGS_NONE,
+        "layer_count": MODULE.N_LAYERS,
+        "top_k": MODULE.TRACE_TOP_K,
+        "record_header_bytes": MODULE.TRACE_RECORD_HEADER_BYTES,
+        "reserved": 0,
+    }
+    header.update(header_overrides)
+    header_values = (
+        header["magic"],
+        header["version"],
+        header["phase"],
+        header["flags"],
+        header["layer_count"],
+        header["top_k"],
+        header["record_header_bytes"],
+        header["reserved"],
+    )
+    blob = bytearray(MODULE.TRACE_HEADER.pack(*header_values))
+    for layer, count, position, token_count, reserved, request_id, ids, weights in chunks:
+        blob += MODULE.TRACE_RECORD.pack(layer, count, position, token_count, reserved, request_id)
+        for token_ids in ids:
+            blob += struct.pack(f"<{len(token_ids)}i", *token_ids)
+        for token_weights in weights:
+            blob += struct.pack(f"<{len(token_weights)}f", *token_weights)
+    path.write_bytes(blob)
+    return path
+
+
 def write_inputs(
-    root: Path, source: str = "Qwen3.8-Flash-Next-IQ2_XS-Q2_0.gguf"
+    root: Path,
+    source: str = "Qwen3.8-Flash-Next-IQ2_XS-Q2_0.gguf",
+    physical_count: int = MODULE.SOURCE_EXPERT_COUNT,
 ) -> tuple[Path, Path]:
     index = root / "index.txt"
     rows: list[str] = ["output_hc_norm.weight 0 2 0 40960 0 40960 10240 0"]
@@ -65,15 +127,46 @@ def write_inputs(
     native = root / "native_experts.txt"
     native.write_text(
         "# strata native experts v4: layer gu_type d_type offset blob_bytes "
-        f"gate_off up_off down_off (n_expert {MODULE.N_EXPERT}, "
-        f"total {MODULE.N_LAYERS * MODULE.N_EXPERT}; absolute)\n"
+        f"gate_off up_off down_off (n_expert {physical_count}, "
+        f"total {MODULE.N_LAYERS * physical_count}; absolute)\n"
         + "\n".join(
-            f"{layer} 17 42 {layer * MODULE.N_EXPERT} 1 0 0 0" for layer in range(MODULE.N_LAYERS)
+            f"{layer} 17 42 {layer * physical_count} 1 0 0 0" for layer in range(MODULE.N_LAYERS)
         )
         + "\n",
         encoding="utf-8",
     )
     return index, native
+
+
+def write_expert_id_map(
+    root: Path,
+    physical_count: int,
+    rows: list[list[int]] | None = None,
+) -> Path:
+    if rows is None:
+        first_source = (
+            0
+            if physical_count == MODULE.SOURCE_EXPERT_COUNT
+            else MODULE.SOURCE_EXPERT_COUNT - physical_count
+        )
+        rows = [
+            list(range(first_source, first_source + physical_count)) for _ in range(MODULE.N_LAYERS)
+        ]
+    path = root / "expert-id-map.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": MODULE.EXPERT_ID_MAP_SCHEMA,
+                "layers": MODULE.N_LAYERS,
+                "source_expert_count": MODULE.SOURCE_EXPERT_COUNT,
+                "physical_expert_count": physical_count,
+                "physical_to_source": rows,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 ROLE_SHAPES = {
@@ -124,6 +217,278 @@ class PrefillerPlanTest(unittest.TestCase):
         native.write_text(text, encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "rows account for 24576 bytes"):
             MODULE.read_native_experts(native)
+
+    def test_physical_expert_counts_and_identity_boundary(self) -> None:
+        for physical_count in (256, 288, 384, 512):
+            with self.subTest(physical_count=physical_count):
+                _, native = write_inputs(self.root, physical_count=physical_count)
+                layout = MODULE.read_native_experts(native)
+                self.assertEqual(layout.n_expert, physical_count)
+                sidecar = write_expert_id_map(self.root, physical_count)
+                expert_map = MODULE.read_expert_id_map(sidecar, physical_count)
+                self.assertEqual(len(expert_map.physical_to_source), MODULE.N_LAYERS)
+                self.assertTrue(
+                    all(len(row) == physical_count for row in expert_map.physical_to_source)
+                )
+
+        identity = MODULE.identity_expert_id_map(MODULE.SOURCE_EXPERT_COUNT)
+        self.assertEqual(identity.basis, "identity_full_physical")
+        self.assertEqual(len(identity.physical_to_source), MODULE.N_LAYERS)
+        self.assertTrue(all(row == tuple(range(512)) for row in identity.physical_to_source))
+        with self.assertRaisesRegex(ValueError, "identity is valid only for 512 slots"):
+            MODULE.identity_expert_id_map(256)
+
+        _, unsupported = write_inputs(self.root, physical_count=128)
+        with self.assertRaisesRegex(ValueError, "n_expert 128"):
+            MODULE.read_native_experts(unsupported)
+
+    def test_pruned_pack_requires_sidecar_and_valid_map_translates_selection(self) -> None:
+        index, native = write_inputs(self.root, physical_count=256)
+        trace = self.root / "physical-route.bin"
+        write_complete_trace(
+            trace,
+            {
+                layer: (
+                    [1, 0, *range(2, 10)],
+                    [0.3, 0.6, *([0.01] * 8)],
+                )
+                for layer in range(MODULE.N_LAYERS)
+            },
+        )
+        expert_map = write_expert_id_map(
+            self.root,
+            256,
+            [list(range(256, 512)) for _ in range(MODULE.N_LAYERS)],
+        )
+        out = self.root / "plan.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                "--expert-id-map",
+                str(expert_map),
+                str(trace),
+                "--hot-experts",
+                "2",
+                "--out",
+                str(out),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        selection = manifest["expert_selection"]
+        binding = manifest["decoder_binding"]
+        self.assertEqual(binding["experts_per_layer"], 512)
+        self.assertEqual(selection["selected_ids"][0], [256, 257])
+        self.assertEqual(selection["selected_physical_ids"][0], [0, 1])
+        self.assertEqual(selection["physical_expert_count"], 256)
+        self.assertEqual(selection["source_expert_count"], 512)
+        self.assertEqual(selection["trace_domain"], "physical")
+        self.assertEqual(binding["expert_id_map_basis"], "explicit_sidecar")
+        self.assertEqual(binding["expert_id_map_sha256"], MODULE.sha256(expert_map))
+        mapping = tuple(tuple(range(256, 512)) for _ in range(MODULE.N_LAYERS))
+        canonical = json.dumps(mapping, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        self.assertEqual(binding["expert_id_mapping_sha256"], hashlib.sha256(canonical).hexdigest())
+
+        estimate = manifest["mxfp4_estimate"]
+        self.assertEqual(
+            estimate["selected_expert_bytes"],
+            MODULE.mxfp4_bytes(48 * 2 * 3 * 2560 * 640),
+        )
+        self.assertEqual(
+            estimate["physical_pack_expert_bytes"],
+            MODULE.mxfp4_bytes(48 * 256 * 3 * 2560 * 640),
+        )
+        self.assertEqual(
+            estimate["source_universe_expert_bytes"],
+            MODULE.mxfp4_bytes(MODULE.FULL_EXPERT_ELEMENTS),
+        )
+
+        no_map = self.root / "without-map.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                str(trace),
+                "--hot-experts",
+                "2",
+                "--out",
+                str(no_map),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--expert-id-map is required", result.stderr)
+        self.assertFalse(no_map.exists())
+
+    def test_sidecar_is_fully_validated(self) -> None:
+        _, native = write_inputs(self.root, physical_count=256)
+        path = write_expert_id_map(self.root, 256)
+        document = json.loads(path.read_text(encoding="utf-8"))
+
+        cases: list[tuple[str, object, str]] = [
+            ("schema", "wrong-schema", "schema 'wrong-schema'"),
+            ("physical_expert_count", 288, "native layout says 256"),
+            ("layers", 47, "layers 47, expected 48"),
+            ("source_expert_count", 511, "source_expert_count 511"),
+        ]
+        for field, value, message in cases:
+            with self.subTest(field=field):
+                invalid = dict(document)
+                invalid[field] = value
+                path.write_text(json.dumps(invalid), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, message):
+                    MODULE.read_expert_id_map(path, 256)
+
+        short = [row[:-1] for row in document["physical_to_source"]]
+        path.write_text(json.dumps({**document, "physical_to_source": short}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "layer 0 has 255"):
+            MODULE.read_expert_id_map(path, 256)
+
+        out_of_range = [list(row) for row in document["physical_to_source"]]
+        out_of_range[0][0] = 512
+        path.write_text(
+            json.dumps({**document, "physical_to_source": out_of_range}), encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ValueError, "source expert 512"):
+            MODULE.read_expert_id_map(path, 256)
+
+        duplicate = [list(row) for row in document["physical_to_source"]]
+        duplicate[0][1] = duplicate[0][0]
+        path.write_text(json.dumps({**document, "physical_to_source": duplicate}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "multiple physical slots"):
+            MODULE.read_expert_id_map(path, 256)
+
+        path.write_text('{"schema": "x", "schema": "y"}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
+            MODULE.read_expert_id_map(path, 256)
+
+    def test_profile_ids_are_physical_and_map_to_source_ids(self) -> None:
+        index, native = write_inputs(self.root, physical_count=256)
+        expert_map = write_expert_id_map(self.root, 256)
+        profile = self.root / "profile.bin"
+        ranked = [
+            (layer, (7 + row) % 256) for layer in range(MODULE.N_LAYERS) for row in range(256)
+        ]
+        MODULE.make_profile.write_profile(profile, ranked, 256)
+        out = self.root / "plan.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                "--expert-id-map",
+                str(expert_map),
+                "--profile",
+                str(profile),
+                "--hot-experts",
+                "2",
+                "--out",
+                str(out),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        selection = manifest["expert_selection"]
+        self.assertEqual(selection["selected_ids"][0], [263, 264])
+        self.assertEqual(selection["selected_physical_ids"][0], [7, 8])
+
+        corrupt = bytearray(profile.read_bytes())
+        rank_offset = 24 + 4 * (48 * 256 - 1)
+        struct.pack_into("<H", corrupt, rank_offset, 256)
+        profile.write_bytes(corrupt)
+        with self.assertRaisesRegex(ValueError, "out-of-range expert pair"):
+            MODULE.read_profile_checked(profile, 256)
+
+    def test_source_domain_trace_keeps_dropped_experts_in_coverage(self) -> None:
+        index, native = write_inputs(self.root, physical_count=256)
+        expert_map = write_expert_id_map(self.root, 256)
+        trace = self.root / "source-route.bin"
+        write_complete_trace(
+            trace,
+            {
+                layer: (
+                    [511, 256, 0, 1, *range(2, 8)],
+                    [0.8, 0.1, 0.05, 0.05, *([0.01] * 6)],
+                )
+                for layer in range(MODULE.N_LAYERS)
+            },
+        )
+        out = self.root / "plan.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                "--expert-id-map",
+                str(expert_map),
+                "--trace-domain",
+                "source",
+                "--unweighted",
+                str(trace),
+                "--hot-experts",
+                "2",
+                "--out",
+                str(out),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        selection = manifest["expert_selection"]
+        self.assertEqual(selection["trace_domain"], "source")
+        self.assertEqual(selection["selected_ids"][0], [256, 511])
+        self.assertEqual(selection["selected_physical_ids"][0], [0, 255])
+        self.assertAlmostEqual(selection["coverage_value"], 0.2, places=8)
+
+        physical_view = self.root / "physical-view.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                "--expert-id-map",
+                str(expert_map),
+                str(trace),
+                "--hot-experts",
+                "2",
+                "--out",
+                str(physical_view),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("physical-domain expert 511 outside [0, 256)", result.stderr)
+        self.assertFalse(physical_view.exists())
 
     def test_trace_selection_fill_and_coverage(self) -> None:
         index, native = write_inputs(self.root)
@@ -244,6 +609,205 @@ class PrefillerPlanTest(unittest.TestCase):
         self.assertEqual(set(selection["trace_records_per_layer"].values()), {1})
         self.assertEqual(sum(selection["trace_records_per_layer"].values()), 48)
 
+    def test_batched_strp_expands_each_token_into_trace_record_semantics(self) -> None:
+        index, native = write_inputs(self.root)
+        trace = self.root / "prefill.strp"
+        ids = [
+            [3, 1, 2, *range(4, 11)],
+            [2, 1, 5, *range(6, 13)],
+        ]
+        weights = [
+            [0.5, 0.25, 0.1, *([0.01] * 7)],
+            [0.1, 0.6, 0.01, *([0.01] * 7)],
+        ]
+        write_batched_trace(
+            trace,
+            [strp_chunk(layer=layer, ids=ids, weights=weights) for layer in range(48)],
+        )
+        out = self.root / "plan.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                str(trace),
+                "--hot-experts",
+                "2",
+                "--out",
+                str(out),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        selection = manifest["expert_selection"]
+        self.assertEqual(selection["trace_format"], "strp-batched-prefill-v2")
+        self.assertEqual(selection["trace_records"], 96)
+        self.assertEqual(set(selection["trace_records_per_layer"].values()), {2})
+        self.assertEqual(sum(selection["trace_records_per_layer"].values()), 96)
+        self.assertEqual(selection["selected_ids"][0], [1, 3])
+
+        scores, records, per_layer, trace_format = MODULE.read_trace_scores_exact(
+            [trace], weighted=False
+        )
+        self.assertEqual(trace_format, "strp-batched-prefill-v2")
+        self.assertEqual(records, 96)
+        self.assertEqual(set(per_layer.values()), {2})
+        self.assertEqual(scores[(0, 1)], 2)
+
+    def test_batched_strp_header_must_match_prefill_v2_geometry(self) -> None:
+        path = write_batched_trace(self.root / "invalid.strp")
+        original = path.read_bytes()
+        cases: list[tuple[int, str, int, str]] = [
+            (4, "<H", 3, "STRP version 3"),
+            (6, "<H", 2, "STRP phase 2"),
+            (8, "<I", 1, "STRP flags 1"),
+            (12, "<Q", 47, "layer_count 47"),
+            (20, "<Q", 9, "top_k 9"),
+            (28, "<Q", 24, "record_header_bytes 24"),
+            (36, "<I", 1, "record reserved field 1"),
+        ]
+        for offset, fmt, value, message in cases:
+            with self.subTest(offset=offset, value=value):
+                blob = bytearray(original)
+                struct.pack_into(fmt, blob, offset, value)
+                path.write_bytes(blob)
+                with self.assertRaisesRegex(ValueError, message):
+                    MODULE.read_trace_scores_exact([path], weighted=True)
+
+        path.write_bytes(original[:39])
+        with self.assertRaisesRegex(ValueError, "truncated STRP header"):
+            MODULE.read_trace_scores_exact([path], weighted=True)
+
+        write_batched_trace(path, magic=0x20202020)
+        with self.assertRaisesRegex(ValueError, "invalid routing count"):
+            MODULE.read_trace_scores_exact([path], weighted=True)
+
+    def test_batched_strp_requests_allow_the_same_positions_but_not_overlap(self) -> None:
+        one_shot = [strp_chunk(layer=layer, request_id=0) for layer in range(48)]
+        scores, records, _, trace_format = MODULE.read_trace_scores_exact(
+            [write_batched_trace(self.root / "one-shot.strp", one_shot)], weighted=False
+        )
+        self.assertEqual(trace_format, "strp-batched-prefill-v2")
+        self.assertEqual(records, 96)
+        self.assertEqual(scores[(0, 1)], 2)
+
+        requests = [strp_chunk(layer=layer, request_id=1) for layer in range(48)]
+        requests.extend(strp_chunk(layer=layer, request_id=2) for layer in range(48))
+        scores, records, per_layer, trace_format = MODULE.read_trace_scores_exact(
+            [write_batched_trace(self.root / "multi.strp", requests)], weighted=False
+        )
+        self.assertEqual(trace_format, "strp-batched-prefill-v2")
+        self.assertEqual(records, 192)
+        self.assertEqual(set(per_layer.values()), {4})
+        self.assertEqual(scores[(0, 1)], 4)
+
+        path = self.root / "requests-invalid.strp"
+        partial_request = [strp_chunk(layer=layer, request_id=1) for layer in range(48)]
+        partial_request.append(strp_chunk(layer=0, request_id=2))
+        write_batched_trace(path, partial_request)
+        with self.assertRaisesRegex(ValueError, "request 2 does not contain all 48 layers"):
+            MODULE.read_trace_scores_exact([path], weighted=False)
+
+        same_request_overlap = [
+            strp_chunk(layer=layer, position=0, token_count=2, request_id=1) for layer in range(48)
+        ]
+        same_request_overlap.append(strp_chunk(layer=0, position=1, token_count=1, request_id=1))
+        write_batched_trace(path, same_request_overlap)
+        with self.assertRaisesRegex(
+            ValueError, "overlapping STRP positions for request 1 at layer 0"
+        ):
+            MODULE.read_trace_scores_exact([path], weighted=False)
+
+        misaligned_positions = [strp_chunk(layer=0, position=100, request_id=1)]
+        misaligned_positions.extend(
+            strp_chunk(layer=layer, position=0, request_id=1) for layer in range(1, 48)
+        )
+        write_batched_trace(path, misaligned_positions)
+        with self.assertRaisesRegex(ValueError, "request 1 layer 1 positions differ from layer 0"):
+            MODULE.read_trace_scores_exact([path], weighted=False)
+
+    def test_batched_strp_record_and_payload_validation(self) -> None:
+        path = self.root / "invalid.strp"
+        valid = write_batched_trace(path).read_bytes()
+        record_cases: list[tuple[int, str, int, str]] = [
+            (44, "<i", 9, "record k=9"),
+            (48, "<q", -1, "position range"),
+            (56, "<i", 0, "token_count 0 must be positive"),
+            (60, "<i", 1, "record reserved field 1"),
+        ]
+        for offset, fmt, value, message in record_cases:
+            with self.subTest(offset=offset, value=value):
+                blob = bytearray(valid)
+                struct.pack_into(fmt, blob, offset, value)
+                path.write_bytes(blob)
+                with self.assertRaisesRegex(ValueError, message):
+                    MODULE.read_trace_scores_exact([path], weighted=True)
+
+        blob = bytearray(valid)
+        struct.pack_into("<q", blob, 48, MODULE.NATIVE_CONTEXT_TOKENS)
+        path.write_bytes(blob)
+        with self.assertRaisesRegex(ValueError, "outside \\[0, 262144\\)"):
+            MODULE.read_trace_scores_exact([path], weighted=True)
+
+        duplicate_ids = [[1, 1, *range(2, 10)], [*range(10)]]
+        write_batched_trace(
+            path,
+            [strp_chunk(layer=layer, ids=duplicate_ids) for layer in range(48)],
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate trace-domain expert 1"):
+            MODULE.read_trace_scores_exact([path], weighted=False)
+
+        bad_weights = [[float("nan"), *([0.1] * 9)], [*([0.1] * 10)]]
+        write_batched_trace(
+            path,
+            [strp_chunk(layer=layer, weights=bad_weights) for layer in range(48)],
+        )
+        with self.assertRaisesRegex(ValueError, "invalid router weight nan"):
+            MODULE.read_trace_scores_exact([path], weighted=True)
+
+        zero_weights = [[0.0, *([0.1] * 9)], [*([0.1] * 10)]]
+        write_batched_trace(
+            path,
+            [strp_chunk(layer=layer, weights=zero_weights) for layer in range(48)],
+        )
+        with self.assertRaisesRegex(ValueError, "zero router weight.*--unweighted"):
+            MODULE.read_trace_scores_exact([path], weighted=True)
+
+        path.write_bytes(valid[:-4])
+        with self.assertRaisesRegex(ValueError, "truncated STRP payload"):
+            MODULE.read_trace_scores_exact([path], weighted=True)
+
+        unequal = [strp_chunk(layer=0, token_count=2)] + [
+            strp_chunk(layer=layer, token_count=1) for layer in range(1, 48)
+        ]
+        write_batched_trace(path, unequal)
+        with self.assertRaisesRegex(ValueError, "layer record counts differ"):
+            MODULE.read_trace_scores_exact([path], weighted=False)
+
+        overlapping = [strp_chunk(layer=layer, position=0, token_count=2) for layer in range(48)]
+        overlapping.append(strp_chunk(layer=0, position=1, token_count=1))
+        write_batched_trace(path, overlapping)
+        with self.assertRaisesRegex(
+            ValueError, "overlapping STRP positions for request 1 at layer 0"
+        ):
+            MODULE.read_trace_scores_exact([path], weighted=False)
+
+    def test_legacy_and_batched_strp_trace_formats_cannot_be_mixed(self) -> None:
+        legacy = self.root / "legacy.bin"
+        complete = [(layer, list(range(10)), [0.1] * 10) for layer in range(MODULE.N_LAYERS)]
+        write_trace(legacy, complete)
+        batched = write_batched_trace(self.root / "batched.strp")
+        with self.assertRaisesRegex(ValueError, "cannot mix legacy-routing-v0"):
+            MODULE.read_trace_scores_exact([legacy, batched], weighted=False)
+        with self.assertRaisesRegex(ValueError, "cannot mix strp-batched-prefill-v2"):
+            MODULE.read_trace_scores_exact([batched, legacy], weighted=False)
+
     def test_partial_trace_and_multi_file_layer_accounting(self) -> None:
         complete = [(layer, list(range(10)), [0.1] * 10) for layer in range(MODULE.N_LAYERS)]
         partial = self.root / "partial.bin"
@@ -255,7 +819,9 @@ class PrefillerPlanTest(unittest.TestCase):
         two_pass = self.root / "two-pass.bin"
         write_trace(one_pass, complete)
         write_trace(two_pass, complete + complete)
-        _, records, per_layer = MODULE.read_trace_scores_exact([one_pass, two_pass], weighted=False)
+        _, records, per_layer, _ = MODULE.read_trace_scores_exact(
+            [one_pass, two_pass], weighted=False
+        )
         self.assertEqual(records, MODULE.N_LAYERS * 3)
         self.assertEqual(set(per_layer), set(range(MODULE.N_LAYERS)))
         self.assertEqual(set(per_layer.values()), {3})
@@ -358,7 +924,7 @@ class PrefillerPlanTest(unittest.TestCase):
         write_complete_trace(trace, {0: ([1, *range(100, 109)], [0.0, *([0.1] * 9)])})
         with self.assertRaisesRegex(ValueError, "zero router weight.*--unweighted"):
             MODULE.read_trace_scores_exact([trace], weighted=True)
-        unweighted, _, _ = MODULE.read_trace_scores_exact([trace], weighted=False)
+        unweighted, _, _, _ = MODULE.read_trace_scores_exact([trace], weighted=False)
         self.assertEqual(unweighted[(0, 1)], 1)
 
     def test_dense_only_manifest_is_allowed(self) -> None:

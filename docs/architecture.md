@@ -99,7 +99,7 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
 | GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight, `tools/reap_mask_from_traces.py`, and the tiny Qwen4-Exp/RCO CPU plus Modal-L4 compatibility probes. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
 | Flash-Next pruning prototype | Use the current vendor Coder GGUF only as a measured as-is control while designing a Strata-owned 256/288/384-expert higher-capacity artifact; the first full-model runtime sweep and 48-layer decode routing trace are recorded in [pruning](PRUNING.md) | Promote only with current shard hashes, representative prompt+decode traces, held-out quality, exact pack inversion, and same-day full-model controls |
-| Flash-Next auxiliary prefiller | Target is a Qwen3.8-Flash-Next prompt-state model trained against the frozen served low-bit decoder; MXFP4 is acceptable and the dense 27B NVFP4 artifact is reference-only. The metadata planner and architecture are implemented host-side; decode/verify-window capture and a forced-short-read prompt-position activation diagnostic exist, while literal batched `Prefill::run` routing capture, training, artifact generation, and runtime swapping remain unbuilt | Start with dense/shared adapters plus measured prompt-and-decode hot experts; require phase-masked QADD, GDN/QSA/PLE handoff parity, default-path byte identity when disabled, and many-agent mixed-hit controls before any runtime or quality claim |
+| Flash-Next auxiliary prefiller | Target is a Qwen3.8-Flash-Next prompt-state model trained against the frozen served low-bit decoder; MXFP4 is acceptable and the dense 27B NVFP4 artifact is reference-only. The metadata planner and architecture are implemented host-side, and opt-in literal batched `Prefill::run` STRP v2 capture is implemented and exercised on B550; training, artifact generation, and runtime swapping remain unbuilt | Start with dense/shared adapters plus measured prompt-and-decode hot experts; require phase-masked QADD, GDN/QSA/PLE handoff parity, default-path byte identity when disabled, and many-agent mixed-hit controls before any runtime or quality claim |
 | Disaggregated KV tier | Target design is [KV disaggregation](KV_DISAGGREGATION.md): a coordinator owns L0 VRAM, L1 pinned host slots, L2 local fast NVMe groups (B550's HPE P4800X), and optional L3 shared storage through one `KvBlockStore` ABI. The current `--kv-disk` prototype is quarantined experimental code, not serving-path acceptance | Phase A must move append/read hooks into the actual verify path and support all KV formats; live acceptance requires zero argmax mismatches, mean NLL within `1e-4`, nonzero forced cold reads/evictions, then 600K and 800K matched controls |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
@@ -150,9 +150,9 @@ later revisions.
 | B550 fast-NVMe KV sessions | Native session files can park and restore whole long conversations on the P4800X: a real 112,626-token state became a 1.956 GB file in 1.463 s and restored into a restarted single-GPU process in 2.232 s. This is explicit session parking, not live per-token NVMe paging; layer-split, peer-device, and batch modes remain incompatible, and Mooncake is reserved for a future multi-host shared pool. See [session-store evidence](../evidence/qwen-b550-optane-session-store.json) |
 | Disaggregated KV tier | The opt-in `--kv-tier` path owns per-layer stores, per-layer selections, explicit background store operations, a Mooncake-style shared pool reference, and restore into the engine host copy consumed by `kv_stream_resolve`. On B550 it now runs against a real model on the designated 750 GB device: a matched control with the tier off and on produced bit-identical output and a mean NLL delta of exactly 0.0 over 8,191 scored positions, with 756,560 real cold reads, 794,873 engine host restores and zero checksum errors. The tier was about 14.8x slower on the prompt read for that workload, the full pinned host allocation remains resident, and no RAM or speed benefit is claimed. See [KV disaggregation](KV_DISAGGREGATION.md), [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json), and [sm86 build evidence](../evidence/b550-sm86-build-2026-10-20.json) |
 | DeepInfer portable scheduling intake | The fetch-only DeepInfer audit at `774ce244` ranked confidence-scheduled variable-length MTP, zero-overhead scheduling, incremental metadata assembly, and sync guards above model-specific Engram/Hopper/Ascend work. The first host-only confidence/varlen draft-row planner is implemented and passes focused tests on macOS and in the B550 sm_86 tree; it is not wired into runtime MTP and claims no speedup. See [audit evidence](../evidence/deepinfer-portable-optimizations-2026-10-20.json) and [implementation evidence](../evidence/deepinfer-confidence-varlen-2026-10-20.json) |
-| Flash-Next auxiliary prefiller | The 27B NVFP4 checkpoint and paper are templates only. A host-only planner now binds the deployed Flash-Next pack metadata, selects dense prompt-state tensors plus per-layer hot experts, and reports MXFP4 size: the profile-rank 64-expert plan is 9.238 GiB, with coverage intentionally null because the profile has no frequencies. No trainer, runtime path, or quality/speed effect is claimed. See [architecture](PREFILLER.md) and [planning evidence](../evidence/flash-next-prefiller-plan-2026-10-20.json) |
-| Flash-Next pruning baseline | A real-source 13.96K-token B550 sweep measured 3,355.9 tok/s median cold prompt reads and 99.9211% decode expert-cache hits; a held 13,943-token prefix cut median fresh-read time from 4,159.5 ms to 192 ms. A 48-layer decode trace shows 64 retained experts/layer cover 92.08% of routed activations in-sample. The current vendor Coder prototype is 9.7% faster on cold prompt reads and uses an 8.81 GiB smaller arena, but is 13.6% slower on the primed concurrent-4 shared-prefix burst; literal batched prompt-prefill routing capture remains unbuilt. See [pruning](PRUNING.md), [full-model evidence](../evidence/flash-next-agent-runtime-stats-2026-10-20.json), and [Coder evidence](../evidence/coder-current-runtime-stats-2026-10-20.json) |
-| Flash-Next prompt routing diagnostic | A fresh forced-short-read B550 capture recorded 14,020 prompt positions per layer with unit activations. Prompt coverage is much broader than decode: 64 experts/layer cover 55.61% and 256 cover 92.31%. A direct normal-prefill negative control emitted no prompt-position records, proving the literal batched `Prefill::run` seam is still missing. See [prompt-routing evidence](../evidence/flash-next-prompt-routing-2026-10-20.json) |
+| Flash-Next auxiliary prefiller | The 27B NVFP4 checkpoint and paper are templates only. A host-only planner now binds the deployed Flash-Next pack metadata, accepts 256/288/384/512 physical expert packs through validated explicit physical-to-source maps (with identity only for a complete 512-slot pack), selects dense prompt-state tensors plus per-layer hot experts in parallel physical/source namespaces, and consumes legacy or batched-prefill STRP v2 routing traces. A real 13,963-position literal prefill trace gives 64 experts/layer 60.8184% aggregate router-weight coverage and 256 experts/layer 94.0132%. No trainer, runtime prefiller, or quality/speed effect is claimed. See [architecture](PREFILLER.md), [planning evidence](../evidence/flash-next-prefiller-plan-2026-10-20.json), and [runtime acceptance](../evidence/prefill-routing-v2-runtime-2026-10-21.json) |
+| Flash-Next pruning baseline | A real-source 13.96K-token B550 sweep measured 3,355.9 tok/s median cold prompt reads and 99.9211% decode expert-cache hits; a held 13,943-token prefix cut median fresh-read time from 4,159.5 ms to 192 ms. A 48-layer decode trace shows 64 retained experts/layer cover 92.08% of routed activations in-sample. The current vendor Coder prototype is 9.7% faster on cold prompt reads and uses an 8.81 GiB smaller arena, but is 13.6% slower on the primed concurrent-4 shared-prefix burst. See [pruning](PRUNING.md), [full-model evidence](../evidence/flash-next-agent-runtime-stats-2026-10-20.json), and [Coder evidence](../evidence/coder-current-runtime-stats-2026-10-20.json) |
+| Flash-Next prompt routing diagnostic | The 2026-10-20 forced-short-read B550 capture recorded 14,020 prompt positions per layer with unit activations; 64 experts/layer covered 55.61% and 256 covered 92.31%. Its direct normal-prefill negative control exposed the missing literal seam at that revision. The opt-in STRP v2 seam and real literal capture now close that diagnostic gap without changing the default path. See [prompt-routing evidence](../evidence/flash-next-prompt-routing-2026-10-20.json) and [runtime acceptance](../evidence/prefill-routing-v2-runtime-2026-10-21.json) |
 
 ## Work log
 
@@ -2138,3 +2138,96 @@ batched prompt positions. The forced-window result is therefore a prompt
 activation diagnostic, not literal `Prefill::run` coverage and not a timing
 claim. Full evidence and the compressed raw trace are in
 [prompt routing](../evidence/flash-next-prompt-routing-2026-10-20.json).
+
+### Prefiller physical expert IDs made explicit, 2026-10-21
+
+The host-only prefiller planner now separates physical pack slots from the
+512-expert source universe. Native layouts may declare 256, 288, 384, or 512
+physical experts per layer. Pruned packs require a
+`strata-expert-id-map-v1` JSON sidecar with one fully validated per-layer
+physical-to-source row; omitting the sidecar is valid only for 512 slots, where
+the mapping is exactly identity. Profile IDs are treated as physical IDs and
+translated through that map. Trace IDs declare either the physical domain or
+the 512-wide source domain; source-domain evidence may contain pruned experts,
+which cannot be selected but remain in the coverage denominator.
+
+Plans keep source IDs in `selected_ids` and add parallel
+`selected_physical_ids` and physical fill lists. The manifest binds both the
+sidecar file and canonical mapping contents by SHA-256, and its size accounting
+separates selected physical experts, the complete physical pack, and the full
+source universe. Focused tests cover all supported counts, sidecar corruption,
+missing-map failure, profile translation, both trace domains, and size
+accounting. This remains metadata-only: no pruned model payload was built or
+opened, no routing trace from a real pruned runtime existed in this checkout,
+and no trainer, runtime, quality, or speed effect is claimed.
+
+### Batched-prefill STRP trace intake, 2026-10-21
+
+The planner now auto-detects the legacy one-position routing format and the new
+batched-prefill STRP v1 wire format. STRP requires the 40-byte little-endian
+header with magic `0x50525453`, version 1, prefill phase 1, no flags, 48
+layers, top-k 10, 24-byte record headers, and zero reserved fields. Each
+24-byte record carries layer, k, starting position, token count, and a reserved
+field; token-major IDs and true float32 weights follow. The reader validates
+geometry, positions, counts, payload lengths, finite nonnegative weights,
+per-position expert uniqueness, all 48 layers, equal per-layer position counts,
+and absence of overlap within each layer. Legacy and STRP files cannot be mixed
+in one invocation.
+
+Every STRP chunk is expanded to its individual routed positions before exact
+rational scoring. Consequently `trace_records` and
+`trace_records_per_layer` count positions rather than serialized chunks, and
+the manifest records the detected format. The tests use synthetic binary
+fixtures; this checkout still contains no real batched-prefill STRP capture,
+model run, trainer, runtime integration, or measured routing result.
+
+### Repaired STRP v2 request namespaces, 2026-10-21
+
+Batched-prefill STRP intake moved from the transient v1 layout to the repaired
+v2 contract. The header remains 40 bytes, but version is 2 and
+`record_header_bytes` is 32. Each record adds a nonzero little-endian
+`uint64 request_id` after the reserved field; token-major expert IDs and true
+float32 router weights follow. Request ID zero is reserved and rejected.
+
+Position overlap is grouped by `(request_id, layer)`: two requests may route
+the same positions, but overlapping ranges for one request and layer are
+rejected. Each request must cover all 48 layers, while aggregate per-layer
+position counts remain the manifest's `trace_records` semantics. Synthetic
+tests cover two requests sharing positions, reserved and partial request IDs,
+and same-request overlap rejection. No real STRP file was present; no model,
+trainer, runtime integration, or routing-quality result is claimed.
+
+### Literal STRP v2 runtime acceptance, 2026-10-21
+
+The preceding v1 and v2 intake entries describe intermediate synthetic states
+and are superseded by the final contract and runtime files. Request ID 0 is
+valid and means a one-shot capture; only serve capture ordinals start at 1.
+
+The patched SM86 engine and exact base control were rebuilt on B550 from
+revision 82dd8231 with the combined routing patch. CUDA builds passed
+`routing_trace_test`, `strata_prefill`, and `strata`; the acceptance build used
+the host-toolchain workaround `-L/usr/lib/gcc/x86_64-linux-gnu/15` because
+nvcc otherwise placed GCC 13's older libstdc++ ahead of GCC 15. The ROCm
+container compiled the same three targets for gfx1100 and its routing test
+passed, but no AMD GPU model run is claimed. Combined-diff review then closed
+two runtime-boundary issues before final rebuild: `VRAM` is refused while
+routing capture is active, and HIP refuses `--kv-tier` because its verify
+commit/resolve hooks are intentionally excluded.
+
+A real one-shot CUDA capture recorded 13,963 literal `Prefill::run` positions
+per layer, 96 chunk records, 670,224 routed layer-positions, request ID 0, and
+true router weights. The final planner reproduced coverage of 44.4605%,
+60.8184%, 71.1568%, 78.4784%, 88.2075%, and 94.0132% at 32, 64, 96, 128,
+192, and 256 retained experts per layer. A two-request serve capture assigned
+request IDs 1 and 2 and recorded 14,009 positions per layer for each request;
+a split-30 capture recorded one request while its log placed layers 0-29 on
+CUDA0 and 30-47 on CUDA1. All three traces had zero invalid IDs, non-finite
+weights, or nonpositive weights.
+
+With the capture flag absent, patched and exact-base runs produced the same
+output tokens and identical window-hash and final-residual SHA-256 digests for
+this one workload. This exact control does not establish speed, overhead,
+model quality, pruning quality, or a trained prefiller. Full machine, GPU,
+engine, model, command, and hash bindings are in
+[runtime acceptance](../evidence/prefill-routing-v2-runtime-2026-10-21.json);
+the durable compressed one-shot raw trace is retained beside it.
