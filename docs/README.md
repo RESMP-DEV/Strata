@@ -75,6 +75,7 @@ evidence.
 | [Unsloth Q6](UNSLOTH_Q6.md) | UD-Q6_K_XL artifact verification and use |
 | [Flash-Next prefiller](PREFILLER.md) | Phase-specialized auxiliary prefiller architecture and planner |
 | [Flash-Next pruning](PRUNING.md) | Coder prototype, Strata-owned pruned decoder, and routing gates |
+| [Pruning model cards](MODEL_CARDS.md) | Publication checklist and artifact contract for a future pruned/quantized model |
 
 ## Measurements and research
 
