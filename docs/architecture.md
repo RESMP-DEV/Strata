@@ -2228,6 +2228,6 @@ With the capture flag absent, patched and exact-base runs produced the same
 output tokens and identical window-hash and final-residual SHA-256 digests for
 this one workload. This exact control does not establish speed, overhead,
 model quality, pruning quality, or a trained prefiller. Full machine, GPU,
-engine, model, command, and hash bindings are in
+engine, model, command/log-path, artifact, and hash bindings are in
 [runtime acceptance](../evidence/prefill-routing-v2-runtime-2026-10-21.json);
 the durable compressed one-shot raw trace is retained beside it.

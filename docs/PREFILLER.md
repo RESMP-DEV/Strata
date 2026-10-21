@@ -154,8 +154,10 @@ files in one invocation. `--unweighted` discards the STRP weights and ranks
 unit activations, while the default weighted mode consumes their true router
 weights.
 
-Serve-mode traces use unit weights because the serve verify path does not
-surface router weights to its host pool callback. The planner names their
+Legacy serve-mode `--dump-routing` traces use unit weights because the serve
+verify path does not surface router weights to its host pool callback; the
+opt-in literal STRP v2 serve capture below records true weights. The planner
+names their
 result `aggregate_routed_activation_coverage`, never a router-weight share, and
 records how many trace records each layer contributed. The current durable
 serve traces are decode/verify-window scoped and a forced-short-read
@@ -259,7 +261,8 @@ before any auxiliary state can enter a target session.
 
 ## Training ladder
 
-1. **Data and routing first.** Capture representative `--dump-routing` traces
+1. **Data and routing first.** Capture representative decode/verify
+   `--dump-routing` traces and literal `--dump-prefill-routing` STRP v2 traces
    from the planned many-agent workload. Separate shared-prefix/hit-heavy,
    cold-tail, code, document, and mixed sessions; reserve agents and prompts
    for held-out controls.

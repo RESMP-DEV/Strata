@@ -114,9 +114,14 @@
       "bad_ids": 0,
       "nonfinite_weights": 0,
       "nonpositive_weights": 0,
+      "engine_sha256": "92d83493ea5f8c061b87d71945a6f3e67e8f563e94a1360dd6de761dcb6dd57e",
       "min_positive_weight": 0.00710318,
       "max_weight": 0.880213,
-      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/prefill-routing.strp"
+      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/prefill-routing.strp",
+      "remote_dir": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021",
+      "remote_command_log": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/run.stderr",
+      "remote_stdout": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/run.stdout",
+      "remote_exit": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/run.exit"
     },
     "serve_two_requests": {
       "request_ids": [1, 2],
@@ -130,7 +135,12 @@
       "bad_ids": 0,
       "nonfinite_weights": 0,
       "nonpositive_weights": 0,
-      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021/two-requests.strp"
+      "engine_sha256": "92d83493ea5f8c061b87d71945a6f3e67e8f563e94a1360dd6de761dcb6dd57e",
+      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021/two-requests.strp",
+      "remote_dir": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021",
+      "remote_server_config": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021/server.json",
+      "remote_engine_log": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021/engine.log",
+      "remote_summary": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-serve-20261021/summary.json"
     },
     "layer_split_serve": {
       "request_ids": [1],
@@ -144,8 +154,13 @@
       "bad_ids": 0,
       "nonfinite_weights": 0,
       "nonpositive_weights": 0,
+      "engine_sha256": "92d83493ea5f8c061b87d71945a6f3e67e8f563e94a1360dd6de761dcb6dd57e",
       "split_assignment": "CUDA0 layers 0-29; CUDA1 layers 30-47",
-      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021/two-requests.strp"
+      "remote_raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021/two-requests.strp",
+      "remote_dir": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021",
+      "remote_server_config": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021/server.json",
+      "remote_engine_log": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021/engine.log",
+      "remote_summary": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-split-20261021/summary.json"
     }
   },
   "planner_validation": {
@@ -172,7 +187,21 @@
     "output_token_ids": [16747, 768, 361, 267],
     "window_hash_sha256": "98c32e00782873789fd14d5842eb21791ff33f8a25cdfa58cec9263c5dc6e419",
     "final_residual_sha256": "c0f70880b087233d31b9df37626ca17ee9a43ab47da2a7b7df2342f9e0538fd1",
-    "remote_dir": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-20261021",
+    "remote_dir": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021",
+    "patched_engine": "/home/kearm/strata-scratch/prefill-routing-build/build/sm86/strata",
+    "patched_engine_sha256": "1c8afee00be53a24a9b3a63f98640c90ca46877ca80bcea9227332d54bad335f",
+    "base_engine": "/home/kearm/strata-scratch/prefill-routing-base/build/sm86/strata",
+    "base_engine_sha256": "8adcbf9ee0ebae1d3ba5464e46d4e9900db267a82009e2e75ed803b1af7e4764",
+    "command_template": "ENGINE --gpu 1 --pack $MODEL/pack-split --native $MODEL/hf-shards/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf --ple-gguf <same shard> --expert-profile /home/kearm/strata-main/data/expert-profile.bin --expert-cache auto --prefill auto --spec 4 --spec-min-p 0.5 --max-context 16384 --kv-resident 2048 --kv int8 --ple-io direct --stats --mtp $MODEL/mtp-bf16/rt --mtp-max-t 4 --suffix-draft 0 --pipeline-windows 2 --prompt-cache 0 --short-read 0 --tokens-file $MODEL/prefill-routing-v2-20261021/prompt-tokens.txt --max-new 4 --greedy --window-hashes $DIR/$LABEL.windows --dump-residual $DIR/$LABEL.residual",
+    "run_exit": 0,
+    "artifacts": {
+      "final_windows": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021/final.windows",
+      "final_residual": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021/final.residual",
+      "final_stdout": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021/final.stdout",
+      "base_windows": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021/base.windows",
+      "base_residual": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021/base.residual",
+      "base_stdout": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/default-identity-final-20261021/base.stdout"
+    },
     "superseded_empty_logit_attempt": "base.logits and patched.logits are zero bytes by design for this native path; window and residual hashes are the accepted controls"
   },
   "final_host_validation": {
