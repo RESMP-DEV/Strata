@@ -2244,19 +2244,21 @@ original transformer. The n-gram shard is not pruned. The physical-expert
 sidecar contract accepts 256, 288, 384, or 512 slots per layer, so 256 of 512
 is the most aggressive budget the current pack format carries.
 
-The retained-expert precision was then measured rather than assumed. On the
-one model family where a GPTQ-calibrated MXFP4 artifact and a
-llama.cpp iMatrix-calibrated artifact both exist as runnable CUDA artifacts,
+The cost of a 4-bit path was then measured rather than assumed. On the one
+model family where a GPTQ-calibrated MXFP4 artifact and a llama.cpp
+iMatrix-calibrated artifact both exist as runnable CUDA artifacts,
 Qwen3.8-27B at base revision `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`, the
-two were benchmarked on B550 from the same 40 KB source document with thinking
-disabled and prefix caching off. The 3.00 bpw GSQ-RCO IQ3_XXS artifact decoded
-at 50.06 tok/s against the 4-bit MXFP4A16 artifact's 13.47 tok/s on the
-13,9xx-token cold prompt, about 3.7x faster, while MXFP4 prefilled about 7%
-faster. MXFP4 is 1.79x larger on disk and needs 20.8 GiB of VRAM against
-10.9 GiB, so the decode gap is the kernel path rather than memory. For a
-pruned Flash-Next artifact at about 3 bits per weight, the mixed i-quant path
-is the proven faster decode path on this hardware; an MXFP4 expert path still
-needs a converter and a Flash-Next MXFP4 expert kernel.
+two were benchmarked on one B550 RTX 3090 Ti from the same 40 KB source
+document with thinking disabled and prefix caching off. The 3.00 bpw GSQ-RCO
+IQ3_XXS artifact decoded at 50.06 tok/s against the 4-bit MXFP4A16 artifact's
+13.47 tok/s on the 13,9xx-token cold prompt, about 3.7x faster, while MXFP4
+prefilled about 7% faster. MXFP4 is 1.79x larger on disk and needs 20.8 GiB of
+VRAM against 10.9 GiB. These arms differ in precision, artifact size, engine,
+and weight container at once, so the measurement does not isolate the cause of
+the decode gap. For a pruned Flash-Next artifact at about 3 bits per weight the
+mixed i-quant path is the candidate to measure first, and an MXFP4 expert path
+still needs a converter and a Flash-Next MXFP4 expert kernel; Flash-Next
+decode speed under either format is unmeasured.
 
 The comparison mixes the calibration recipe with the serving stack and uses a
 4-bit arm against a 3-bit arm on Qwen3.8-27B, not Flash-Next. It measured no

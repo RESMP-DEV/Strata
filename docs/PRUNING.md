@@ -237,11 +237,13 @@ Qwen3.8-27B, so the pair was measured on B550 from the same base revision
 The 3.00 bpw iMatrix-calibrated artifact decodes about 3.7x faster than the
 4-bit MXFP4 artifact on this host, while MXFP4 is about 7% faster on the long
 prefill. MXFP4 is 1.79x larger on disk (18.0 GB against 10.1 GB) and needs
-20.8 GiB of VRAM against 10.9 GiB, so the decode gap is the per-token kernel
-path rather than memory. The practical consequence for a pruned Flash-Next
-artifact at about 3 bits per weight: the mixed i-quant path is the proven
-faster decode path on this hardware, and an MXFP4 expert path would need both
-a converter and a Flash-Next MXFP4 expert kernel that do not exist yet.
+20.8 GiB of VRAM against 10.9 GiB. The arms differ in precision, artifact
+size, engine, and weight container at once, so the measurement does not
+isolate the cause of the decode gap. For a pruned Flash-Next artifact at about
+3 bits per weight, the mixed i-quant path is the candidate to measure first;
+an MXFP4 expert path would need both a converter and a Flash-Next MXFP4 expert
+kernel that do not exist yet, and Flash-Next decode speed under either format
+is unmeasured.
 
 This comparison mixes the calibration recipe with the serving stack (vLLM and
 compressed-tensors against llama.cpp and GGUF), uses a 4-bit arm against a
