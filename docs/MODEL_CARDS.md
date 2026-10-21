@@ -28,7 +28,7 @@ Every card must distinguish:
 | --- | --- |
 | `README.md` | Human-readable card, status, scope, usage, measurements, limits, credits, and licenses |
 | `provenance.json` | Source repositories and revisions, source file manifest, tool revisions, corpus/rights boundary, and clean/dirty state |
-| `SHA256SUMS` | Every distributed file, including metadata |
+| `SHA256SUMS` | SHA-256 for every distributed payload and metadata file except the checksum manifest itself |
 | `LICENSE` | Exact license text for the artifact and derived weights |
 | `NOTICE` | Base-model, tool, and dataset attributions and constraints |
 | `pruning-map.json` | `strata-expert-id-map-v1`: 48 unique physical-to-source rows and canonical hash |
@@ -77,7 +77,8 @@ rather than copying this template or another artifact's card.
    payload/resident bytes, source revision, engine binary hash, and HF revision.
 3. **Files and integrity.** Per-file bytes, SHA-256, mandatory split semantics,
    resident/streamed role, and whole-file versus tensor-payload verification.
-4. **Source identity.** Pinned base model revision, source manifest, tool
+4. **Source identity.** Pinned base model revision, source manifest, exact
+   license URL and immutable license blob/hash used for the derivative, tool
    revisions, calibration/heal corpus identity and rights, and explicit
    statement that Coder is only a control.
 5. **Pruning map.** Physical/source mapping schema, canonical mapping hash,

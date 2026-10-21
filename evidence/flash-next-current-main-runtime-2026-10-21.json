@@ -7,7 +7,7 @@
   "scope": "Fresh uninstrumented full-model pre-pruning baseline from clean merged main, plus the publication contract for a future pruned/quantized artifact.",
   "host": {
     "alias": "B550",
-    "machine_id": "27e232eefb5743a48b55b58e0fb997a0",
+    "machine_id": "27e232eefb5743a48455b58e0fb997a0",
     "gpus": [
       {
         "index": 0,
@@ -38,6 +38,28 @@
     ],
     "routing_trace_test_exit": 0
   },
+  "build_commands": [
+    {
+      "command": "git clone /home/kearm/strata-scratch/strata-main-66067e30.bundle /home/kearm/strata-scratch/baseline-main-66067e30 && git -C /home/kearm/strata-scratch/baseline-main-66067e30 checkout 66067e3075c82f5ef87713657e67a582aadd53e2",
+      "exit": 0,
+      "result": "clean detached checkout at merged main"
+    },
+    {
+      "command": "cmake -S /home/kearm/strata-scratch/baseline-main-66067e30 -B /home/kearm/strata-scratch/baseline-main-66067e30/build/sm86 -DSTRATA_BUILD_TESTS=ON -DSTRATA_ENABLE_CUDA=ON -DSTRATA_ENABLE_HIP=OFF -DSTRATA_HIP_GFX906=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=86 -DCMAKE_EXE_LINKER_FLAGS=-L/usr/lib/gcc/x86_64-linux-gnu/15 -DSTRATA_GGML_DIR=/home/kearm/strata-scratch/prefill-routing-build/build/sm86/_deps/strata_llamacpp-src",
+      "exit": 0,
+      "result": "Release sm86 configure completed using the pinned existing llama.cpp checkout"
+    },
+    {
+      "command": "cmake --build /home/kearm/strata-scratch/baseline-main-66067e30/build/sm86 --target strata routing_trace_test -j8",
+      "exit": 0,
+      "result": "both targets built"
+    },
+    {
+      "command": "/home/kearm/strata-scratch/baseline-main-66067e30/build/sm86/routing_trace_test",
+      "exit": 0,
+      "result": "dependency-free routing trace contract passed"
+    }
+  ],
   "model_binding": {
     "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048",
     "native_shard_1_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
@@ -64,7 +86,7 @@
         "prompt_tok_s_range": [3462.3, 3497.8],
         "decode_tok_s_median": 140.2,
         "decode_tok_s_range": [134.4, 179.4],
-        "draft_acceptance": 0.7593984962406045
+        "draft_acceptance": 0.7593984962406015
       },
       "shared_prefix_prime": {
         "prompt_tokens": 13963,
