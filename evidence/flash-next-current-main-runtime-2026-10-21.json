@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T18:01:25Z",
+  "agent": "Codex parent with read-only baseline and model-card subagents",
+  "source_revision": "66067e3075c82f5ef87713657e67a582aadd53e2",
+  "source_dirty": false,
+  "scope": "Fresh uninstrumented full-model pre-pruning baseline from clean merged main, plus the publication contract for a future pruned/quantized artifact.",
+  "host": {
+    "alias": "B550",
+    "machine_id": "27e232eefb5743a48b55b58e0fb997a0",
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "uuid": "GPU-e9401801-96fd-7936-9985-c104d7081308"
+      },
+      {
+        "index": 1,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece"
+      }
+    ],
+    "driver": "595.99.02",
+    "identity_method": "SSH alias plus machine ID and GPU UUIDs; no LAN address used as identity"
+  },
+  "build": {
+    "remote_source": "/home/kearm/strata-scratch/baseline-main-66067e30",
+    "source_transport": "local Git bundle at commit 66067e3075c82f5ef87713657e67a582aadd53e2",
+    "source_clean": true,
+    "engine_sha256": "51b5ab09ffc75044532ff4bee83a555ac8ff10b02f98fc7b3dc3a8c34a3e7f73",
+    "build_type": "Release",
+    "cuda_architecture": "86",
+    "cuda_linker_workaround": "-L/usr/lib/gcc/x86_64-linux-gnu/15",
+    "ggml_source": "pinned existing llama.cpp checkout commit 3cf03257f219afbe7334045ff7c6a06ac68c627d",
+    "targets_passed": [
+      "strata",
+      "routing_trace_test"
+    ],
+    "routing_trace_test_exit": 0
+  },
+  "model_binding": {
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048",
+    "native_shard_1_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+    "native_shard_2_sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+    "expert_profile_sha256": "8f59b4aa8873209dff11c11e37bcda9529a1335b724a1afeea37bf6388975baf",
+    "pack_index_sha256": "dcfd110970ea49b376bae9a4eb038da122e04775c8d9f85592e23ff5bfbe165f",
+    "native_experts_sha256": "5eca070c6aef89f13e1afb09efb1e8174a1a9320473394963534423506ae8544"
+  },
+  "workload": {
+    "document_bytes": 40000,
+    "document_sha256": "2e173ac4f21ca10d5d3c041b8fc0bd0e6a2a1cbb7dc1abd0db4eaf0c667dd7e1",
+    "client_concurrency": 4,
+    "generation": "temperature 0, reasoning_effort none, max_tokens 48",
+    "server": "split-30 layers 0-29 on CUDA0 and 30-47 on CUDA1; four clients queued by the FIFO; no batch slots",
+    "instrumentation": "no --dump-routing, no --dump-prefill-routing, no --short-read override, no KV tier"
+  },
+  "measurements": {
+    "primary_steady_state_round": {
+      "unique_cold": {
+        "requests": 4,
+        "prompt_tokens_each": 13983,
+        "cached_tokens_each": 0,
+        "prompt_tok_s_median": 3491.6,
+        "prompt_tok_s_range": [3462.3, 3497.8],
+        "decode_tok_s_median": 140.2,
+        "decode_tok_s_range": [134.4, 179.4],
+        "draft_acceptance": 0.7593984962406045
+      },
+      "shared_prefix_prime": {
+        "prompt_tokens": 13963,
+        "cached_tokens": 0,
+        "prompt_tok_s": 3394.0,
+        "decode_tok_s": 148.9
+      },
+      "shared_prefix_hits": {
+        "requests": 3,
+        "prompt_tokens_each": 13990,
+        "cached_tokens_each": 13943,
+        "fresh_tokens_each": 47,
+        "fresh_read_ms_median_from_engine": 216.0,
+        "prompt_tok_s_over_fresh_tokens_median": 218.0,
+        "prompt_tok_s_over_fresh_tokens_range": [216.0, 218.5],
+        "decode_tok_s_median": 153.7,
+        "decode_tok_s_range": [147.2, 155.4],
+        "draft_acceptance": 0.7168141592920354
+      }
+    },
+    "first_round_after_load": {
+      "unique_cold": {
+        "requests": 4,
+        "prompt_tokens_each": 13962,
+        "cached_tokens_each": 0,
+        "prompt_tok_s_median": 3470.25,
+        "prompt_tok_s_range": [796.3, 3482.8],
+        "decode_tok_s_median": 88.9,
+        "decode_tok_s_range": [80.4, 122.9],
+        "first_request_prompt_ms": 17533,
+        "first_request_boundary": "VRAM was 465 MiB during initial verify-window capture; treat as first-request warm-up, not steady state"
+      },
+      "shared_prefix_hits": {
+        "requests": 3,
+        "prompt_tokens_each": 13969,
+        "cached_tokens_each": 13943,
+        "fresh_tokens_each": 26,
+        "prompt_tok_s_over_fresh_tokens_median": 151.2,
+        "decode_tok_s_median": 111.6
+      }
+    },
+    "interpretation": "The full decoder is a usable pre-pruning control: steady cold prompt reads are about 3.49K tok/s and a held 13,943-token prefix reduces the fresh read to about 216 ms for 47 new tokens. This is not a pruning or quantization speedup."
+  },
+  "raw_remote_evidence": {
+    "run_dir": "/home/kearm/strata-scratch/baseline-main-66067e30-run",
+    "durable_sweep_file": "evidence/flash-next-current-main-runtime-sweep-2026-10-21.json",
+    "durable_sweep_sha256": "ee9701f81128ba96e5a1105ee0496814fa853e9fa96d58bf16219c4712d023d1",
+    "first_round_result_sha256": "566f7ecae9f89b5c2fd12ea66660529b2f9a347da42c1ce561ee350f3e0c21da",
+    "steady_round_result_sha256": "7f0d062388751f0fab2fa7c58f7799642fdcb0abb256436f8a29731cb09060f3",
+    "server_config_sha256": "72306b6f216da5dc62c5ffffbb46070eb4298b6b642bb506babab5d9cf7f427f",
+    "engine_log_sha256": "adadf8bfa8d65f17ae6f6e428a00373ff09142ad0fd6c9419a5b78c5a900227b",
+    "server_stdout_sha256": "d010914614fb90a398cb1f4bd8d811fab2abb2f273c387b92c64f82b758a9ea7",
+    "shutdown": "SIGTERM graceful stop; server reported stopped and both GPUs returned to idle"
+  },
+  "preflight_failure": {
+    "command": "system python3 -m serve.server",
+    "failure": "ModuleNotFoundError: No module named 'regex'",
+    "impact": "no model load or measurement; restarted with /home/kearm/envs/salm-lora/bin/python"
+  },
+  "model_card_preparation": {
+    "template": "docs/MODEL_CARDS.md",
+    "artifact_state": "template only; no pruned/quantized artifact exists",
+    "private_target_default": true,
+    "required_companions": [
+      "README.md",
+      "provenance.json",
+      "SHA256SUMS",
+      "LICENSE",
+      "NOTICE",
+      "pruning-map.json",
+      "quantization-allocation.json",
+      "evaluation.json"
+    ]
+  },
+  "non_claims": [
+    "No pruning, custom quantization, healing, quality result, or trained prefiller exists yet.",
+    "The steady-state primary round excludes first-post-load warm-up but retains that round as raw evidence.",
+    "Four FIFO-serialized clients are not a batch-slot or multi-host throughput claim.",
+    "No routing capture or cold-KV tier ran in this timing arm.",
+    "The source code is clean main, but the runtime model is the previously calibrated IQ2_XS/Q2_0 artifact, not a new quantization."
+  ]
+}

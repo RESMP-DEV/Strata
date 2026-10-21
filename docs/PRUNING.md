@@ -24,6 +24,27 @@ reuse is the observed latency lever; pruning must prove its value through
 footprint, cold-agent behavior, concurrency headroom, startup, miss-latency
 attribution, or a different routing mixture.
 
+### Clean-main pre-pruning control, 2026-10-21
+
+A fresh control rebuilt merged `main` revision `66067e30` as a clean Git-bundle
+checkout on B550 and ran the same split-30 server configuration without
+routing capture or the KV tier. The primary steady-state round used new
+nonces after the loaded server's first-request warm-up:
+
+| Arm | Requests | Prompt tokens | Cached | Median prompt rate | Median decode | MTP acceptance |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Unique cold steady state | 4 | 13,983 each | 0 | 3,491.6 tok/s | 140.2 tok/s | 75.94% |
+| Shared-prefix hits | 3 | 13,990 each | 13,943 | 218.0 tok/s over 47 fresh tokens | 153.7 tok/s | 71.68% |
+
+The first post-load cold round is retained in the raw evidence. Its median
+prompt rate was still 3,470.3 tok/s, but its first request took 17.5 seconds
+after VRAM fell to 465 MiB and verify-window capture completed; it is not used
+as the steady-state control. This smaller sweep is a clean-revision
+pre-pruning reference, not a replacement for the 24-request historical
+distribution. Full source, model, engine, workload, and artifact hashes are in
+[current-main runtime evidence](../evidence/flash-next-current-main-runtime-2026-10-21.json),
+with raw rows in the [durable sweep](../evidence/flash-next-current-main-runtime-sweep-2026-10-21.json).
+
 The durable raw sweep and decode trace are in
 [runtime evidence](../evidence/flash-next-agent-runtime-stats-2026-10-20.json).
 The trace has 1,200 records, exactly 25 per layer, and all 48 layers. It is a
