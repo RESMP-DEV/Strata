@@ -68,7 +68,7 @@
     "aggressive_note": "The physical-expert sidecar contract already admits 256, 288, 384, and 512 slots per layer, so 256 of 512 (50% removed) is the most aggressive budget the current planner and pack format accept. The measured router-weight coverage of the literal prefill path bounds the quality cost: 64 experts per layer cover 60.8184% of literal prefill router weight, 128 cover 78.4784%, 256 cover 94.0132%."
   },
   "quantization_speed_comparison": {
-    "why_this_pair": "Both arms derive from the same base checkpoint Qwen/Qwen3.8-27B at revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0, so the pair compares calibration recipe and CUDA kernel path, not different models.",
+    "why_this_pair": "RETRACTED AS A CALIBRATION COMPARISON. Both arms derive from the same base checkpoint Qwen/Qwen3.8-27B at revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0, but they are not a controlled pair: the MXFP4 arm applied one uniform scheme to every Linear with no per-tensor budget, while the iMatrix arm was RCO-allocated from a pool of twelve candidate types at a different target precision, file size, serving engine, and weight container. The measured decode difference therefore mixes allocation policy, precision, size, engine, and container, and it cannot attribute anything to the calibration recipe. The numbers below are kept as the record of what was run; the supported conclusion is only that these two artifacts decoded at these rates on this host.",
     "shared_protocol": {
       "prompt_document": "40,000 bytes of real Strata C++/CUDA source (SHA-256 2e173ac4f21ca10d5d3c041b8fc0bd0e6a2a1cbb7dc1abd0db4eaf0c667dd7e1), 13,966 prompt tokens",
       "generation": "temperature 0, thinking disabled on both arms, 48 completion tokens for the long arm and 64 for the short arm, one request at a time, prefix caching disabled, other GPU idle",
@@ -141,9 +141,9 @@
       "decode_speed_ratio_iq3_xxs_over_mxfp4_long": 3.72,
       "decode_speed_ratio_iq3_xxs_over_mxfp4_short": 3.96,
       "prefill_speed_ratio_mxfp4_over_iq3_xxs_long": 1.07,
-      "summary": "On this B550 RTX 3090 Ti and this base model, the 3.00 bpw iMatrix/GSQ-RCO IQ3_XXS artifact decoded about 3.7x faster than the 4-bit MXFP4A16 GPTQ artifact, while MXFP4 was about 7% faster on the long prefill. MXFP4 is 1.79x larger on disk (18.0 GB vs 10.1 GB) and needed 20.8 GiB of VRAM against 10.9 GiB. The arms differ in precision, artifact size, engine, and weight container at once, so the measurement does not isolate the cause of the decode gap."
+      "summary": "Observed rates on this B550 RTX 3090 Ti for these two specific artifacts: the 3.00 bpw GSQ-RCO IQ3_XXS artifact decoded at 50.06 tok/s and the 4-bit MXFP4A16 artifact at 13.47 tok/s on the long cold prompt, with MXFP4 prefilling about 7% faster and using 20.8 GiB of VRAM against 10.9 GiB. The arms differ in allocation policy, precision, size, engine, and container at once, so the measurement does not isolate the cause of the decode gap and does not compare calibration recipes."
     },
-    "interpretation_boundary": "This compares a W4A16 MXFP4 artifact against a 3.00 bpw mixed i-quant artifact, so it is not a like-for-like bit-width comparison, it is not a kernel-only comparison, and it is not a Flash-Next measurement. It answers the requested calibration and kernel question on the one model where both recipes exist as runnable artifacts. Flash-Next decode speed under either format is unmeasured."
+    "interpretation_boundary": "This is not a controlled comparison of any kind: not like-for-like bit width, not kernel-only, not engine-only, and not a Flash-Next measurement. It is the record of two different runnable artifacts measured on the same host with the same workload. A controlled calibration comparison requires two artifacts that share the base, the target precision class, the engine, and the weight container and differ only in how the per-tensor allocation was chosen."
   },
   "non_claims": [
     "The Flash-Next pruning lanes are still unbuilt: no Strata-owned pruned checkpoint, custom quantization, pack, or quality gate has run. The expert-removal numbers are exact geometry arithmetic, not a produced artifact.",
@@ -155,6 +155,8 @@
     "No Flash-Next MXFP4 expert kernel exists, so the Flash-Next MXFP4 option remains a size format and planner accounting only.",
     "The decode gap is not attributed to a cause: the arms differ in precision, artifact size, engine, and weight container at once.",
     "The measured evidence is Qwen3.8-27B quantization evidence, not evidence about the Coder artifact's 3.3307 bpw retained experts, which were not measured here.",
-    "For a pruned Flash-Next artifact, the mixed i-quant path is a candidate to measure first, not a proven faster path; Flash-Next decode speed under either format is unmeasured."
+    "For a pruned Flash-Next artifact, the mixed i-quant path is a candidate to measure first, not a proven faster path; Flash-Next decode speed under either format is unmeasured.",
+    "This receipt does not compare calibration recipes. The two arms differ in allocation policy, target precision, artifact size, serving engine, and weight container, so no attribute of the difference can be assigned to calibration.",
+    "The earlier framing of the MXFP4 arm as a plain 'uniform versus RCO' comparison was wrong and is retracted: the MXFP4 arm is a compressed-tensors W4A16 artifact, not a per-tensor-allocated GGUF."
   ]
 }

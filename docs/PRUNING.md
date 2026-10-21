@@ -221,12 +221,12 @@ one unmeasured artifact:
 The 27B NVFP4 release remains the format/training template. It is not a
 Flash-Next decoder, mask, or prefiller dependency.
 
-## Calibration and kernel cost of a 4-bit path, 2026-10-21
+## Two 4-bit-ish paths on the same base, 2026-10-21
 
 Choosing a retained-expert precision is a kernel question, not only a size
-question. The one model family where both a GPTQ-calibrated MXFP4 artifact and
-a llama.cpp iMatrix-calibrated artifact exist as runnable CUDA artifacts is
-Qwen3.8-27B, so the pair was measured on B550 from the same base revision
+question. The one model family where several low-bit artifacts exist as
+runnable CUDA artifacts is Qwen3.8-27B, so two of them were measured on one
+B550 RTX 3090 Ti from the same base revision
 `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`:
 
 | Arm | Artifact | Precision | Engine | Long cold prompt (13,97x tokens) | Short prompt |
@@ -234,22 +234,27 @@ Qwen3.8-27B, so the pair was measured on B550 from the same base revision
 | A | RESMP-DEV GPTQ MXFP4A16 compressed-tensors | 4-bit W4A16, group 32 | vLLM 0.32.0, Marlin W4A16 on Ampere | 1,347.9 tok/s prefill, 13.47 tok/s decode | 13.47 tok/s decode |
 | B | ISTA GSQ-RCO IQ3_XXS with the published 1,000-chunk iMatrix | 3.00 bpw | llama.cpp 3cf03257, CUDA sm_86, all layers offloaded | 1,256.0 tok/s prefill, 50.06 tok/s decode | 53.32 tok/s decode |
 
-The 3.00 bpw iMatrix-calibrated artifact decodes about 3.7x faster than the
-4-bit MXFP4 artifact on this host, while MXFP4 is about 7% faster on the long
-prefill. MXFP4 is 1.79x larger on disk (18.0 GB against 10.1 GB) and needs
-20.8 GiB of VRAM against 10.9 GiB. The arms differ in precision, artifact
-size, engine, and weight container at once, so the measurement does not
-isolate the cause of the decode gap. For a pruned Flash-Next artifact at about
-3 bits per weight, the mixed i-quant path is the candidate to measure first;
-an MXFP4 expert path would need both a converter and a Flash-Next MXFP4 expert
-kernel that do not exist yet, and Flash-Next decode speed under either format
-is unmeasured.
+The 3.00 bpw artifact decoded about 3.7x faster than the 4-bit MXFP4 artifact
+on this host, while MXFP4 prefilled about 7% faster. MXFP4 is 1.79x larger on
+disk (18.0 GB against 10.1 GB) and needs 20.8 GiB of VRAM against 10.9 GiB.
 
-This comparison mixes the calibration recipe with the serving stack (vLLM and
-compressed-tensors against llama.cpp and GGUF), uses a 4-bit arm against a
-3-bit arm, and runs on Qwen3.8-27B rather than Flash-Next. It is not a
-kernel-only or like-for-like bit-width result, and it measured no quality.
-Full artifact hashes, commands, and the exact boundaries are in
+These two arms are not a controlled comparison, and this page does not treat
+them as one. They differ in allocation policy (one uniform scheme on every
+Linear against RCO's per-tensor choice from a twelve-type pool), in target
+precision, in file size, in serving engine, and in weight container. The
+decode gap cannot be assigned to any of those, and in particular it says
+nothing about calibration recipes. The supported reading is only that these
+two particular artifacts decoded at these rates on this host.
+
+A controlled comparison of allocation policy needs the base, the target
+precision class, the engine, and the weight container held constant and only
+the allocation changed. For a pruned Flash-Next artifact the decision that
+matters is exactly that one, and it is still open: an MXFP4 expert path needs
+a converter and a Flash-Next MXFP4 expert kernel that do not exist yet, and
+Flash-Next decode speed under either format is unmeasured.
+
+Full artifact hashes, commands, and the exact boundaries, including the
+retraction of the earlier "calibration comparison" framing, are in
 [quantization comparison evidence](../evidence/qwen27b-mxfp4-vs-imatrix-cuda-2026-10-21.json).
 
 ## Decision gates
