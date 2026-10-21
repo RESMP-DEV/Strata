@@ -7,7 +7,7 @@
   "scope": "Fresh uninstrumented full-model pre-pruning baseline from clean merged main, plus the publication contract for a future pruned/quantized artifact.",
   "host": {
     "alias": "B550",
-    "machine_id": "27e232eefb5743a48455b58e0fb997a0",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
     "gpus": [
       {
         "index": 0,
@@ -21,7 +21,7 @@
       }
     ],
     "driver": "595.99.02",
-    "identity_method": "SSH alias plus machine ID and GPU UUIDs; no LAN address used as identity"
+    "identity_method": "SSH alias plus live /etc/machine-id verified by the SHA-256 above and GPU UUIDs; the raw machine ID is omitted from durable evidence and no LAN address is used as identity"
   },
   "build": {
     "remote_source": "/home/kearm/strata-scratch/baseline-main-66067e30",
@@ -76,6 +76,33 @@
     "server": "split-30 layers 0-29 on CUDA0 and 30-47 on CUDA1; four clients queued by the FIFO; no batch slots",
     "instrumentation": "no --dump-routing, no --dump-prefill-routing, no --short-read override, no KV tier"
   },
+  "measurement_commands": [
+    {
+      "command": "cd /home/kearm/strata-scratch/baseline-main-66067e30 && nohup /home/kearm/envs/salm-lora/bin/python -m serve.server --engine strata --config /home/kearm/strata-scratch/baseline-main-66067e30-run/server.json --port 18920 > /home/kearm/strata-scratch/baseline-main-66067e30-run/server.stdout 2>&1 &",
+      "exit": 0,
+      "result": "server launched and reached /v1/models status loaded"
+    },
+    {
+      "command": "curl -fsS http://127.0.0.1:18920/v1/models",
+      "exit": 0,
+      "result": "model status loaded at 16384 context"
+    },
+    {
+      "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/baseline-main-66067e30-run/driver.py",
+      "exit": 0,
+      "result": "first post-load cold/shared round completed"
+    },
+    {
+      "command": "/home/kearm/envs/salm-lora/bin/python /home/kearm/strata-scratch/baseline-main-66067e30-run/driver2.py",
+      "exit": 0,
+      "result": "steady-state cold/shared round completed with fresh nonces"
+    },
+    {
+      "command": "kill -TERM $(cat /home/kearm/strata-scratch/baseline-main-66067e30-run/server.pid)",
+      "exit": 0,
+      "result": "graceful shutdown reported stopped; both GPUs idle"
+    }
+  ],
   "measurements": {
     "primary_steady_state_round": {
       "unique_cold": {
@@ -91,7 +118,7 @@
       "shared_prefix_prime": {
         "prompt_tokens": 13963,
         "cached_tokens": 0,
-        "prompt_tok_s": 3394.0,
+        "prompt_tok_s": 3393.9,
         "decode_tok_s": 148.9
       },
       "shared_prefix_hits": {
@@ -133,7 +160,7 @@
   "raw_remote_evidence": {
     "run_dir": "/home/kearm/strata-scratch/baseline-main-66067e30-run",
     "durable_sweep_file": "evidence/flash-next-current-main-runtime-sweep-2026-10-21.json",
-    "durable_sweep_sha256": "ee9701f81128ba96e5a1105ee0496814fa853e9fa96d58bf16219c4712d023d1",
+    "durable_sweep_sha256": "159100345deb2fa5c8c9ca571461feb9804962a16387ed7e4c0a654d4b318026",
     "first_round_result_sha256": "566f7ecae9f89b5c2fd12ea66660529b2f9a347da42c1ce561ee350f3e0c21da",
     "steady_round_result_sha256": "7f0d062388751f0fab2fa7c58f7799642fdcb0abb256436f8a29731cb09060f3",
     "server_config_sha256": "72306b6f216da5dc62c5ffffbb46070eb4298b6b642bb506babab5d9cf7f427f",
