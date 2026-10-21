@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T19:35:00Z",
+  "agent": "Codex parent with read-only pruning, artifact-inventory, and benchmark-design subagents",
+  "source_revision": "12b56f0bfed138f952a24676d3af0bdcce7207ca",
+  "source_dirty": false,
+  "scope": "Answer two questions with measurement: (1) how many experts a pruned Flash-Next artifact actually removes, and (2) the real CUDA inference speed of a GPTQ-calibrated MXFP4 artifact against a GPTQ/llama.cpp iMatrix-calibrated artifact of the same base model.",
+  "host": {
+    "alias": "B550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "gpus": "2 x NVIDIA GeForce RTX 3090 Ti (sm_86, driver 595.99.02); every measured arm ran on GPU 1 with the other GPU idle",
+    "identity_method": "SSH alias plus live /etc/machine-id verified by the SHA-256 above and GPU UUIDs; no LAN address used as identity"
+  },
+  "pruning_math": {
+    "model": "Qwen3.8-Flash-Next",
+    "geometry": "48 layers, 512 routed experts per layer, 10 active per token, 24,576 routed experts in total",
+    "vendor_parent_example": {
+      "artifact": "ISTA-DASLab Qwen3.8-Flash-Next GSQ-RCO Coder GGUF",
+      "retained_experts_per_layer": 256,
+      "removed_experts_per_layer": 256,
+      "removed_per_layer_percent": 50.0,
+      "retained_experts_total": 12288,
+      "removed_experts_total": 12288,
+      "removed_experts_total_percent": 50.0,
+      "retained_expert_bytes": "25.146 GB / 23.419 GiB",
+      "retained_expert_precision_bpw": 3.3307,
+      "effective_bpw_over_original_transformer": 1.89,
+      "note": "The 28.8 GB IQ4_NL n-gram shard is not pruned and is not part of the expert count."
+    },
+    "strata_planned_matrix": [
+      {
+        "candidates": "Coder control",
+        "retained_per_layer": 256,
+        "removed_per_layer": 256,
+        "removed_total_experts": 12288,
+        "removed_total_percent": 50.0,
+        "expert_bytes": "25.146 GB / 23.419 GiB",
+        "retained_precision_bpw": 3.3307
+      },
+      {
+        "candidate": "Primary custom",
+        "retained_per_layer": 256,
+        "removed_per_layer": 256,
+        "removed_total_experts": 12288,
+        "removed_total_percent": 50.0,
+        "expert_bytes": "about 29.75 GB / 27.7 GiB",
+        "retained_precision_bpw": "about 3.9-4.0"
+      },
+      {
+        "candidate": "Coverage control",
+        "retained_per_layer": 288,
+        "removed_per_layer": 224,
+        "removed_total_experts": 10752,
+        "removed_total_percent": 43.75,
+        "expert_bytes": "28.289 GB / 26.347 GiB",
+        "retained_precision_bpw": 3.3307
+      },
+      {
+        "candidate": "Later capacity lane",
+        "retained_per_layer": 384,
+        "removed_per_layer": 128,
+        "removed_total_experts": 6144,
+        "removed_total_percent": 25.0,
+        "expert_bytes": "37.719 GB / 35.129 GiB",
+        "retained_precision_bpw": 3.3307
+      }
+    ],
+    "aggressive_note": "The physical-expert sidecar contract already admits 256, 288, 384, and 512 slots per layer, so 256 of 512 (50% removed) is the most aggressive budget the current planner and pack format accept. The measured router-weight coverage of the literal prefill path bounds the quality cost: 64 experts per layer cover 60.8184% of literal prefill router weight, 128 cover 78.4784%, 256 cover 94.0132%."
+  },
+  "quantization_speed_comparison": {
+    "why_this_pair": "Both arms derive from the same base checkpoint Qwen/Qwen3.8-27B at revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0, so the pair compares calibration recipe and CUDA kernel path, not different models.",
+    "shared_protocol": {
+      "prompt_document": "40,000 bytes of real Strata C++/CUDA source (SHA-256 2e173ac4f21ca10d5d3c041b8fc0bd0e6a2a1cbb7dc1abd0db4eaf0c667dd7e1), 13,966 prompt tokens",
+      "generation": "temperature 0, thinking disabled on both arms, 48 completion tokens for the long arm and 64 for the short arm, one request at a time, prefix caching disabled, other GPU idle",
+      "hardware": "one RTX 3090 Ti (GPU 1), 16,384-token context, 90-95% VRAM utilization, no other GPU tenant",
+      "client": "one streaming driver measuring time to first token, the decode span, and the server-reported timings"
+    },
+    "arm_a_mxfp4_gptq_cuda": {
+      "artifact": "/home/kearm/models/Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v4",
+      "model_safetensors_sha256": "d65f88af3ae9b22962abae6a4c47bef153490cbee237e0be008075f9edaa7fdf",
+      "model_safetensors_bytes": 18027280824,
+      "calibration": "llm-compressor GPTQ, scheme MXFP4A16, group size 32, actorder static, damp 0.01, 256 samples of 2048 tokens from RESMP-DEV/ptq-calibration-corpus revision ffa2e74b9361d573167373140f10dfd30c69a327, seed 17",
+      "engine": "vLLM 0.32.0, compressed-tensors backend, Marlin W4A16 on Ampere, eager mode, FlashInfer sampler disabled because B550's CUDA 12 nvcc cannot compile its JIT sampling kernels",
+      "long_cold": {
+        "prompt_tokens": 13983,
+        "ttft_s_median": 10.361,
+        "prompt_tok_s_median": 1347.86,
+        "decode_tok_s_median": 13.47,
+        "wall_s_median": 13.851
+      },
+      "short_single": {
+        "ttft_s_median": 0.19,
+        "prompt_tok_s_median": 131.55,
+        "decode_tok_s_median": 13.47,
+        "wall_s_median": 4.866
+      }
+    },
+    "arm_b_imatrix_gsq_rco_iq3_xxs_llamacpp_cuda": {
+      "artifact": "ISTA-DASLab Qwen3.8-27B-GSQ-RCO-GGUF, Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf",
+      "hub_revision": "d562806dbafae37109975e970aae91b43e73b440",
+      "gguf_sha256": "fdfcb6a29b11188956dfbfd904223588a6c1b77eb250c3e8a36e1bd269df91f7",
+      "gguf_bytes": 10094357632,
+      "download": "hfd with aria2c, verified full against the Hub LFS digest",
+      "calibration": "GSQ (Gumbel-Softmax scalar quantization) with RCO per-tensor type assignment under a size budget, using the published 1,000-chunk imatrix-qwen3.8-27b.gguf importance matrix",
+      "precision_bpw": 3.0,
+      "engine": "llama.cpp at the Strata-pinned commit 3cf03257, built with CUDA for sm_86 (server binary SHA-256 57f9ac83773779ab8fd2da9be993b7597bf3ea153e45858851dd6919742fa559), all layers offloaded, Flash Attention on",
+      "long_cold": {
+        "prompt_tokens": 13966,
+        "ttft_s_median": 11.119,
+        "prompt_tok_s_median": 1256.01,
+        "decode_tok_s_median": 50.06,
+        "wall_s_median": 12.059,
+        "server_reported_decode_tok_s": [
+          50.21,
+          50.05,
+          50.02
+        ],
+        "server_reported_prompt_tok_s": [
+          1358.76,
+          1349.54,
+          1347.18
+        ]
+      },
+      "short_single": {
+        "ttft_s_median": 0.343,
+        "prompt_tok_s_median": 74.89,
+        "decode_tok_s_median": 53.32,
+        "wall_s_median": 1.525
+      }
+    },
+    "result": {
+      "decode_speed_ratio_iq3_xxs_over_mxfp4_long": 3.72,
+      "decode_speed_ratio_iq3_xxs_over_mxfp4_short": 3.96,
+      "prefill_speed_ratio_mxfp4_over_iq3_xxs_long": 1.07,
+      "summary": "On this B550 and this base model, the 3.00 bpw iMatrix/GSQ-RCO IQ3_XXS artifact decodes about 3.7x faster than the 4-bit MXFP4A16 GPTQ artifact, while MXFP4 is about 7% faster on the long prefill. The MXFP4 artifact is 1.79x larger on disk (18.0 GB vs 10.1 GB) and needs 20.8 GiB of VRAM against 10.9 GiB, so the measured difference is dominated by the per-token kernel path, not by memory."
+    },
+    "interpretation_boundary": "This compares a W4A16 MXFP4 artifact against a 3.00 bpw mixed i-quant artifact, so it is not a like-for-like bit-width comparison and it is not a Flash-Next measurement. It answers the requested calibration and kernel question on the one model where both recipes exist as runnable artifacts."
+  },
+  "non_claims": [
+    "The Flash-Next pruning lanes are still unbuilt: no Strata-owned pruned checkpoint, custom quantization, pack, or quality gate has run. The expert-removal numbers are exact geometry arithmetic, not a produced artifact.",
+    "The MXFP4 versus iMatrix comparison is Qwen3.8-27B, not Flash-Next, because MXFP4 has no runnable Flash-Next artifact and the iMatrix-calibrated Flash-Next artifacts exist only for IQ formats.",
+    "The two arms use different engines (vLLM 0.32.0 and llama.cpp 3cf03257) and different weight containers (compressed-tensors and GGUF), so the difference mixes the calibration recipe with the serving stack. It is not a kernel-only comparison.",
+    "The vLLM arm ran in eager mode with the FlashInfer sampler disabled because B550's CUDA 12 nvcc rejects the JIT sampling kernel flag; a CUDA-graph build with a newer nvcc could differ.",
+    "The llama.cpp arm used the stock system prompt template with thinking disabled; the vLLM arm used the model's own chat template with enable_thinking false. Token counts therefore differ slightly between arms (13,966 versus 13,983) on the same document.",
+    "No quality, perplexity, or task benchmark was run in either arm; the vendor's published numbers were not reproduced.",
+    "No Flash-Next MXFP4 expert kernel exists, so the Flash-Next MXFP4 option remains a size format and planner accounting only."
+  ]
+}

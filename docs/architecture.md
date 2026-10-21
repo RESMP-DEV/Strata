@@ -2235,6 +2235,37 @@ the durable compressed one-shot raw trace is retained beside it.
 
 ### Clean-main pre-pruning baseline and model-card contract, 2026-10-21
 
+### Pruning arithmetic and the 4-bit kernel cost, 2026-10-21
+
+The vendor parent example, the Coder artifact, removes 256 of the 512 routed
+experts in each of the 48 layers: 12,288 of 24,576 routed experts, exactly 50%,
+with the 3.3307 bpw retained experts and a 1.89 bpw effective width over the
+original transformer. The n-gram shard is not pruned. The physical-expert
+sidecar contract accepts 256, 288, 384, or 512 slots per layer, so 256 of 512
+is the most aggressive budget the current pack format carries.
+
+The retained-expert precision was then measured rather than assumed. On the
+one model family where a GPTQ-calibrated MXFP4 artifact and a
+llama.cpp iMatrix-calibrated artifact both exist as runnable CUDA artifacts,
+Qwen3.8-27B at base revision `1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`, the
+two were benchmarked on B550 from the same 40 KB source document with thinking
+disabled and prefix caching off. The 3.00 bpw GSQ-RCO IQ3_XXS artifact decoded
+at 50.06 tok/s against the 4-bit MXFP4A16 artifact's 13.47 tok/s on the
+13,9xx-token cold prompt, about 3.7x faster, while MXFP4 prefilled about 7%
+faster. MXFP4 is 1.79x larger on disk and needs 20.8 GiB of VRAM against
+10.9 GiB, so the decode gap is the kernel path rather than memory. For a
+pruned Flash-Next artifact at about 3 bits per weight, the mixed i-quant path
+is the proven faster decode path on this hardware; an MXFP4 expert path still
+needs a converter and a Flash-Next MXFP4 expert kernel.
+
+The comparison mixes the calibration recipe with the serving stack and uses a
+4-bit arm against a 3-bit arm on Qwen3.8-27B, not Flash-Next. It measured no
+quality, and no pruned, healed, or custom-quantized Flash-Next artifact exists
+yet. Full artifact hashes, commands, and boundaries are in
+[quantization comparison evidence](../evidence/qwen27b-mxfp4-vs-imatrix-cuda-2026-10-21.json);
+the pruning arithmetic and the model-card contract are in
+[pruning](PRUNING.md) and [model cards](MODEL_CARDS.md).
+
 The full calibrated decoder remains a well-running pre-pruning control. A clean
 Git-bundle checkout of merged `main` at `66067e30` built CUDA engine SHA-256
 `51b5ab09ffc75044532ff4bee83a555ac8ff10b02f98fc7b3dc3a8c34a3e7f73` and passed
