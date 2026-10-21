@@ -1126,6 +1126,10 @@ struct PrefillRoutingDump {
     bool request_id_valid = false;
 
     bool open(const std::string& path, int64_t layers, int64_t top_k, bool one_shot, std::string& err) {
+        if (file != nullptr) {
+            err = "the batched-prefill routing trace is already open";
+            return false;
+        }
         file = std::fopen(path.c_str(), "wb");
         if (file == nullptr) {
             err = "cannot open " + path;
@@ -1171,12 +1175,14 @@ struct PrefillRoutingDump {
     bool close(std::string& err) {
         std::lock_guard<std::mutex> lock(mutex);
         if (file == nullptr) return true;
-        if (std::fflush(file) != 0 || std::fclose(file) != 0) {
-            file = nullptr;
+        // flush and close are both attempted: a failed flush must not leak the descriptor
+        const bool flush_ok = std::fflush(file) == 0;
+        const bool close_ok = std::fclose(file) == 0;
+        file = nullptr;
+        if (!flush_ok || !close_ok) {
             err = "cannot close the batched-prefill routing trace";
             return false;
         }
-        file = nullptr;
         return true;
     }
 

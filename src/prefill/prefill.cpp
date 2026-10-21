@@ -3388,11 +3388,12 @@ bool Prefill::run_impl(const int64_t* tokens, int64_t n, int64_t pos0, std::stri
                     if (on_routing) {
                         std::vector<int32_t> routing_ids((size_t) (T * K));
                         std::vector<float> routing_weights((size_t) (T * K));
-                        const size_t routing_bytes = routing_ids.size() * sizeof(int32_t);
-                        if (cudaMemcpyAsync(routing_ids.data(), m.ids, routing_bytes, cudaMemcpyDeviceToHost,
+                        const size_t routing_id_bytes = routing_ids.size() * sizeof(int32_t);
+                        const size_t routing_weight_bytes = routing_weights.size() * sizeof(float);
+                        if (cudaMemcpyAsync(routing_ids.data(), m.ids, routing_id_bytes, cudaMemcpyDeviceToHost,
                                             m.cs) != cudaSuccess ||
-                            cudaMemcpyAsync(routing_weights.data(), m.w, routing_bytes, cudaMemcpyDeviceToHost,
-                                            m.cs) != cudaSuccess ||
+                            cudaMemcpyAsync(routing_weights.data(), m.w, routing_weight_bytes,
+                                            cudaMemcpyDeviceToHost, m.cs) != cudaSuccess ||
                             cudaStreamSynchronize(m.cs) != cudaSuccess) {
                             err = "prefill: the routing capture's download failed";
                             return false;
