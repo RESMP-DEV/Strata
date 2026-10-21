@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T01:59:25Z",
+  "agent": "Codex parent",
+  "source_revision": "240489eec3195bae4339cecf6ef16008d7dfd2f0",
+  "source_dirty": true,
+  "reviewers": [
+    "Codex evidence/docs review 01a15c25-aae5-7f11-b72f-499c40b23934",
+    "Codex planner review 01a15c25-ca06-76b1-ba91-987f51febd0c",
+    "Codex PR-readiness review 01a15c25-e972-7ab3-bad4-88131fa644c3"
+  ],
+  "repairs": [
+    {
+      "finding": "The Coder four-request cold aggregate reversed the direction of the measured generated-tokens-per-second comparison.",
+      "change": "Corrected docs and the Coder receipt to state that Coder was about 5.4% faster on that cold aggregate."
+    },
+    {
+      "finding": "Architecture still described all routing-trace capture as unbuilt after the decode/verify-window trace was recorded.",
+      "change": "Narrowed the unbuilt boundary to batched prompt-prefill routing capture."
+    },
+    {
+      "finding": "The current Coder artifact date and installer-family boundary were not fully represented in the measured section.",
+      "change": "Removed the unsupported calendar date and stated that the run used a separately hashed scratch artifact with a remapped current profile, not the older installer revision."
+    },
+    {
+      "finding": "A routing file could contain a trailing partial pass and overrepresent early layers while still containing every layer.",
+      "change": "The parser now requires equal per-record counts across all 48 layers within each input trace; multiple complete traces may have different equal counts."
+    },
+    {
+      "finding": "Profile-only manifests labeled null coverage as router-weight coverage.",
+      "change": "Profile-only coverage_measure is now null and the CLI prints generic null coverage."
+    },
+    {
+      "finding": "Removing the version-1 coverage field changed the manifest contract without changing the schema version.",
+      "change": "Promoted new plans to strata-prefiller-plan-v2 and documented the v1 field difference."
+    }
+  ],
+  "tests_added": [
+    "partial second-pass trace rejection and multi-file equal per-layer accounting",
+    "exact activation coverage numerator and denominator accounting",
+    "profile-only null coverage measure",
+    "prefiller-plan-v2 schema identity"
+  ],
+  "validation": [
+    {
+      "command": "python3 -m unittest tools.test_prefiller_plan -v",
+      "exit": 0,
+      "result": "11 focused tests passed"
+    },
+    {
+      "command": "ruff check tools/prefiller_plan.py tools/test_prefiller_plan.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "ruff format --check tools/prefiller_plan.py tools/test_prefiller_plan.py",
+      "exit": 0,
+      "result": "passed"
+    },
+    {
+      "command": "python3 scripts/check_docs.py",
+      "exit": 0,
+      "result": "all four documentation checks passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "all host-safe checks passed after code and documentation repairs"
+    }
+  ],
+  "non_claims": [
+    "These are review repairs to documentation, planning metadata validation, and evidence interpretation; no engine runtime behavior changed.",
+    "The corrected cold-aggregate direction does not add a new model run or quality claim.",
+    "No backend build or model rerun followed these final metadata and documentation edits; the existing B550 measurements remain the runtime evidence."
+  ]
+}

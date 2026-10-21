@@ -74,6 +74,7 @@ evidence.
 | [Unsloth Q4](UNSLOTH_Q4.md) | UD-Q4_K_XL and UD-IQ4_XS setup and verification |
 | [Unsloth Q6](UNSLOTH_Q6.md) | UD-Q6_K_XL artifact verification and use |
 | [Flash-Next prefiller](PREFILLER.md) | Phase-specialized auxiliary prefiller architecture and planner |
+| [Flash-Next pruning](PRUNING.md) | Coder prototype, Strata-owned pruned decoder, and routing gates |
 
 ## Measurements and research
 

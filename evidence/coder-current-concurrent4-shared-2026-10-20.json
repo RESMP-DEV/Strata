@@ -1,0 +1,38 @@
+[
+ {
+  "wall_s": 0.768,
+  "prompt_tokens": 13971,
+  "completion_tokens": 48,
+  "prompt_per_second": 134.2,
+  "predicted_per_second": 154.9,
+  "cached_tokens": 13943,
+  "text": "Based on the provided code, the main subsystems (or functional modules) named ar"
+ },
+ {
+  "wall_s": 1.428,
+  "prompt_tokens": 13972,
+  "completion_tokens": 48,
+  "prompt_per_second": 141.9,
+  "predicted_per_second": 106.4,
+  "cached_tokens": 13943,
+  "text": "Based on the provided code snippets, there are **no specific data structures def"
+ },
+ {
+  "wall_s": 1.938,
+  "prompt_tokens": 13972,
+  "completion_tokens": 48,
+  "prompt_per_second": 142.3,
+  "predicted_per_second": 157.5,
+  "cached_tokens": 13943,
+  "text": "Based on the comments in `include/strata/core/arch_defaults.hpp`, here are three"
+ },
+ {
+  "wall_s": 2.58,
+  "prompt_tokens": 13973,
+  "completion_tokens": 48,
+  "prompt_per_second": 146.5,
+  "predicted_per_second": 111.0,
+  "cached_tokens": 13943,
+  "text": "This code implements a standalone GGUF v3 file reader and a set of scalar refere"
+ }
+]

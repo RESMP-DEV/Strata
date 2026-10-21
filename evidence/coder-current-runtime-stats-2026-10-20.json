@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T01:24:00Z",
+  "agent": "Codex parent",
+  "source_revision": "240489eec3195bae4339cecf6ef16008d7dfd2f0",
+  "source_dirty": true,
+  "purpose": "Run an as-is current IST-DASLab GSQ-RCO Coder prototype against the same B550 code-prompt workload used for the full Flash-Next baseline.",
+  "artifact": {
+    "repository": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-Coder-GGUF",
+    "revision": "bba88856f8c3c0c9e40e45f82d05e228b814ac43",
+    "shard_1_sha256": "bfa3644db4adfff072fc946c20994f2909d2cf89879d83f80a4c811d4016c211",
+    "shard_2_sha256": "316b46f3a2dbd68c900f43136ab9449f9dcc3725dfd8c794847c204bc161e113",
+    "shard_1_bytes": 29608446496,
+    "shard_2_bytes": 28800138432,
+    "rco_allocation_sha256": "9a04497b9133f76682550981772de8cdcde52ee89b164fa0d1cc18efdd30ef31",
+    "current_profile_sha256": "8c1d130d3f3aa64547307679c14c3783668f9f35a5344004d8354e1c3f6c7ac9",
+    "pack": {
+      "path": "/home/kearm/strata-scratch/qwen-coder-current/pack",
+      "index_sha256": "2cb3352786bcae81ea4d933eee6b2d5db45774069320c924a6dea48eb65a3cd3",
+      "dense_sha256": "f5a115626f6f83485fe5cc865b6310ae5edd1c87385bda44fd01aa190ddc2826",
+      "experts_sha256": "63948d958cb05dfe45ec4c20d779dbb1ae5e299906801f478d19fe6a01152d08",
+      "native_experts_sha256": "9ace1b92e1fe12595de469409e69dd52c8d5418c7981c405d9a51aa9d574dd3b",
+      "dense_bytes": 1475120640,
+      "expert_bytes": 25146163200,
+      "experts_per_layer": 256
+    },
+    "profile_mapping_validation": "The same mapping algorithm reproduced the shipped pinned-revision Coder profile byte-for-byte (SHA-256 a514661124d5305effe9c1bcecff7dc069af398b2b19ff9d11628a2cad0a8915). Mapping the current allocation changes 12,283 of 12,288 profile-order entries."
+  },
+  "runtime_configuration": {
+    "host": "B550",
+    "machine_id": "27e232eefb5743a48b55b58e0fb997a0",
+    "gpus": "2 x RTX 3090 Ti, split 30 with the CPU-root card first",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54e95cdbb2b1ed86bfdf8",
+    "engine_source_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "server_json_sha256": "e137d847eb1c16d1579325d0bca5b5ef8d990d7135a02fa1724b17135ea68278",
+    "engine_log_sha256_after_all_requests": "dbd6751bef1229d12380bf5ba68dcb8e84df46728d7253c499595e3ff437e269",
+    "settings": "16K context, 2K resident QSA cells, INT8 KV, direct PLE shard 2, split-30, MTP 4, pipeline windows 2, current-revision Coder profile"
+  },
+  "runtime_state": {
+    "expert_arena_loaded": "23.42 GiB",
+    "resident_expert_slots": "7,680 on CUDA0 plus 4,608 on CUDA1 = all 12,288 retained experts",
+    "expert_cache_vram": "14.23 GiB on CUDA0 plus 9.19 GiB on CUDA1",
+    "gpu_memory_at_idle": "18,630 MiB CUDA0; 22,716 MiB CUDA1; 1,397 MiB VRAM remained free",
+    "full_model_comparison_state": "The full model loaded 32.23 GiB and cached 23,627 of 24,576 experts (96.14%); Coder loaded 23.42 GiB and cached all 12,288 retained experts."
+  },
+  "measurements": {
+    "unique_cold": {
+      "requests": 12,
+      "prompt_tokens": "13,959 per request",
+      "fresh_prompt_read_ms_median": 3792.0,
+      "prompt_tok_s_median": 3681.1,
+      "prompt_tok_s_range": [
+        3302.5,
+        3710.2
+      ],
+      "decode_tok_s_median": 151.7,
+      "mtp_draft_acceptance": 0.8128
+    },
+    "shared_prime": {
+      "requests": 3,
+      "fresh_prompt_read_ms_median": 3940.0,
+      "prompt_tok_s_median": 3547.0,
+      "decode_tok_s_median": 123.9,
+      "mtp_draft_acceptance": 0.6562
+    },
+    "shared_hit": {
+      "requests": 9,
+      "reused_prompt_tokens": 13943,
+      "fresh_tokens_read_range": [
+        30,
+        32
+      ],
+      "fresh_prompt_read_ms_median": 210,
+      "prompt_tok_s_median_over_fresh_tokens": 147.8,
+      "decode_tok_s_median": 121.7,
+      "mtp_draft_acceptance": 0.6802
+    },
+    "concurrent4_shared": {
+      "requests": 4,
+      "completion_tokens": 192,
+      "burst_wall_s": 2.58,
+      "request_walls_s": [
+        0.768,
+        1.428,
+        1.938,
+        2.58
+      ],
+      "aggregate_generated_tok_s": 74.4
+    }
+  },
+  "matched_full_model_comparison": {
+    "cold_prompt_read": "Coder median 3,681.1 tok/s versus full 3,355.9 tok/s; Coder was 9.7% faster on fresh prompt reads.",
+    "cold_decode": "Coder median 151.7 tok/s versus full 132.1 tok/s; Coder was 14.8% faster on this decode sample.",
+    "cold_four_request_aggregate": "Coder median 10.95 tok/s versus full 10.39 tok/s in the FIFO sweep; Coder was about 5.4% faster by this generated-tokens-per-second aggregate.",
+    "shared_prefix_fresh_read": "Coder median 210 ms versus full 192 ms; Coder was 9.4% slower by fresh-read time.",
+    "shared_prefix_decode": "Coder median 121.7 tok/s versus full 143.5 tok/s; Coder was 15.2% slower.",
+    "shared_prefix_concurrent4": "Coder 74.4 aggregate generated tok/s and 2.58 s burst wall versus full 86.1 tok/s and 2.23 s; Coder was 13.6% slower.",
+    "full_model_concurrent4_cold": "The full model completed four unique cold requests at 10.6 aggregate generated tok/s with an 18.187 s burst wall.",
+    "conclusion": "This exact warm code-agent workload does not support Coder as a throughput upgrade. Its measured advantages are lower resident arena size and all-retained-expert residency; its shared-prefix hit path was slower."
+  },
+  "raw_evidence": {
+    "coder_sweep": "evidence/coder-current-runtime-sweep-2026-10-20.json",
+    "coder_sweep_sha256": "480ea592840edbf8fb7cf7454dd9e5eb5b06849d823db88bc45f9ea69133b120",
+    "coder_concurrent4_shared": "evidence/coder-current-concurrent4-shared-2026-10-20.json",
+    "coder_concurrent4_shared_sha256": "65bdb653a8ced17def8cce8e893f3003b0acfd2bb8a5227cbb1b81f62466b787",
+    "full_concurrent4_shared": "evidence/flash-next-concurrent4-shared-2026-10-20.json",
+    "full_concurrent4_shared_sha256": "97d6c51a7b4546ac8b009a36cd162848a64d0e76574b2d4690aaa773441b1d99",
+    "full_concurrent4_cold": "evidence/flash-next-concurrent4-cold-2026-10-20.json",
+    "full_concurrent4_cold_sha256": "f5019814ab0c0b5aea28a71675855d6b03ca8cd7b778199808e2d03931a3195b"
+  },
+  "subagent_audits": [
+    {
+      "thread_id": "01a15bae-ee24-7513-b27f-d18268255b0a",
+      "scope": "current Coder provenance and profile mapping",
+      "result": "required revision bba88856, exact hashes, current allocation mapping, and a separate pack/profile"
+    },
+    {
+      "thread_id": "01a15bae-cd03-7c00-94f9-bfe7e3bc5770",
+      "scope": "runtime-statistics controls",
+      "result": "recommended separating clean timing from instrumentation and preserving cache-hit, PCIe-share, and draft-acceptance context"
+    },
+    {
+      "thread_id": "01a15baf-15ff-7e73-9081-3517564c9ec1",
+      "scope": "next custom-artifact gate",
+      "result": "recommended not promoting a higher-bpw custom decoder until routing, heal, exact pack inversion, quality, and same-day runtime gates pass"
+    }
+  ],
+  "validation": [
+    {
+      "command": "hfd download ... --include IQ1_M/*.gguf --backend aria2c -x 16 -j 2 --verify full",
+      "exit": 0,
+      "result": "58.41 GB verified at revision bba88856f8c3c0c9e40e45f82d05e228b814ac43"
+    },
+    {
+      "command": "remote sha256sum both Coder shards",
+      "exit": 0,
+      "result": "both hashes matched Hugging Face LFS metadata after 258 MiB/s LAN transfer over the live-resolved en13 path"
+    },
+    {
+      "command": "iq_pack.py --gguf Coder-shard1 --out pack --experts-bin",
+      "exit": 0,
+      "result": "native pack completed with 1.406 GiB dense and 23.419 GiB experts"
+    },
+    {
+      "command": "HTTP smoke request",
+      "exit": 0,
+      "result": "model returned exactly OK"
+    },
+    {
+      "command": "matched three-round cold/shared HTTP sweep and concurrent4 shared burst",
+      "exit": 0,
+      "result": "all requests completed"
+    }
+  ],
+  "non_claims": [
+    "No coding-quality, KL, perplexity, vision, long-context, or non-code workload was evaluated.",
+    "The current Coder revision is a research scratch artifact; setup.py still pins the older Coder revision and ships the older matching profile.",
+    "The current Coder profile was derived from the full-model shipped ranking and current allocation file, not from new routing traces.",
+    "The shared-prefix concurrent comparison is one burst per model after priming; it is not a median of repeated bursts.",
+    "The full and Coder runs used the same engine binary, prompt, context, KV settings, split-30 GPUs, MTP settings, and storage class, but their quantizations and retained expert counts necessarily differ.",
+    "Coder's cold decode advantage did not translate to a shared-prefix hit or concurrent4 throughput advantage."
+  ]
+}
