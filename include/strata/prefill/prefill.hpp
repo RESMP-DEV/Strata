@@ -179,6 +179,13 @@ public:
     /// K/V from them.  The prefill stream is synchronized before the call.
     std::function<bool(const float* R_rows, int64_t T, int64_t pos0, std::string& err)> on_chunk;
 
+    /// Opt-in routing capture for this prompt path. Called after every MoE layer's routing (including any
+    /// research override) with the actual token-major tables `[T, k)` copied to host memory. Null (the
+    /// default) performs no copies, synchronization, or callbacks. The stream is synchronized before the call.
+    std::function<bool(int64_t layer, int64_t pos0, int64_t token_count, int64_t k, const int32_t* ids,
+                       const float* weights, std::string& err)>
+            on_routing;
+
     /// Layer split: called by every stage when it has read a chunk, with the position reached, while its own state
     /// is still at that chunk's end (its stream synchronized; the last stage calls it just before `on_chunk`).  An
     /// earlier stage is a chunk or more ahead of the last one by the time `on_chunk` runs, so this is where a

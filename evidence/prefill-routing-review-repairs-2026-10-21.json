@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T17:15:28Z",
+  "agent": "Codex parent",
+  "source_revision": "ccbdc1720df21991d9bd06aa32dbdf4295965cd7",
+  "source_dirty": true,
+  "pull_request": "https://github.com/RESMP-DEV/Strata/pull/16",
+  "reviewed_revision": "3d71f8a94e38e9e666ee4c0a406581c991a56eab",
+  "reviewers": [
+    "Codex combined implementation review",
+    "Codex evidence and documentation audit",
+    "OpenCodeReview Inkling"
+  ],
+  "repairs": [
+    {
+      "finding": "A later VRAM relend could shrink the prefill chunk and invalidate capture's startup short-read guard.",
+      "change": "VRAM is refused while --dump-prefill-routing is active."
+    },
+    {
+      "finding": "HIP accepted --kv-tier even though its verify commit/resolve hooks are compiled out.",
+      "change": "HIP option validation now refuses --kv-tier with the backend boundary named."
+    },
+    {
+      "finding": "Architecture status and the training ladder still described the literal seam as missing or directed training data to the legacy callback.",
+      "change": "Status, open choices, and training wording now distinguish legacy decode/verify capture from literal STRP v2 prefill capture."
+    },
+    {
+      "finding": "STRP intake allowed equal-count but differently positioned layers within one request.",
+      "change": "The planner now requires the same position set across all 48 layers for each request and has a regression fixture."
+    },
+    {
+      "finding": "The exact-control receipt did not bind engines or command/log paths.",
+      "change": "The receipt now binds capture and final engines, model metadata, remote command/log paths, and the exact-control command template."
+    },
+    {
+      "finding": "OpenCodeReview Inkling: the routing weight download reused an int32 byte count.",
+      "change": "ID and weight byte counts are now computed from their respective vector types."
+    },
+    {
+      "finding": "OpenCodeReview Inkling: opening PrefillRoutingDump twice could leak a FILE*.",
+      "change": "open() now refuses when a trace is already open."
+    },
+    {
+      "finding": "OpenCodeReview Inkling: a failed flush could skip fclose and leak the descriptor.",
+      "change": "close() attempts flush and fclose independently and clears the handle exactly once."
+    },
+    {
+      "finding": "CodeRabbit: BYIELD can split one resumed prompt across capture request IDs.",
+      "change": "Serve capture refuses --batch slots, including the piped-concurrent and partial-slot resume paths, so each trace ID covers one contiguous request."
+    }
+  ],
+  "validation": [
+    {
+      "command": "python3 -m unittest tools.test_prefiller_plan -v",
+      "exit": 0,
+      "result": "21 tests passed"
+    },
+    {
+      "command": "python3 scripts/check_docs.py && just quality && git diff --check",
+      "exit": 0,
+      "result": "all host-safe checks passed"
+    },
+    {
+      "command": "ctest --test-dir build/routing-host -R '^routing_trace_test$' --output-on-failure",
+      "exit": 0,
+      "result": "host routing_trace_test passed"
+    },
+    {
+      "command": "B550 CUDA rebuild targets routing_trace_test, strata_prefill, strata; routing_trace_test execution",
+      "exit": 0,
+      "result": "all targets built and routing_trace_test passed; final engine sha256 c6e351b13fb707d1e062eee3d08d8d34e07094e5ae23373724e568e8808083fd"
+    },
+    {
+      "command": "ROCm gfx1100 rebuild targets routing_trace_test, strata_prefill, strata; routing_trace_test execution",
+      "exit": 0,
+      "result": "all targets built and routing_trace_test passed; final engine sha256 7cfbb25e03f227f5eeb63dab03b14f3e3b3f5966ef29fc0a53a28640ee3128eb"
+    },
+    {
+      "command": "B550 exact default-path base-versus-final control",
+      "exit": 0,
+      "result": "identical output 16747 768 361 267, window hash 98c32e00782873789fd14d5842eb21791ff33f8a25cdfa58cec9263c5dc6e419, and residual hash c0f70880b087233d31b9df37626ca17ee9a43ab47da2a7b7df2342f9e0538fd1"
+    },
+    {
+      "command": "B550 final CUDA engine --serve --batch 2 --dump-prefill-routing /tmp/refuse.strp",
+      "exit": 2,
+      "result": "startup refused before model load because a yielded or partial prompt can resume with a new request ID; no trace file was created"
+    }
+  ],
+  "non_claims": [
+    "These repairs add no throughput, capture-overhead, model-quality, pruning-quality, or trained-prefiller claim.",
+    "The durable real captures came from the capture-engine build; the final engine is separately rebuilt and exact-default-path controlled.",
+    "HIP remains compile/test and option-refusal evidence only; no AMD GPU model run is claimed."
+  ]
+}

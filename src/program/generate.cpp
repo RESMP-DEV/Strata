@@ -87,6 +87,7 @@
 #include "strata/core/progress.hpp"
 #include "strata/core/device.hpp"
 #include "strata/core/emulate.hpp"
+#include "strata/routing/trace.hpp"
 #ifndef NOMINMAX
 #define NOMINMAX   // gguf_reader.hpp includes windows.h
 #endif
@@ -504,6 +505,9 @@ struct Options {
     /// candidate VRAM expert cache is computed from, and it needs no new kernels - the doorbell already
     /// publishes exactly this much to pinned memory.
     std::string dump_routing;
+    /// Literal batched `Prefill::run` routing, in the phase-specific format documented in
+    /// `docs/PREFILLER.md`. Empty (the default) leaves the prompt routing callback null.
+    std::string dump_prefill_routing;
     bool no_capture = false;          // run the layers directly instead of replaying graphs
     bool no_pool = false;             // skip the CPU expert pool: the GPU-only floor
     bool sync_every_layer = false;
@@ -876,6 +880,8 @@ void usage() {
                  "  --dump-layers PATH   write R after EVERY layer, per position: the C1 bisection ladder\n"
                  "  --dump-halves PATH   write both halves' block_out and inject per layer: the half bisection\n"
                  "  --dump-routing PATH  write the routed expert ids and weights per layer per position (P0.S8)\n"
+                 "  --dump-prefill-routing PATH\n"
+                 "                       write literal batched Prefill::run routing in a phase-specific format\n"
                  "  --no-capture         run the layers directly instead of replaying graphs\n"
                  "  --shared-late        A/B: shared expert after the CPU pool (default: overlapped with it)\n"
                  "  --keep-canonical     A/B: also load canonical copies of natively served tensors (more VRAM)\n"
@@ -1105,6 +1111,85 @@ struct Drive {
     /// needs no locking.  `d.layers` is the CURRENT layer on entry (the adapter increments it as it walks the
     /// blob), which is why the layer index comes from there rather than from a counter of our own.
     std::FILE* routing = nullptr;
+};
+
+/// The literal batched-prefill phase trace. Its body is separate from --dump-routing so prompt and
+/// decode/verify records can never be mixed, and its header says which phase wrote it. A layer split can call
+/// from concurrent stage threads, so the FILE* and counters are serialized here rather than in Prefill.
+struct PrefillRoutingDump {
+    std::FILE* file = nullptr;
+    std::mutex mutex;
+    int64_t chunk_records = 0;
+    int64_t routed_positions = 0;
+    uint64_t current_request_id = 0;
+    uint64_t last_request_id = 0;
+    bool request_id_valid = false;
+
+    bool open(const std::string& path, int64_t layers, int64_t top_k, bool one_shot, std::string& err) {
+        if (file != nullptr) {
+            err = "the batched-prefill routing trace is already open";
+            return false;
+        }
+        file = std::fopen(path.c_str(), "wb");
+        if (file == nullptr) {
+            err = "cannot open " + path;
+            return false;
+        }
+        if (!strata::routing::write_trace_header(file, (uint64_t) layers, (uint64_t) top_k, &err)) {
+            std::fclose(file);
+            file = nullptr;
+            if (err.empty()) err = "cannot write the " + path + " header";
+            return false;
+        }
+        current_request_id = 0;
+        last_request_id = 0;
+        request_id_valid = one_shot;
+        return true;
+    }
+
+    void begin_request() {
+        std::lock_guard<std::mutex> lock(mutex);
+        request_id_valid = false;
+        current_request_id = 0;
+    }
+
+    bool callback(int64_t layer, int64_t pos0, int64_t tokens, int64_t top_k, const int32_t* ids,
+                  const float* weights, std::string& err) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!request_id_valid) {
+            ++last_request_id;
+            current_request_id = last_request_id;
+            request_id_valid = true;
+        }
+        if (file == nullptr || !strata::routing::write_batched_prefill_routing(
+                                   file, current_request_id, layer, pos0, tokens, top_k, ids, weights, &err) ||
+            std::fflush(file) != 0) {
+            if (err.empty()) err = "the batched-prefill routing trace failed";
+            return false;
+        }
+        ++chunk_records;
+        routed_positions += tokens;
+        return true;
+    }
+
+    bool close(std::string& err) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (file == nullptr) return true;
+        // flush and close are both attempted: a failed flush must not leak the descriptor
+        const bool flush_ok = std::fflush(file) == 0;
+        const bool close_ok = std::fclose(file) == 0;
+        file = nullptr;
+        if (!flush_ok || !close_ok) {
+            err = "cannot close the batched-prefill routing trace";
+            return false;
+        }
+        return true;
+    }
+
+    ~PrefillRoutingDump() {
+        std::string ignored;
+        (void) close(ignored);
+    }
 };
 
 void drive_pool(void* user, const float* x_f, const int32_t* ids, const float* weights, int64_t n_embd, int64_t k,
@@ -2340,6 +2425,7 @@ int main(int argc, char** argv) {
         else if (a == "--dump-layers") o.dump_layers = next("--dump-layers");
         else if (a == "--dump-halves") o.dump_halves = next("--dump-halves");
         else if (a == "--dump-routing") o.dump_routing = next("--dump-routing");
+        else if (a == "--dump-prefill-routing") o.dump_prefill_routing = next("--dump-prefill-routing");
         else if (a == "--ple-gguf") o.ple_gguf = next("--ple-gguf");
         else if (a == "--no-ple") o.no_ple = true;
         else if (a == "--ple-io") { o.ple_io = next("--ple-io"); o.ple_io_explicit = true; }
@@ -2844,6 +2930,11 @@ int main(int argc, char** argv) {
         }
     }
     bool multi_gpu = !split_devs.empty() && !split_same;   // cleared by --split-skip-if-fits before any stage loads
+    if (!o.dump_prefill_routing.empty() && o.batch > 0) {
+        std::fprintf(stderr, "strata generate: --dump-prefill-routing refuses --batch: a yielded or partial prompt "
+                             "can resume with a new request ID. Capture one contiguous request at a time.\n");
+        return 2;
+    }
     if (!o.kv_tier.empty() && (o.batch > 0 || multi_gpu)) {
         std::fprintf(stderr, "strata generate: --kv-tier needs the serial single-stage path: its stage/slot-scoped "
                              "coordinators are not wired for %s yet\n",
@@ -3032,6 +3123,11 @@ int main(int argc, char** argv) {
         return 2;
     }
     if (!o.kv_tier.empty()) {
+#if defined(STRATA_USE_HIP) || defined(STRATA_HIP_GFX906)
+        std::fprintf(stderr, "strata generate: --kv-tier is not available in HIP builds: the verify commit/resolve "
+                             "hooks are intentionally excluded from that backend\n");
+        return 2;
+#else
         if (o.kv_resident <= 0) {
             std::fprintf(stderr, "strata generate: --kv-tier needs --kv-resident: the cold tier publishes the "
                                  "layer's host copy, and only a streamed layer has one\n");
@@ -3041,6 +3137,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "strata generate: the KV cold tier is on (--kv-tier %s, %d L1 group%s per layer, %s)\n",
                      o.kv_tier.c_str(), o.kv_tier_l1, o.kv_tier_l1 == 1 ? "" : "s",
                      o.kv_tier_async ? "async" : "synchronous");
+#endif
     }
     // Prompt lookup (the suffix drafter, on by default): the MTP keeps its --spec windows and a lookup window may be
     // up to 2 tokens longer; the draft policy (strata/spec/draft_policy.hpp) takes one only where it pays. Code
@@ -6627,6 +6724,7 @@ int main(int argc, char** argv) {
         strata::core::stage_timing_name(15, "  gdn: out gemv");
     }
     std::FILE* routing = nullptr;
+    PrefillRoutingDump prefill_routing;
     if (!o.dump_routing.empty()) {
         if (o.no_pool) {
             std::fprintf(stderr, "strata generate: --dump-routing needs the expert pool; the routed ids reach "
@@ -6639,6 +6737,12 @@ int main(int argc, char** argv) {
             return 1;
         }
         drive.routing = routing;
+    }
+    if (!o.dump_prefill_routing.empty()) {
+#if defined(STRATA_GPU_METAL)
+        std::fprintf(stderr, "strata generate: --dump-prefill-routing is unsupported on the Metal prompt path\n");
+        return 2;
+#endif
     }
     strata::core::PoolFn pool_fn = o.no_pool ? nullptr : &drive_pool;
     // The hit hook rides the same switch as the pool: with no pool there is no `parts` staging to
@@ -8425,6 +8529,26 @@ int main(int argc, char** argv) {
                     err.clear();
                 }
             }
+        }
+        if (!o.dump_prefill_routing.empty()) {
+            if (o.short_read >= o.prefill_chunk) {
+                std::fprintf(stderr, "strata serve: --dump-prefill-routing refuses --short-read %lld with the final "
+                                     "%lld-token prefill chunk because it can bypass the literal batched path. Use "
+                                     "--short-read below the prefill chunk.\n",
+                             (long long) o.short_read, (long long) o.prefill_chunk);
+                return 2;
+            }
+            if (!prefill_routing.open(o.dump_prefill_routing, g.n_layers, K, false, err)) {
+                std::fprintf(stderr, "strata serve: %s\n", err.c_str());
+                return 1;
+            }
+            auto capture_prefill_routing = [&prefill_routing](int64_t layer, int64_t pos0, int64_t tokens,
+                                                              int64_t top_k, const int32_t* ids,
+                                                              const float* weights, std::string& e) -> bool {
+                return prefill_routing.callback(layer, pos0, tokens, top_k, ids, weights, e);
+            };
+            sp.on_routing = capture_prefill_routing;
+            for (const auto& st : stages) st->sp.on_routing = capture_prefill_routing;
         }
         mem_mark("the head and the prompt path");
         // #340: STRATA_SPLIT_SMALL_OWN=S (tokens): on a layer split, every stage that borrows keeps the slots for an
@@ -10694,6 +10818,10 @@ int main(int argc, char** argv) {
             p.first_now = -1;   // laid out again at the next loan
         };
         auto vram_command = [&](const std::string& cmd, std::string& e) -> bool {
+            if (!o.dump_prefill_routing.empty()) {
+                e = "VRAM: not while --dump-prefill-routing is active (relend can change the final prefill chunk)";
+                return false;
+            }
             // `VRAM` alone: the reserve the engine started with (--vram-reserve-mib)
             char* end = nullptr;
             const bool bare = cmd.find_first_not_of(' ', 4) == std::string::npos;
@@ -11492,6 +11620,7 @@ int main(int argc, char** argv) {
                 Clock::now() - profile_saved_at >= std::chrono::duration<double>(o.expert_profile_save_min * 60.0))
                 save_profile("periodic");
             if (line == "QUIT") break;
+            if (!o.dump_prefill_routing.empty()) prefill_routing.begin_request();
             // the watchdog watches a request from here until this iteration ends, whichever way it ends
             struct BusyScope {
                 BusyScope() {
@@ -12561,6 +12690,7 @@ int main(int argc, char** argv) {
                 const char* v = pipe_dbg_env("STRATA_PIPELINE_FORCE_MISS");
                 return v ? std::max(0, std::atoi(v)) : 0;
             }();
+            bool short_read_override_ignored = false;
             if (static const char* sw = pipe_dbg_env("STRATA_PIPELINE_SWITCH"); sw != nullptr && pipe) {
                 if (std::FILE* f = std::fopen(sw, "r")) {
                     char buf[256] = {};
@@ -12570,9 +12700,13 @@ int main(int argc, char** argv) {
                     if (const char* q = std::strstr(buf, "pw=")) pl_pw = std::max(0, std::min(2, std::atoi(q + 3)));
                     if (const char* q = std::strstr(buf, "theta=")) pl_theta = (float) std::atof(q + 6);
                     if (const char* q = std::strstr(buf, "force_miss=")) pl_force_miss = std::max(0, std::atoi(q + 11));
-                    if (const char* q = std::strstr(buf, "short_read=")) req_short_read = std::max(0LL, std::atoll(q + 11));
-                    std::fprintf(stderr, "strata pipeline switch: pw=%d theta=%.3f force_miss=%d short_read=%lld\n", pl_pw,
-                                 pl_theta, pl_force_miss, (long long) req_short_read);
+                    if (const char* q = std::strstr(buf, "short_read=")) {
+                        if (o.dump_prefill_routing.empty()) req_short_read = std::max(0LL, std::atoll(q + 11));
+                        else short_read_override_ignored = true;
+                    }
+                    std::fprintf(stderr, "strata pipeline switch: pw=%d theta=%.3f force_miss=%d short_read=%lld%s\n",
+                                 pl_pw, pl_theta, pl_force_miss, (long long) req_short_read,
+                                 short_read_override_ignored ? " (override ignored: prefill routing capture)" : "");
                 }
             }
             // --pipeline-windows: tokens [a, b) through the windows with the stages overlapped.  The tokens are known,
@@ -15031,6 +15165,17 @@ int main(int argc, char** argv) {
             }
         }
         save_profile("exit");   // #477: QUIT, or the server closed stdin
+        if (!o.dump_prefill_routing.empty()) {
+            if (!prefill_routing.close(err)) {
+                std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+                return 1;
+            }
+            std::printf("%-24s %s (%lld chunk-layer records, %lld routed layer-positions, %llu captured requests)\n",
+                        "prefill routing dumped", o.dump_prefill_routing.c_str(),
+                        (long long) prefill_routing.chunk_records,
+                        (long long) prefill_routing.routed_positions,
+                        (unsigned long long) prefill_routing.last_request_id);
+        }
 #if defined(STRATA_GPU_METAL)
         // the stdin reader (detached above) may still take in_mu when the server closes the pipe after QUIT; on macOS
         // locking that mutex once this scope has destroyed it throws (the engine ended with an abort): end here
@@ -15105,6 +15250,22 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "strata generate: %s\n", err.c_str());
             return 1;
         }
+        if (!o.dump_prefill_routing.empty()) {
+            if (o.prefill_chunk <= 0 || o.tokens.size() <= 1) {
+                std::fprintf(stderr, "strata generate: --dump-prefill-routing needs a multi-token batched prefill "
+                                     "(--prefill CHUNK or --prefill auto)\n");
+                return 2;
+            }
+            if (!prefill_routing.open(o.dump_prefill_routing, g.n_layers, K, true, err)) {
+                std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+                return 1;
+            }
+            prefill.on_routing = [&prefill_routing](int64_t layer, int64_t pos0, int64_t tokens, int64_t top_k,
+                                                    const int32_t* ids, const float* weights,
+                                                    std::string& e) -> bool {
+                return prefill_routing.callback(layer, pos0, tokens, top_k, ids, weights, e);
+            };
+        }
         if (!o.mtp.empty()) {
             if (!mtp.bind(wt, &native_head, nullptr, err)) {
                 std::fprintf(stderr, "strata generate: %s\n", err.c_str());
@@ -15171,6 +15332,17 @@ int main(int argc, char** argv) {
         if (ps.experts_direct > 0)
             std::fprintf(stderr, "strata generate: prompt MMQ read %lld of the %lld resident experts in their slots "
                                  "(STRATA_MMQ_DIRECT)\n", (long long) ps.experts_direct, (long long) ps.experts_resident);
+        if (!o.dump_prefill_routing.empty()) {
+            if (!prefill_routing.close(err)) {
+                std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+                return 1;
+            }
+            std::printf("%-24s %s (%lld chunk-layer records, %lld routed layer-positions, %llu captured requests)\n",
+                        "prefill routing dumped", o.dump_prefill_routing.c_str(),
+                        (long long) prefill_routing.chunk_records,
+                        (long long) prefill_routing.routed_positions,
+                        (unsigned long long) prefill_routing.last_request_id);
+        }
     }
 
     if (!kvg_started) {   // the elastic K/V of a prompt that was not read in batches

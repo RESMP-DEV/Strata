@@ -346,6 +346,11 @@ if(STRATA_BUILD_TESTS)
   target_link_libraries(gguf_geometry_test PRIVATE strata_artifact)
   add_test(NAME gguf_geometry_test COMMAND gguf_geometry_test)
 
+  # the phase-separated batched-prefill routing trace layout, with true router weights (no GPU)
+  add_executable(routing_trace_test tests/routing/routing_trace_test.cpp)
+  target_include_directories(routing_trace_test PRIVATE include)
+  add_test(NAME routing_trace_test COMMAND routing_trace_test)
+
   # the hipBLASLt tuning header's architecture gate: RDNA4 siblings share solution IDs, RDNA3 siblings share
   # theirs, cross-family pairs and version mismatches stay rejected (synthetic tables: no model, no GPU)
   add_executable(tuning_header_arch_family_test tests/prefill/tuning_header_arch_family_test.cpp)
