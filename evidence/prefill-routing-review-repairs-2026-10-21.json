@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "recorded_at": "2026-10-21T17:09:00Z",
+  "recorded_at": "2026-10-21T17:15:28Z",
   "agent": "Codex parent",
   "source_revision": "ccbdc1720df21991d9bd06aa32dbdf4295965cd7",
   "source_dirty": true,
@@ -43,6 +43,10 @@
     {
       "finding": "OpenCodeReview Inkling: a failed flush could skip fclose and leak the descriptor.",
       "change": "close() attempts flush and fclose independently and clears the handle exactly once."
+    },
+    {
+      "finding": "CodeRabbit: BYIELD can split one resumed prompt across capture request IDs.",
+      "change": "Serve capture refuses --batch slots, including the piped-concurrent and partial-slot resume paths, so each trace ID covers one contiguous request."
     }
   ],
   "validation": [
@@ -64,17 +68,22 @@
     {
       "command": "B550 CUDA rebuild targets routing_trace_test, strata_prefill, strata; routing_trace_test execution",
       "exit": 0,
-      "result": "all targets built and routing_trace_test passed; final engine sha256 2223c3eb59e7577e0ded9766518b637e3b182e67f589691a956dfa99819273b6"
+      "result": "all targets built and routing_trace_test passed; final engine sha256 c6e351b13fb707d1e062eee3d08d8d34e07094e5ae23373724e568e8808083fd"
     },
     {
       "command": "ROCm gfx1100 rebuild targets routing_trace_test, strata_prefill, strata; routing_trace_test execution",
       "exit": 0,
-      "result": "all targets built and routing_trace_test passed; final engine sha256 df545eee48d6e8dffe31a035caaa871f12f2c3977bf5a23aefcbbb110332707a"
+      "result": "all targets built and routing_trace_test passed; final engine sha256 7cfbb25e03f227f5eeb63dab03b14f3e3b3f5966ef29fc0a53a28640ee3128eb"
     },
     {
       "command": "B550 exact default-path base-versus-final control",
       "exit": 0,
       "result": "identical output 16747 768 361 267, window hash 98c32e00782873789fd14d5842eb21791ff33f8a25cdfa58cec9263c5dc6e419, and residual hash c0f70880b087233d31b9df37626ca17ee9a43ab47da2a7b7df2342f9e0538fd1"
+    },
+    {
+      "command": "B550 final CUDA engine --serve --batch 2 --dump-prefill-routing /tmp/refuse.strp",
+      "exit": 2,
+      "result": "startup refused before model load because a yielded or partial prompt can resume with a new request ID; no trace file was created"
     }
   ],
   "non_claims": [

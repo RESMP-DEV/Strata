@@ -228,6 +228,9 @@ command is also refused while capture is active because re-lending can shrink
 the final chunk after startup. Other serve
 admission decisions can still leave a particular request uncaptured; zero body
 records mean no prefill callback ran, never that routing selected no experts.
+Batch slots are refused because `BYIELD` and other interleaved read modes can
+stop a partial prompt and resume it in a later serve iteration; the current ID
+namespace covers one contiguous request, not a slot conversation.
 The existing `--dump-routing` path remains decode/verify-scoped and does not
 consume or mix with this file.
 

@@ -2930,6 +2930,11 @@ int main(int argc, char** argv) {
         }
     }
     bool multi_gpu = !split_devs.empty() && !split_same;   // cleared by --split-skip-if-fits before any stage loads
+    if (!o.dump_prefill_routing.empty() && o.batch > 0) {
+        std::fprintf(stderr, "strata generate: --dump-prefill-routing refuses --batch: a yielded or partial prompt "
+                             "can resume with a new request ID. Capture one contiguous request at a time.\n");
+        return 2;
+    }
     if (!o.kv_tier.empty() && (o.batch > 0 || multi_gpu)) {
         std::fprintf(stderr, "strata generate: --kv-tier needs the serial single-stage path: its stage/slot-scoped "
                              "coordinators are not wired for %s yet\n",
