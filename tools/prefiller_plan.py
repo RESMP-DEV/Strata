@@ -282,11 +282,13 @@ def select_experts(
     list[list[int]],
     dict[tuple[int, int], Fraction],
     int,
+    dict[int, int],
 ]:
     scores: dict[tuple[int, int], Fraction] = defaultdict(Fraction)
     records = 0
+    per_layer: dict[int, int] = {}
     if traces:
-        scores, records = read_trace_scores_exact(traces, weighted=weighted)
+        scores, records, per_layer = read_trace_scores_exact(traces, weighted=weighted)
     profile_rank: list[tuple[int, int]] = []
     if profile is not None:
         profile_rank = read_profile_checked(profile)
@@ -327,7 +329,7 @@ def select_experts(
         selected.append(chosen)
         profile_fills.append(layer_profile_fills)
         geometric_fills.append(layer_geometric_fills)
-    return selected, profile_fills, geometric_fills, dict(scores), records
+    return selected, profile_fills, geometric_fills, dict(scores), records, per_layer
 
 
 def expert_coverage(
@@ -349,14 +351,21 @@ def expert_coverage(
 
 def read_trace_scores_exact(
     paths: list[Path], weighted: bool
-) -> tuple[dict[tuple[int, int], Fraction], int]:
-    """Read routing traces with exact binary-rational router-weight sums."""
+) -> tuple[dict[tuple[int, int], Fraction], int, dict[int, int]]:
+    """Read routing traces with exact binary-rational router-weight sums.
+
+    Returns the scores, the total record count, and the per-layer record counts.  The per-layer
+    counts are what makes a trace's SCOPE legible: a trace that carries only the decode windows
+    has far fewer records per layer than one that carries the prompt too, and the manifest says so.
+    """
     scores: dict[tuple[int, int], Fraction] = defaultdict(Fraction)
     records = 0
+    per_layer: dict[int, int] = defaultdict(int)
     for path in paths:
         blob = path.read_bytes()
         offset = 0
         observed_layers: set[int] = set()
+        file_per_layer: dict[int, int] = defaultdict(int)
         while offset < len(blob):
             if offset + 8 > len(blob):
                 raise ValueError(f"{path}: truncated routing header at byte {offset}")
@@ -376,6 +385,8 @@ def read_trace_scores_exact(
                 raise ValueError(f"{path}: layer {layer} outside Flash-Next range")
             observed_layers.add(layer)
             records += 1
+            per_layer[layer] += 1
+            file_per_layer[layer] += 1
             seen_experts: set[int] = set()
             for expert, weight in zip(ids, weights, strict=True):
                 if not math.isfinite(weight) or weight < 0.0:
@@ -394,7 +405,9 @@ def read_trace_scores_exact(
         if observed_layers != set(range(N_LAYERS)):
             missing = sorted(set(range(N_LAYERS)) - observed_layers)
             raise ValueError(f"{path}: trace does not contain all 48 layers; missing {missing[:8]}")
-    return dict(scores), records
+        if len(set(file_per_layer.values())) != 1:
+            raise ValueError(f"{path}: layer record counts differ across the 48 layers")
+    return dict(scores), records, dict(per_layer)
 
 
 def read_profile_checked(path: Path) -> list[tuple[int, int]]:
@@ -429,7 +442,7 @@ def build_manifest(
     source, shapes, tensor_count = read_pack_index(index)
     layout = read_native_experts(native)
     dense = dense_tensors(shapes)
-    selected, profile_fills, geometric_fills, scores, records = select_experts(
+    selected, profile_fills, geometric_fills, scores, records, records_per_layer = select_experts(
         traces, profile, keep, weighted
     )
     if not traces and profile is None:
@@ -444,9 +457,20 @@ def build_manifest(
     expert_bytes = mxfp4_bytes(selected_expert_elements)
     coverage = expert_coverage(selected, scores)
     coverage_value = float(coverage[0] / coverage[1]) if coverage is not None else None
+    # The coverage MEANS different things depending on the trace: a one-shot trace carries
+    # the router's own weights, while a serve-mode trace carries unit activations (the
+    # serve dispatcher does not surface the weights).  The manifest names the field after
+    # the measure, so an activation share can never be read as a router-weight share.
+    coverage_field: str | None
+    if traces and weighted:
+        coverage_field = "aggregate_router_weight_coverage"
+    elif traces:
+        coverage_field = "aggregate_routed_activation_coverage"
+    else:
+        coverage_field = None
 
     return {
-        "schema": "strata-prefiller-plan-v1",
+        "schema": "strata-prefiller-plan-v2",
         "target": {
             "model": "Qwen3.8-Flash-Next",
             "architecture": "qwen4exp",
@@ -490,7 +514,8 @@ def build_manifest(
             "trace_records": records,
             "profile_name": profile.name if profile else None,
             "profile_sha256": sha256(profile) if profile else None,
-            "aggregate_positive_weight_coverage": coverage_value,
+            "coverage_measure": coverage_field,
+            "coverage_value": coverage_value,
             "coverage_exact": None
             if coverage is None
             else {
@@ -500,10 +525,16 @@ def build_manifest(
                 "total_denominator": coverage[1].denominator,
             },
             "coverage_note": (
-                "Aggregate router-weight share; not per-request cache-hit rate or quality."
+                "Aggregate router-weight share of the traced routing; not a per-request "
+                "cache-hit rate and not a quality measure."
+                if coverage is not None and weighted
+                else "Aggregate share of routed activations (unit weights, as a serve-mode "
+                "trace records); not a router-weight share, not a cache-hit rate, and not a "
+                "quality measure."
                 if coverage is not None
                 else "Profile ranking carries no frequency score; coverage is intentionally null."
             ),
+            "trace_records_per_layer": records_per_layer,
             "selected_ids": selected,
             "profile_filled_ids": profile_fills,
             "geometric_filled_ids": geometric_fills,
@@ -601,12 +632,14 @@ def main() -> int:
         temporary.unlink(missing_ok=True)
         raise
     estimate = manifest["mxfp4_estimate"]
-    coverage = manifest["expert_selection"]["aggregate_positive_weight_coverage"]
+    selection = manifest["expert_selection"]
+    coverage = selection["coverage_value"]
     coverage_text = "null" if coverage is None else f"{coverage:.4f}"
+    coverage_measure = selection["coverage_measure"] or "coverage"
     print(
         f"wrote {args.out}: {args.hot_experts} experts/layer, "
         f"dense {estimate['dense_gib']:.3f} GiB, selected {estimate['total_gib']:.3f} GiB, "
-        f"coverage {coverage_text}"
+        f"{coverage_measure} {coverage_text}"
     )
     return 0
 

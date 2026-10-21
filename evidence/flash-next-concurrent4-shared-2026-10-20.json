@@ -1,0 +1,38 @@
+[
+ {
+  "wall_s": 0.733,
+  "prompt_tokens": 13971,
+  "completion_tokens": 48,
+  "prompt_per_second": 151.0,
+  "predicted_per_second": 156.2,
+  "cached_tokens": 13943,
+  "text": "Based on the provided C++ code, the main subsystems (or components) named are:\n\n"
+ },
+ {
+  "wall_s": 1.233,
+  "prompt_tokens": 13972,
+  "completion_tokens": 48,
+  "prompt_per_second": 151.4,
+  "predicted_per_second": 157.6,
+  "cached_tokens": 13943,
+  "text": "Based on the provided code, the data structures used for **expert storage** (spe"
+ },
+ {
+  "wall_s": 1.748,
+  "prompt_tokens": 13972,
+  "completion_tokens": 48,
+  "prompt_per_second": 146.6,
+  "predicted_per_second": 153.4,
+  "cached_tokens": 13943,
+  "text": "Based on the provided code, specifically the comments in `include/strata/core/ar"
+ },
+ {
+  "wall_s": 2.23,
+  "prompt_tokens": 13973,
+  "completion_tokens": 48,
+  "prompt_per_second": 149.6,
+  "predicted_per_second": 171.6,
+  "cached_tokens": 13943,
+  "text": "This code implements scalar reference dequantizers for GGUF quantization types ("
+ }
+]

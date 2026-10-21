@@ -162,9 +162,14 @@ class PrefillerPlanTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         manifest = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["schema"], "strata-prefiller-plan-v2")
         self.assertEqual(manifest["expert_selection"]["selected_ids"][0], [1, 2])
         self.assertEqual(manifest["expert_selection"]["selected_ids"][1][:2], [4, 5])
-        self.assertIsNotNone(manifest["expert_selection"]["aggregate_positive_weight_coverage"])
+        self.assertIsNotNone(manifest["expert_selection"]["coverage_value"])
+        self.assertEqual(
+            manifest["expert_selection"]["coverage_measure"],
+            "aggregate_router_weight_coverage",
+        )
         self.assertEqual(manifest["target"]["model"], "Qwen3.8-Flash-Next")
         coverage = MODULE.expert_coverage(
             [[1, 2], [4]],
@@ -177,6 +182,83 @@ class PrefillerPlanTest(unittest.TestCase):
         )
         assert coverage is not None
         self.assertEqual(coverage[0] / coverage[1], Fraction(11, 12))
+
+    def test_serve_mode_trace_reports_activation_coverage_not_router_weight(self) -> None:
+        """A serve-mode trace records unit weights, so its coverage is an activation share.
+
+        Reading it as a router-weight share would overstate what the trace proves, so the
+        manifest names the measure it actually computed.
+        """
+        index, native = write_inputs(self.root)
+        trace = self.root / "serve.bin"
+        write_complete_trace(
+            trace,
+            {
+                layer: (
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                    [0.0] * 10,
+                )
+                for layer in range(MODULE.N_LAYERS)
+            },
+        )
+        out = self.root / "plan.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(TOOLS / "prefiller_plan.py"),
+                "--index",
+                str(index),
+                "--native-experts",
+                str(native),
+                str(trace),
+                "--unweighted",
+                "--hot-experts",
+                "4",
+                "--out",
+                str(out),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads(out.read_text(encoding="utf-8"))
+        selection = manifest["expert_selection"]
+        self.assertEqual(selection["coverage_measure"], "aggregate_routed_activation_coverage")
+        self.assertNotIn("aggregate_positive_weight_coverage", selection)
+        # four of the ten routed experts per record are kept
+        self.assertAlmostEqual(selection["coverage_value"], 0.4, places=8)
+        self.assertEqual(
+            selection["coverage_exact"],
+            {
+                "selected_numerator": 192,
+                "selected_denominator": 1,
+                "total_numerator": 480,
+                "total_denominator": 1,
+            },
+        )
+        self.assertEqual(
+            set(selection["trace_records_per_layer"]),
+            {str(layer) for layer in range(MODULE.N_LAYERS)},
+        )
+        self.assertEqual(set(selection["trace_records_per_layer"].values()), {1})
+        self.assertEqual(sum(selection["trace_records_per_layer"].values()), 48)
+
+    def test_partial_trace_and_multi_file_layer_accounting(self) -> None:
+        complete = [(layer, list(range(10)), [0.1] * 10) for layer in range(MODULE.N_LAYERS)]
+        partial = self.root / "partial.bin"
+        write_trace(partial, complete + complete[:11])
+        with self.assertRaisesRegex(ValueError, "layer record counts differ"):
+            MODULE.read_trace_scores_exact([partial], weighted=False)
+
+        one_pass = self.root / "one-pass.bin"
+        two_pass = self.root / "two-pass.bin"
+        write_trace(one_pass, complete)
+        write_trace(two_pass, complete + complete)
+        _, records, per_layer = MODULE.read_trace_scores_exact([one_pass, two_pass], weighted=False)
+        self.assertEqual(records, MODULE.N_LAYERS * 3)
+        self.assertEqual(set(per_layer), set(range(MODULE.N_LAYERS)))
+        self.assertEqual(set(per_layer.values()), {3})
 
     def test_profile_only_has_deterministic_selection_and_null_coverage(self) -> None:
         index, native = write_inputs(self.root)
@@ -223,7 +305,8 @@ class PrefillerPlanTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         manifest = json.loads(out.read_text(encoding="utf-8"))
         self.assertEqual(manifest["expert_selection"]["selected_ids"][0], [7, 8])
-        self.assertIsNone(manifest["expert_selection"]["aggregate_positive_weight_coverage"])
+        self.assertIsNone(manifest["expert_selection"]["coverage_value"])
+        self.assertIsNone(manifest["expert_selection"]["coverage_measure"])
         self.assertEqual(manifest["expert_selection"]["basis"], "profile_rank")
 
     def test_27b_template_is_refused_as_runtime_decoder(self) -> None:
@@ -275,7 +358,7 @@ class PrefillerPlanTest(unittest.TestCase):
         write_complete_trace(trace, {0: ([1, *range(100, 109)], [0.0, *([0.1] * 9)])})
         with self.assertRaisesRegex(ValueError, "zero router weight.*--unweighted"):
             MODULE.read_trace_scores_exact([trace], weighted=True)
-        unweighted, _ = MODULE.read_trace_scores_exact([trace], weighted=False)
+        unweighted, _, _ = MODULE.read_trace_scores_exact([trace], weighted=False)
         self.assertEqual(unweighted[(0, 1)], 1)
 
     def test_dense_only_manifest_is_allowed(self) -> None:

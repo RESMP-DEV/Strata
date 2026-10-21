@@ -1,0 +1,186 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-21T00:33:00Z",
+  "agent": "Codex parent",
+  "source_revision": "240489eec3195bae4339cecf6ef16008d7dfd2f0",
+  "source_dirty": true,
+  "dirty_scope": [
+    "tools/prefiller_plan.py",
+    "tools/test_prefiller_plan.py",
+    "evidence/flash-next-agent-runtime-sweep-2026-10-20.json",
+    "evidence/flash-next-decode-routing-2026-10-20.bin",
+    "evidence/flash-next-agent-runtime-stats-2026-10-20.json"
+  ],
+  "purpose": "Measure the existing full Flash-Next serving path under cold and shared-prefix agent traffic before selecting a pruning or prefiller implementation.",
+  "hardware_and_model": {
+    "host": "B550",
+    "machine_id": "27e232eefb5743a48b55b58e0fb997a0",
+    "gpus": "2 x NVIDIA GeForce RTX 3090 Ti, split 30 with the CPU-root card first",
+    "engine_binary": "/home/kearm/strata-main/build/qwen-sm86/strata",
+    "engine_sha256": "c10370e122a26752d7dbfa4802a4ff861f84c5806b54de95cdbb2b1ed86bfdf8",
+    "engine_source_revision": "83f67c4fff7262ec4af6000f3e7d973db5f21dc0",
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048 split pack",
+    "shard1_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+    "shard2_sha256": "adf8e9e382276a7ff20150c0f3701adb847c4a140895a693367c4f7400123036",
+    "expert_profile_sha256": "8f59b4aa8873209dff11c11e37bcda9529a1335b724a1afeea37bf6388975baf",
+    "configuration": [
+      "--layer-split 30",
+      "--max-context 16384",
+      "--kv-resident 2048",
+      "--kv int8",
+      "--ple-io direct",
+      "--expert-cache auto",
+      "--prefill auto",
+      "--spec 4",
+      "--spec-min-p 0.5",
+      "--mtp-max-t 4",
+      "--suffix-draft 0",
+      "--pipeline-windows 2"
+    ]
+  },
+  "workload": {
+    "prompt_source": "40,000 bytes selected from real Strata C++/CUDA source (13,950-13,975 prompt tokens depending on the agent suffix)",
+    "client_concurrency": 4,
+    "rounds": 3,
+    "requests_per_round": 8,
+    "arms": {
+      "unique_cold": "4 requests per round, each with a unique nonce before the shared code document; all prompt tokens are read fresh",
+      "shared_prefix": "one priming request followed by 3 requests per round using strata_prefix on message 1; the priming request is cold and the next 3 reuse the common prefix"
+    },
+    "generation": "temperature 0, reasoning_effort none, max_tokens 48"
+  },
+  "measurements": {
+    "unique_cold": {
+      "requests": 12,
+      "prompt_tokens_read": "13,959 per request",
+      "fresh_prompt_read_ms_median": 4159.5,
+      "prompt_tok_s_median": 3355.9,
+      "prompt_tok_s_range": [
+        3193.8,
+        3377.4
+      ],
+      "decode_tok_s_median": 132.1,
+      "mtp_draft_acceptance": 0.6827
+    },
+    "shared_prime": {
+      "requests": 3,
+      "prompt_tokens_read": "13,974-13,975 per request",
+      "fresh_prompt_read_ms_median": 4300.0,
+      "prompt_tok_s_median": 3249.9,
+      "decode_tok_s_median": 148.6,
+      "mtp_draft_acceptance": 0.7037
+    },
+    "shared_hit": {
+      "requests": 9,
+      "prompt_tokens_reported": "13,972-13,975 per request",
+      "reused_prompt_tokens": 13943,
+      "fresh_tokens_read_range": [
+        30,
+        32
+      ],
+      "fresh_prompt_read_ms_median": 192,
+      "prompt_tok_s_median_over_fresh_tokens": 161.1,
+      "prompt_tok_s_range_over_fresh_tokens": [
+        123.4,
+        164.9
+      ],
+      "decode_tok_s_median": 143.5,
+      "mtp_draft_acceptance": 0.7515
+    },
+    "expert_cache": {
+      "decode_hit_rate_min_percent": 99.8,
+      "decode_hit_rate_max_percent": 100.0,
+      "aggregate_hits": 509121,
+      "aggregate_lookups": 509523,
+      "aggregate_hit_rate_percent": 99.9211
+    },
+    "routing_trace": {
+      "path": "evidence/flash-next-decode-routing-2026-10-20.bin",
+      "sha256": "c864c3258fc657b4ffa09204f5fdde72f31915057349e0da3eb687779bea459d",
+      "records": 1200,
+      "records_per_layer": 25,
+      "layers": 48,
+      "scope": "serve verify-window routing records; unit weights, therefore routed-activation coverage only",
+      "activation_coverage_by_retained_experts_per_layer": {
+        "32": 0.740667,
+        "64": 0.920833,
+        "96": 0.982667,
+        "128": 0.996833,
+        "192": 1.0,
+        "256": 1.0
+      },
+      "mxfp4_total_gibibytes_with_dense_prefiller": {
+        "32": 5.502348,
+        "64": 9.2377,
+        "96": 12.973051,
+        "128": 16.708403,
+        "192": 24.179106,
+        "256": 31.649809
+      }
+    }
+  },
+  "raw_evidence": {
+    "client_sweep": "evidence/flash-next-agent-runtime-sweep-2026-10-20.json",
+    "client_sweep_sha256": "376c5d9d79afe8171cc9f953a1c5577d9d81dadc88919e3cda17d04e608a0214",
+    "remote_engine_sweep_log_sha256": "bb1a36cc95e5011a7f0dd32add605403c9f1a0ad7356516dca2e63fd971a13a8",
+    "prompt_sha256": "2e173ac4f21ca10d5d3c041b8fc0bd0e6a2a1cbb7dc1abd0db4eaf0c667dd7e1"
+  },
+  "subagent_audits": [
+    {
+      "thread_id": "01a15bae-cd03-7c00-94f9-bfe7e3bc5770",
+      "scope": "runtime statistics seams",
+      "result": "identified engine DONE/stderr metrics, /metrics, serve_load/research_run, and routing-trace seams; warned that serve traces are activation-only and instrumentation can perturb timing"
+    },
+    {
+      "thread_id": "01a15bae-ee24-7513-b27f-d18268255b0a",
+      "scope": "Coder prototype and profile provenance",
+      "result": "found the current Coder revision/allocation change and required profile remapping through original expert indices"
+    },
+    {
+      "thread_id": "01a15baf-15ff-7e73-9081-3517564c9ec1",
+      "scope": "pruned decoder and prefiller gates",
+      "result": "recommended a 256-expert existing UD-IQ4_XS-style first custom decoder, BF16 heal before quantization, and dense-before-hot-expert prefiller staging"
+    },
+    {
+      "thread_id": "01a15baf-327f-7a31-9850-0da9fe4af239",
+      "scope": "model-card provenance",
+      "result": "pinned current Coder and 27B template revisions, exact file sizes/hashes, and distinguished paper measurements from released-runtime behavior"
+    }
+  ],
+  "interpretation": {
+    "prefix_reuse": "For this workload, a held 13,943-token prefix reduced the median fresh-prompt read from 4,159.5 ms to 192 ms, about 21.7x less fresh-read time. This is prompt-cache reuse, not model speedup.",
+    "expert_cache_interpretation": "The 99.9211% aggregate hit rate leaves 402 misses. Miss-stall time was not attributed separately, so this sweep cannot identify decode's bottleneck. Pruning may still improve footprint, startup, cold-agent behavior, concurrency headroom, miss latency, and cache resilience, but those must be measured.",
+    "routing_ladder": "A 64-experts-per-layer hot set covers 92.0833% of routed activations in this decode trace; 96 covers 98.2667% and 128 covers 99.6833%. These are in-sample activation shares, not quality retention or prompt-prefill coverage."
+  },
+  "validation": [
+    {
+      "command": "remote B550 HTTP sweep against the resident Strata server",
+      "exit": 0,
+      "result": "24/24 requests completed across 3 cold and 3 shared-prefix rounds"
+    },
+    {
+      "command": "single-GPU serve run with --dump-routing",
+      "exit": 0,
+      "result": "1,200 records, exactly 25 per layer and all 48 layers present"
+    },
+    {
+      "command": "python3 -m unittest tools.test_prefiller_plan -v",
+      "exit": 0,
+      "result": "10 focused planner tests passed after mode-specific coverage semantics were added"
+    },
+    {
+      "command": "current Coder matched runtime control",
+      "exit": 0,
+      "result": "completed after this full-model baseline; see evidence/coder-current-runtime-stats-2026-10-20.json"
+    }
+  ],
+  "non_claims": [
+    "The Coder control was a separate current-revision scratch artifact, not the setup.py-pinned installer family.",
+    "The workload is real source text but not a full production agent transcript with tool calls.",
+    "Client concurrency is four, while this server configuration serializes requests through a FIFO; no batch-slot throughput claim is made.",
+    "The routing trace does not capture batched prompt-prefill routing and cannot select a complete prefiller mask by itself.",
+    "Activation coverage does not imply KL, benchmark, or answer quality retention.",
+    "The server used split-30 two-GPU execution; the all-layer trace used a separate single-GPU run and was slower, so its timing is not part of the sweep comparison.",
+    "No cold KV tier was enabled in this runtime-statistics arm."
+  ]
+}

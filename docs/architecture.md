@@ -98,7 +98,8 @@ Calibration-source identities, exact-token handling, and resume behavior are in
 | DeepSeek V4.1 artifact source | Start from the pinned official 1017 checkpoint already transferring to B550, then quantize through an RESMP-owned tool | Do not promote the Lucebox ROCMFP artifact as a Strata runtime dependency; a different source or borrowed quantized artifact needs an explicit dated architecture decision |
 | Speculative-head/QAT direction | The native one-layer Qwen MTP is the immediate executable QAT lane; a DSpark-style rank-256 Markov plus confidence head over the promoted DFlash2 G3 full head is the next research architecture | A candidate needs exact target-controlled parity and improved paired live acceptance before integration; ordinary KL, offline replay, compression, or throughput alone is not acceptance |
 | GSQ/RCO expert-pruned Qwen variant | The IST-DASLab Coder release (256 of 512 experts per layer, 3.5 bpw retained, 1.89 bpw effective) is registered in `setup.py` as the `coder` family at pinned revision `5348543e` and consumes `--n-expert 256` in `tools/make_profile.py`; a Strata-owned prune, heal, quantize, verify variant is unbuilt except for the host-safe input/runtime preflight, `tools/reap_mask_from_traces.py`, and the tiny Qwen4-Exp/RCO CPU plus Modal-L4 compatibility probes. GSQ and RCO are Apache-2.0 tools, not upstreams, so consuming them does not touch the no-upstream rule | A candidate needs a confirmed GSQ or self-written Flash-Next wrapper, a REAP-from-trace control arm, held-out KL and a heal-over-unhealed delta, bit-exact `strata-pack verify`, and a same-day runtime control against the vendor artifact on named hardware |
-| Flash-Next auxiliary prefiller | Target is a Qwen3.8-Flash-Next prompt-state model trained against the frozen served low-bit decoder; MXFP4 is acceptable and the dense 27B NVFP4 artifact is reference-only. The metadata planner and architecture are implemented host-side, while routing-trace capture, training, artifact generation, and runtime swapping remain unbuilt | Start with dense/shared adapters plus measured hot experts; require phase-masked QADD, GDN/QSA/PLE handoff parity, default-path byte identity when disabled, and many-agent mixed-hit controls before any runtime or quality claim |
+| Flash-Next pruning prototype | Use the current vendor Coder GGUF only as a measured as-is control while designing a Strata-owned 256/288/384-expert higher-capacity artifact; the first full-model runtime sweep and 48-layer decode routing trace are recorded in [pruning](PRUNING.md) | Promote only with current shard hashes, representative prompt+decode traces, held-out quality, exact pack inversion, and same-day full-model controls |
+| Flash-Next auxiliary prefiller | Target is a Qwen3.8-Flash-Next prompt-state model trained against the frozen served low-bit decoder; MXFP4 is acceptable and the dense 27B NVFP4 artifact is reference-only. The metadata planner and architecture are implemented host-side, and decode/verify-window routing capture exists; batched prompt-prefill routing capture, training, artifact generation, and runtime swapping remain unbuilt | Start with dense/shared adapters plus measured hot experts; require phase-masked QADD, GDN/QSA/PLE handoff parity, default-path byte identity when disabled, and many-agent mixed-hit controls before any runtime or quality claim |
 | Disaggregated KV tier | Target design is [KV disaggregation](KV_DISAGGREGATION.md): a coordinator owns L0 VRAM, L1 pinned host slots, L2 local fast NVMe groups (B550's HPE P4800X), and optional L3 shared storage through one `KvBlockStore` ABI. The current `--kv-disk` prototype is quarantined experimental code, not serving-path acceptance | Phase A must move append/read hooks into the actual verify path and support all KV formats; live acceptance requires zero argmax mismatches, mean NLL within `1e-4`, nonzero forced cold reads/evictions, then 600K and 800K matched controls |
 | Performance defaults | Preserve upstream defaults byte-identically | Same-day matched control and exact-output/failure-path evidence |
 | Public artifact policy | Private RESMP-DEV mirror; no GitHub Actions or upstream push | Explicit current-task authorization for anything outward-facing |
@@ -150,6 +151,7 @@ later revisions.
 | Disaggregated KV tier | The opt-in `--kv-tier` path owns per-layer stores, per-layer selections, explicit background store operations, a Mooncake-style shared pool reference, and restore into the engine host copy consumed by `kv_stream_resolve`. On B550 it now runs against a real model on the designated 750 GB device: a matched control with the tier off and on produced bit-identical output and a mean NLL delta of exactly 0.0 over 8,191 scored positions, with 756,560 real cold reads, 794,873 engine host restores and zero checksum errors. The tier was about 14.8x slower on the prompt read for that workload, the full pinned host allocation remains resident, and no RAM or speed benefit is claimed. See [KV disaggregation](KV_DISAGGREGATION.md), [cold-tier evidence](../evidence/b550-optane-cold-kv-2026-10-20.json), and [sm86 build evidence](../evidence/b550-sm86-build-2026-10-20.json) |
 | DeepInfer portable scheduling intake | The fetch-only DeepInfer audit at `774ce244` ranked confidence-scheduled variable-length MTP, zero-overhead scheduling, incremental metadata assembly, and sync guards above model-specific Engram/Hopper/Ascend work. The first host-only confidence/varlen draft-row planner is implemented and passes focused tests on macOS and in the B550 sm_86 tree; it is not wired into runtime MTP and claims no speedup. See [audit evidence](../evidence/deepinfer-portable-optimizations-2026-10-20.json) and [implementation evidence](../evidence/deepinfer-confidence-varlen-2026-10-20.json) |
 | Flash-Next auxiliary prefiller | The 27B NVFP4 checkpoint and paper are templates only. A host-only planner now binds the deployed Flash-Next pack metadata, selects dense prompt-state tensors plus per-layer hot experts, and reports MXFP4 size: the profile-rank 64-expert plan is 9.238 GiB, with coverage intentionally null because the profile has no frequencies. No trainer, runtime path, or quality/speed effect is claimed. See [architecture](PREFILLER.md) and [planning evidence](../evidence/flash-next-prefiller-plan-2026-10-20.json) |
+| Flash-Next pruning baseline | A real-source 13.96K-token B550 sweep measured 3,355.9 tok/s median cold prompt reads and 99.9211% decode expert-cache hits; a held 13,943-token prefix cut median fresh-read time from 4,159.5 ms to 192 ms. A 48-layer decode trace shows 64 retained experts/layer cover 92.08% of routed activations in-sample. The current vendor Coder prototype is 9.7% faster on cold prompt reads and uses an 8.81 GiB smaller arena, but is 13.6% slower on the primed concurrent-4 shared-prefix burst; prompt-prefill routing capture remains unbuilt. See [pruning](PRUNING.md), [full-model evidence](../evidence/flash-next-agent-runtime-stats-2026-10-20.json), and [Coder evidence](../evidence/coder-current-runtime-stats-2026-10-20.json) |
 
 ## Work log
 
@@ -2092,3 +2094,28 @@ the index exactly once, and local targets plus Markdown heading anchors in the
 README and index resolve. Each localized README received an index route without
 rewriting its translated body. Full commands and results
 are in [README split evidence](../evidence/readme-reference-split-2026-10-20.json).
+
+### Full-model runtime baseline for pruning, 2026-10-20
+
+The full calibrated Flash-Next decoder ran a real-source 13.96K-token agent-like
+sweep on B550 with four concurrent clients serialized by the split-30 FIFO.
+Unique cold prompts read at a median 3,355.9 tok/s; a held 13,943-token prefix
+reduced the median fresh read from 4,159.5 ms to 192 ms. Decode aggregate
+expert-cache hits were 99.9211%, leaving 402 misses whose stall time was not
+attributed separately. The sweep therefore cannot identify decode's bottleneck;
+pruning must prove footprint, cold-agent, startup, concurrency, miss-latency, or
+quality-adjusted value.
+
+A separate single-GPU serve trace captured all 48 layers with 25 verify-window
+records per layer. In that decode-only activation trace, 64 retained experts per
+layer covered 92.08%, 96 covered 98.27%, and 128 covered 99.68%. The planner now
+distinguishes routed-activation coverage from router-weight coverage and records
+per-layer trace counts.
+
+The current vendor Coder revision then ran as a separate hashed scratch
+artifact with a remapped current profile. It was 9.7% faster on cold prompt
+reads and loaded an 8.81 GiB smaller expert arena, but was 13.6% slower on the
+primed concurrent-4 shared-prefix burst. No prompt-prefill routing capture
+exists. Full evidence and non-claims are in [runtime statistics](../evidence/flash-next-agent-runtime-stats-2026-10-20.json)
+and [Coder statistics](../evidence/coder-current-runtime-stats-2026-10-20.json);
+the two-lane plan is [pruning](PRUNING.md).
