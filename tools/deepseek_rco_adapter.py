@@ -197,7 +197,46 @@ def _check_survival_mask(mask: Any, n_experts: int) -> Any:
         raise RcoAdapterError("expert mask must be real-valued")
     if not mask.is_floating_point() and mask.dtype != torch.bool:
         raise RcoAdapterError(f"expert mask must be floating point, got {mask.dtype}")
+    if mask.dtype != torch.bool:
+        non_finite = (~torch.isfinite(mask)).any()
+        if non_finite:
+            raise RcoAdapterError("expert mask values must be finite")
+        minimum, maximum = mask.aminmax()
+        out_of_range = (minimum < 0) | (maximum > 1)
+        if out_of_range:
+            raise RcoAdapterError("expert mask values must be in [0, 1]")
     return mask
+
+
+def _check_router_indices(selected: Any, routing_weights: Any, n_experts: int) -> None:
+    """Validate router indices before using them to index the survival mask."""
+    torch = _torch()
+    integer_dtypes = {
+        torch.int8,
+        torch.int16,
+        torch.int32,
+        torch.int64,
+        torch.uint8,
+        torch.uint16,
+        torch.uint32,
+        torch.uint64,
+    }
+    if not isinstance(selected, torch.Tensor):
+        raise RcoAdapterError(f"router indices must be a tensor, got {type(selected).__name__}")
+    if selected.dtype not in integer_dtypes:
+        raise RcoAdapterError(f"router indices must have an integer dtype, got {selected.dtype}")
+    if selected.shape != routing_weights.shape:
+        raise RcoAdapterError(
+            f"router weights {tuple(routing_weights.shape)} and indices "
+            f"{tuple(selected.shape)} disagree"
+        )
+    # Use tensor reductions and bitwise boolean operators: never convert the
+    # whole index tensor to Python or use ``and``/``or`` between tensors.
+    out_of_range = (selected < 0) | (selected >= n_experts)
+    if out_of_range.any():
+        raise RcoAdapterError(
+            f"router indices must be in [0, {n_experts}), got out-of-range indices"
+        )
 
 
 def _require_fused_experts(block: Any) -> None:
@@ -315,11 +354,7 @@ class SparseMoePruneWrapper:
                 f"got {type(router_output).__name__}"
             )
         _, routing_weights, selected = router_output
-        if selected.shape != routing_weights.shape:
-            raise RcoAdapterError(
-                f"router weights {tuple(routing_weights.shape)} and indices "
-                f"{tuple(selected.shape)} disagree"
-            )
+        _check_router_indices(selected, routing_weights, self.n_experts)
 
         if mask.device != flat.device:
             mask = mask.to(flat.device)

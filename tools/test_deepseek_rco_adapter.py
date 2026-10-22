@@ -262,6 +262,21 @@ class AdapterMalformedInputTest(unittest.TestCase):
             with self.assertRaises(ADAPTER.RcoAdapterError):
                 wrapper.forward(hidden)
 
+            # Survival values are probabilities, not arbitrary scales.
+            state["ste_masks"] = torch.full((5, 4), -0.1)
+            with self.assertRaises(ADAPTER.RcoAdapterError):
+                wrapper.forward(hidden)
+
+            state["ste_masks"] = torch.full((5, 4), 1.1)
+            with self.assertRaises(ADAPTER.RcoAdapterError):
+                wrapper.forward(hidden)
+
+            # NaN is outside the valid interval and must not slip through
+            # elementwise comparisons.
+            state["ste_masks"] = torch.full((5, 4), torch.nan)
+            with self.assertRaises(ADAPTER.RcoAdapterError):
+                wrapper.forward(hidden)
+
             # Wrong rank.
             state["ste_masks"] = torch.ones(5, 1, 4)
             with self.assertRaises(ADAPTER.RcoAdapterError):
@@ -369,6 +384,47 @@ class AdapterMalformedInputTest(unittest.TestCase):
         finally:
             wrapper.restore()
             block.gate = original
+
+    def test_malformed_router_indices_fail(self) -> None:
+        torch, build = _import_tiny_model()
+        model = build()
+        block = model.model.layers[0].mlp
+        state = {"ste_masks": torch.ones(5, 4)}
+        wrapper = ADAPTER.SparseMoePruneWrapper(block, 0, 4, state)
+        original_gate = block.gate
+        hidden = torch.randn(1, 3, 64)
+
+        class SubstituteGate(torch.nn.Module):
+            def __init__(self, transform) -> None:
+                super().__init__()
+                self.transform = transform
+
+            def forward(self, router_hidden_states, image_mask=None):
+                logits, weights, indices = original_gate(router_hidden_states, image_mask)
+                return logits, weights, self.transform(indices)
+
+        scenarios = {
+            "not-a-tensor": lambda indices: indices.tolist(),
+            "floating-dtype": lambda indices: indices.to(torch.float32),
+            "boolean-dtype": lambda indices: indices.to(torch.bool),
+            "shape-mismatch": lambda indices: indices[..., :1],
+            "below-range": lambda indices: torch.cat(
+                (indices[..., :-1], indices[..., -1:] - 5), dim=-1
+            ),
+            "above-range": lambda indices: torch.cat(
+                (indices[..., :-1], indices[..., -1:] + 4), dim=-1
+            ),
+        }
+
+        try:
+            for description, transform in scenarios.items():
+                with self.subTest(case=description):
+                    block.gate = SubstituteGate(transform)
+                    with self.assertRaises(ADAPTER.RcoAdapterError):
+                        wrapper.forward(hidden)
+        finally:
+            wrapper.restore()
+            block.gate = original_gate
 
     def test_install_wrappers_rejects_layer_count_mismatch(self) -> None:
         torch, build = _import_tiny_model()

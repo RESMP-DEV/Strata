@@ -2350,7 +2350,11 @@ count and binds generated commands to the actual mask destinations; the
 materializer validates tokenizer files before dry-run or shard streaming,
 rejects unexpected source expert dimensions, and its round-trip test now checks
 non-identity, layer-varying source rows. The trace control's seed-and-trace
-metric no longer counts trace-scored fills as seed support.
+metric no longer counts trace-scored fills as seed support. Follow-up review
+hardening added observed-type diagnostics to token export, fixed-position
+substitution for the calibration-control quantization command, survival-mask
+finite/range checks, and router-index tensor, dtype, shape, and bounds checks
+before expert lookup.
 
 A read-only trace of pinned stock RCO also fixed the next integration boundary:
 stock `search.prune.optimize` must use the DeepSeek adapter's `install_wrappers`

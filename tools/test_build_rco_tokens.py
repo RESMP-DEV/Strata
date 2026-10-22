@@ -176,6 +176,12 @@ class BuildRcoTokensTest(unittest.TestCase):
                 field="text",
             )
 
+    def test_non_sequence_token_ids_include_observed_value(self) -> None:
+        observed = None
+        with self.assertRaisesRegex(ValueError, "got NoneType") as context:
+            MODULE.token_ids(None)
+        self.assertIn(repr(observed), str(context.exception))
+
     def test_non_object_jsonl_is_rejected(self) -> None:
         path = self.root / "bad.jsonl"
         path.write_text("[1]\n", encoding="utf-8")

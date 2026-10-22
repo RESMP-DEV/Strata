@@ -139,6 +139,37 @@ class CustomCoderPlanTest(unittest.TestCase):
         self.assertIn("ffn_gate_exps=IQ3_S", quantize)
         self.assertIn("ffn_down_exps=IQ4_NL", quantize)
         self.assertIn("COPY", quantize)
+        imatrix_value_index = quantize.index(str(self.root / "work" / "own-288-imatrix.gguf"))
+        quantized_output_index = quantize.index(
+            str(self.root / "work" / "flash-next-own-288-iq3s-iq4nl.gguf")
+        )
+        args.llama_quantize = Path(quantize[imatrix_value_index])
+        control = MODULE.build_manifest(args, 288)["commands"][
+            "quantize_standard_calibration_control"
+        ]["argv"]
+        self.assertEqual(control[0], str(args.llama_quantize))
+        self.assertEqual(
+            control[imatrix_value_index],
+            str(self.root / "work" / "standard-ptq-imatrix.gguf"),
+        )
+        self.assertEqual(
+            control[quantized_output_index],
+            str(self.root / "work" / "flash-next-own-288-iq3s-iq4nl-standard-cal.gguf"),
+        )
+
+        args.llama_quantize = Path(quantize[quantized_output_index])
+        control = MODULE.build_manifest(args, 288)["commands"][
+            "quantize_standard_calibration_control"
+        ]["argv"]
+        self.assertEqual(control[0], str(args.llama_quantize))
+        self.assertEqual(
+            control[imatrix_value_index],
+            str(self.root / "work" / "standard-ptq-imatrix.gguf"),
+        )
+        self.assertEqual(
+            control[quantized_output_index],
+            str(self.root / "work" / "flash-next-own-288-iq3s-iq4nl-standard-cal.gguf"),
+        )
         actual_own = str(self.root / "actual-own-mask.pt")
         actual_parent = str(self.root / "actual-parent-mask.pt")
         self.assertEqual(manifest["commands"]["search_own_mask"]["argv"][-1], actual_own)

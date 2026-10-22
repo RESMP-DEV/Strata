@@ -84,7 +84,7 @@ def token_ids(value: Any) -> list[int]:
         return [int(item) for item in value]
     if hasattr(value, "tolist"):
         return [int(item) for item in value.tolist()]
-    raise ValueError("tokenizer did not return token IDs")
+    raise ValueError(f"tokenizer did not return token IDs; got {type(value).__name__}: {value!r}")
 
 
 def optional_positive_int(value: str) -> int:

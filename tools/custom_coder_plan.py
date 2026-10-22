@@ -214,12 +214,11 @@ def build_manifest(args: argparse.Namespace, keep: int) -> dict[str, Any]:
         "COPY",
         str(args.threads),
     ]
-    control_quantize_arguments = [
-        str(control_imatrix) if value == str(imatrix) else value for value in quantize_arguments
-    ]
-    control_quantize_arguments[control_quantize_arguments.index(str(quantized))] = str(
-        control_quantized
-    )
+    # Fixed argv positions are llama-quantize(0), --imatrix(1), imatrix(2),
+    # input(11), output(12), COPY(13), threads(14).
+    control_quantize_arguments = list(quantize_arguments)
+    control_quantize_arguments[2] = str(control_imatrix)
+    control_quantize_arguments[12] = str(control_quantized)
     return {
         "format": "strata-custom-coder-plan-v1",
         "mask": str(args.mask),

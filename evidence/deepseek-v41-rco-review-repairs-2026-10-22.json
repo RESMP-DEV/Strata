@@ -1,6 +1,7 @@
 {
   "schema": "strata-work-evidence-v1",
   "recorded_at": "2026-10-22T22:14:04Z",
+  "updated_at": "2026-10-22T22:22:30Z",
   "agent": "Codex parent with three MiniMax CCR implementation workers; parent acceptance by Codex",
   "task": "Repair every actionable CodeRabbit finding on DeepSeek/Qwen RCO PR #20 without expanding runtime claims.",
   "source_revision": "fed9d1983b363d03ca12e9019aae6cd968e5e399",
@@ -24,6 +25,19 @@
     ],
     "trace_control": [
       "seed_and_trace_selected counts only seed cells with trace support rather than all trace-supported selected cells"
+    ]
+  },
+  "openreview_follow_up": {
+    "actionable_repairs": [
+      "token_ids errors include the observed Python type and repr",
+      "the standard-calibration quantization command replaces fixed iMatrix and output argv positions rather than globally replacing equal path strings",
+      "survival masks reject non-finite values and values outside [0,1]",
+      "router indices must be tensors with integer dtype, matching shape, and values inside [0,n_experts) before survival indexing"
+    ],
+    "rejected_or_already_fixed": [
+      "round_ratio nearest comments were outdated; signed half-away-from-zero repair was already present",
+      "parse_seed_allocation intentionally validates the pinned 256-expert parent seed allocation; choose_mask separately rejects seeds above --keep and permits 256 seeds for a larger keep budget",
+      "seed_and_trace_selected is intentionally the intersection of seed cells and trace scores, matching the CodeRabbit finding, not the union"
     ]
   },
   "checks": [
@@ -61,6 +75,16 @@
       "command": "just quality",
       "exit": 0,
       "result": "20/20 checks passed; ignored receipt at build/reports/quality/receipt.json"
+    },
+    {
+      "command": "python3 -m unittest tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "37 tests passed after OpenCodeReview follow-up; 19 Torch-dependent adapter tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "21/21 adapter tests passed after adding mask-range and router-index regressions"
     }
   ],
   "implementation_workers": [
@@ -79,6 +103,14 @@
     {
       "lane": "read-only stock-RCO contract trace",
       "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-150033-lb9kfl8z"
+    },
+    {
+      "lane": "OpenCodeReview tooling follow-up",
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-151643-fevv94de"
+    },
+    {
+      "lane": "OpenCodeReview adapter follow-up",
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-151653-9njf5c31"
     }
   ],
   "stock_rco_contract_trace": {
