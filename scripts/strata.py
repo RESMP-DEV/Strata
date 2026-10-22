@@ -175,6 +175,7 @@ def quality() -> int:
                         "tools.test_custom_coder_plan",
                         "tools.test_materialize_pruned_qwen4exp",
                         "tools.test_deepseek_rco_plan",
+                        "tools.test_deepseek_rco_materialization_plan",
                     ],
                 ),
                 run_logged(
@@ -198,6 +199,8 @@ def quality() -> int:
                         "tools/test_materialize_pruned_qwen4exp.py",
                         "tools/deepseek_rco_plan.py",
                         "tools/test_deepseek_rco_plan.py",
+                        "tools/deepseek_rco_materialization_plan.py",
+                        "tools/test_deepseek_rco_materialization_plan.py",
                     ],
                 ),
                 run_logged(
@@ -218,6 +221,8 @@ def quality() -> int:
                         "tools/test_materialize_pruned_qwen4exp.py",
                         "tools/deepseek_rco_plan.py",
                         "tools/test_deepseek_rco_plan.py",
+                        "tools/deepseek_rco_materialization_plan.py",
+                        "tools/test_deepseek_rco_materialization_plan.py",
                     ],
                 ),
                 run_logged(
