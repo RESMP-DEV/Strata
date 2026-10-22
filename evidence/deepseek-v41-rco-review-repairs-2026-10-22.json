@@ -16,7 +16,8 @@
     "qwen_coder_tools": [
       "token-builder limits reject zero and negative values at function and CLI boundaries",
       "tokenizer trust_remote_code is explicit opt-in and defaults false",
-      "test module loaders register modules in sys.modules before exec_module",
+      "the RCO token-builder test loader registers its module in sys.modules before exec_module",
+      "the own-Coder planner test loader registers its module in sys.modules before exec_module",
       "masks must declare the expected 512 source experts",
       "generated search, evaluation, and materialization commands use actual mask destinations and parent control output is required",
       "materializer validates tokenizer files before dry-run or shard streaming and copies them at completion",
@@ -90,27 +91,27 @@
   "implementation_workers": [
     {
       "lane": "Qwen/Coder tooling and materializer",
-      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-145822-8jt7tg50"
+      "receipt_id": "20261022-145822-8jt7tg50"
     },
     {
       "lane": "DeepSeek planner and geometry",
-      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-145829-l_ez3xai"
+      "receipt_id": "20261022-145829-l_ez3xai"
     },
     {
       "lane": "trace-mask accounting",
-      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-145834-5g62ye3j"
+      "receipt_id": "20261022-145834-5g62ye3j"
     },
     {
       "lane": "read-only stock-RCO contract trace",
-      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-150033-lb9kfl8z"
+      "receipt_id": "20261022-150033-lb9kfl8z"
     },
     {
       "lane": "OpenCodeReview tooling follow-up",
-      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-151643-fevv94de"
+      "receipt_id": "20261022-151643-fevv94de"
     },
     {
       "lane": "OpenCodeReview adapter follow-up",
-      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-151653-9njf5c31"
+      "receipt_id": "20261022-151653-9njf5c31"
     }
   ],
   "stock_rco_contract_trace": {
