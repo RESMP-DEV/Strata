@@ -24,10 +24,13 @@ SCOPE = (
     "store-refusal contract tests, the KV tier acceptance gate's own decision tests, "
     "DeepSeek manifest and host C++ contract tests, "
     "custom Coder token and variant-planning contracts, "
+    "the DeepSeek-V4.1-Flash RCO budget planner's own unit tests, "
     "script tests, maintained-script Ruff lint/format, shell warning lint, and Git "
     "whitespace on this host. It does not compile CUDA, HIP, or SYCL, run the full "
     "setup matrix, start the "
-    "server, download a model, move any KV byte to a cold tier, or measure performance."
+    "server, download a model, move any KV byte to a cold tier, or measure performance. "
+    "The RCO planner tests exercise index classification and integer budget arithmetic "
+    "on synthetic fixtures; they do not load, convert, or run DeepSeek-V4.1-Flash."
 )
 
 
@@ -171,6 +174,7 @@ def quality() -> int:
                         "tools.test_build_rco_tokens",
                         "tools.test_custom_coder_plan",
                         "tools.test_materialize_pruned_qwen4exp",
+                        "tools.test_deepseek_rco_plan",
                     ],
                 ),
                 run_logged(
@@ -192,6 +196,8 @@ def quality() -> int:
                         "tools/test_custom_coder_plan.py",
                         "tools/materialize_pruned_qwen4exp.py",
                         "tools/test_materialize_pruned_qwen4exp.py",
+                        "tools/deepseek_rco_plan.py",
+                        "tools/test_deepseek_rco_plan.py",
                     ],
                 ),
                 run_logged(
@@ -210,6 +216,8 @@ def quality() -> int:
                         "tools/test_custom_coder_plan.py",
                         "tools/materialize_pruned_qwen4exp.py",
                         "tools/test_materialize_pruned_qwen4exp.py",
+                        "tools/deepseek_rco_plan.py",
+                        "tools/test_deepseek_rco_plan.py",
                     ],
                 ),
                 run_logged(

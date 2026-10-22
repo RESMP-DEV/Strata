@@ -1,0 +1,90 @@
+{
+  "agent": "Codex with MiniMax implementation workers; parent acceptance by Codex",
+  "base_revision": "7b6c3685abfcc0b1f5071b56747fcf8ca2fd3a2e",
+  "budget": {
+    "bytes_per_deepseek_routed_expert": 18800640,
+    "equal_qwen_expert_bytes_lane": "match 32,204,390,400 Qwen expert bytes, leaving only 42 DeepSeek backbone experts/layer; observational, not a quality recommendation",
+    "equal_removed_count_lane": "remove the same 224 experts/layer as Qwen, leaving 160",
+    "mtp_policy": "preserve all 3x128 DSpark routed experts and their shared experts initially; DSpark acceptance is a separate gate",
+    "preserved_mtp_bytes": 7219445760,
+    "primary_backbone_retained_bytes": 162437529600,
+    "primary_lane": "equal Qwen retained fraction: keep 216 of 384 backbone experts, remove 168 (43.75%)",
+    "retained_per_active_lane": "Qwen 288/10 = 28.8; DeepSeek floor 172, nearest/ceil 173",
+    "scale_basis": "pinned shard-3 header: w1.scale [2304,160] and w2.scale [5120,72]; scales are per 32 logical K values per output row, not one per 32x32 tile"
+  },
+  "checks": [
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "manifest gate, CMake build, deepseek_geometry_test, and deepseek_candidate_select_test all passed"
+    },
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_plan tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "47 tests passed; 18 torch-dependent adapter tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "20/20 tiny pinned-Transformers adapter tests passed, including bit-exact all-ones baseline parity and shared-expert-only zero-mask behavior"
+    },
+    {
+      "command": "ruff check [six maintained Python files] && ruff format --check [same six]",
+      "exit": 0,
+      "result": "all checks and formatting passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "20/20 checks passed at dirty revision 7b6c3685; receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "python3 tools/deepseek_rco_plan.py ... --out build/reports/deepseek-v41-flash-1017/plan-20261022.json",
+      "exit": 0,
+      "result": "strictly classified all 96,085 tensors and reproduced 216/172/173 budget lanes"
+    }
+  ],
+  "dirty_files": [
+    "include/strata/deepseek/geometry.hpp",
+    "src/deepseek/geometry_test.cpp",
+    "scripts/strata.py",
+    "tools/materialize_pruned_qwen4exp.py",
+    "tools/test_materialize_pruned_qwen4exp.py",
+    "tools/deepseek_rco_plan.py",
+    "tools/test_deepseek_rco_plan.py",
+    "tools/deepseek_rco_adapter.py",
+    "tools/test_deepseek_rco_adapter.py"
+  ],
+  "implementation": {
+    "budget_planner": "tools/deepseek_rco_plan.py: dependency-free strict 96,085-tensor classifier and exact integer/Fraction budget planner; emits strata-deepseek-rco-plan-v1.",
+    "geometry_fix": {
+      "after": "40*(384+1)+3*(128+1) = 15,787 expert stacks",
+      "before": "43*(384+1)+3*128 = 16,939 expert stacks",
+      "evidence": "pinned 1017 index has exactly 40 layers.* and three mtp.* stages; each mtp stage has 128 routed plus one shared expert stack.",
+      "problem": "total_expert_count double-counted the three DSpark tail layers as text layers and omitted DSpark shared experts."
+    },
+    "qwen_metadata_fix": "A text-only Qwen materialization now clears its inherited one-layer MTP declaration because it emits no mtp.* tensors.",
+    "topology_adapter": "tools/deepseek_rco_adapter.py: resolves nested text_config and V4.1 expert counts, wraps DeepseekV41SparseMoeBlock while preserving image_mask, (logits,weights,indices), fused expert dispatch, and additive shared_experts."
+  },
+  "non_claims": [
+    "No 510GB DeepSeek checkpoint shard was opened or executed by this implementation; only config/index and HTTP shard headers were read.",
+    "No RCO search, expert mask selection, checkpoint materialization, quantization, DSpark acceptance test, quality evaluation, or runtime benchmark ran.",
+    "The tiny adapter test uses a 5-layer, 4-expert CPU model, not the released model or its FP4/FP8 payload.",
+    "The adapter has not yet been run end-to-end inside stock RCO because that dependency stack is not installed in this worktree.",
+    "Matching a fraction, count, expansion ratio, or byte total does not imply matching model quality."
+  ],
+  "recorded_at": "2026-10-22T20:34:36.153243+00:00",
+  "remote_state": {
+    "checkpoint": "B550 hard-drive copy verified by hfd full SHA-256 at revision 1bae0e1088993b9b82de08f59de5be5a34e42170",
+    "ongoing": "193GiB completed Qwen scratch migration and post-calibration 510GB SSD copy are queued/running; no source removed before checksum dry-run passes"
+  },
+  "schema": "strata-work-evidence-v1",
+  "source_dirty": true,
+  "task": "Begin local DeepSeek-V4.1-Flash RCO support and derive a non-arbitrary pruning budget.",
+  "upstream": {
+    "community_control": "pfeifferj/DeepSeek-V4.1-Flash-GSQ-RCO-GGUF 8270aceb26eb5590ea40f347256a1736999f551d; metadata only, no 426GB weights downloaded; reports no RCO step improved over step 0 and targets older source revision dba1be0a",
+    "rco_fork_reference": "chtisgit/RCO b002ae3d3c903a4f1ceb0777d64d2e4314833461; Apache-2.0; useful topology/streaming design, no DeepSeek support",
+    "stock_rco": "IST-DASLab/RCO 9a1e09c07d468109cbe60a1b87d5036034a79d10",
+    "transformers_reference": "malaiwah/transformers add-deepseek-v41 at 62d7ebd7de4938e072b7aaeb881593b79dc56835 (closed unmerged PR huggingface/transformers#48721; tracking issue #48755 remains open)"
+  }
+}

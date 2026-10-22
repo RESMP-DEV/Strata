@@ -2293,3 +2293,46 @@ artifact claim: no heal, custom quantization, quality gate, or trained
 prefiller has run. Full machine, model, source, workload, and raw-evidence
 hashes are in [current-main runtime evidence](../evidence/flash-next-current-main-runtime-2026-10-21.json);
 raw request rows are retained in the [durable sweep](../evidence/flash-next-current-main-runtime-sweep-2026-10-21.json).
+
+### DeepSeek-V4.1 RCO preflight and budget planner, 2026-10-22
+
+The first local DeepSeek RCO support is deliberately metadata-first. Stock RCO
+9a1e09c cannot load `deepseek_v41`: Transformers has no merged mapping, the
+expert counts live in a nested `text_config`, the checkpoint names experts
+`layers.N.ffn.experts.E.w1/w2/w3`, and the routed payloads are packed FP4 plus
+F8_E8M0 scales. A pinned read-only copy of the closed, unmerged Transformers
+PR #48721 head `62d7ebd7` now supplies the model semantics for a local adapter:
+it exposes `num_local_experts`, returns `(logits, weights, indices)` from the
+router, uses fused expert tensors, and adds an unscaled `shared_experts` output.
+
+`tools/deepseek_rco_plan.py` classifies all 96,085 names in the pinned 1017
+index against the checked-in manifest and derives exact budgets with no default
+50% target. The primary comparator to the Qwen own-Coder mask is slot fraction:
+Qwen retains 288/512, so DeepSeek retains 216/384 and removes 168 experts per
+backbone layer (43.75%). The sensitivity lanes are 172/173 retained experts from
+Qwen's 288/10 retained-per-active ratio and 160 retained experts when removing
+the same 224 slots per layer as Qwen. Matching the Qwen artifact's 32,204,390,400
+routed-expert bytes would leave only 42 DeepSeek experts per layer; that is an
+observational capacity lane, not a quality recommendation. The three DSpark
+stages stay intact initially because drafter acceptance is a separate gate.
+
+The planner uses the pinned shard-header scale shapes rather than assuming
+32x32-block scales: each routed expert occupies 18,800,640 bytes. The 216-expert
+backbone lane therefore retains 162,437,529,600 routed-expert bytes, and the
+preserved DSpark stages add 7,219,445,760 bytes.
+
+`tools/deepseek_rco_adapter.py` resolves nested V4.1 configuration counts and
+wraps the pinned model's MoE block while preserving `image_mask`, the router
+tuple, fused expert dispatch, and the additive shared expert. A tiny CPU model
+proved an all-ones survival mask bit-exactly preserves baseline logits, a zero
+mask leaves only the shared-expert path, and wrapper restoration returns the
+original forward. This is not an end-to-end stock-RCO run and makes no claim
+about the released 510GB checkpoint.
+
+The DeepSeek geometry contract also corrected its expert-stack count. The
+pinned index has 40 backbone layers and three `mtp.*` DSpark stages, each with
+128 routed experts plus one shared expert: 15,787 stacks, not the prior 16,939
+that double-counted the DSpark tail and omitted its shared stacks. The Qwen
+text-only materializer likewise now clears inherited MTP configuration when it
+omits MTP tensors. Full evidence, upstream pins, commands, and non-claims are in
+[DeepSeek RCO preflight](../evidence/deepseek-v41-rco-preflight-2026-10-22.json).
