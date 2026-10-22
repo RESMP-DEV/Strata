@@ -2370,3 +2370,23 @@ whitespace, and `just quality` (20/20). These checks do not run stock RCO on
 the released model or establish pruning quality. Full commands and boundaries
 are in
 [RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
+
+### DeepSeek stock-RCO tiny integration, 2026-10-22
+
+The adapter then crossed the first real stock-RCO execution boundary on B550
+GPU1. With stock RCO pinned at `9a1e09c` and Transformers pinned at
+`62d7ebd7`, an in-memory one-layer, two-expert, top-1 V4.1 model supplied the
+only test substitutions: model, tokenizer, and one eight-token calibration
+tensor. Stock RCO resolved `(1,2,1)`, built the reference cache, replaced its
+process-local wrapper installer with the DeepSeek adapter, passed its gradient
+sanity check (`4/4` nonzero gradients), completed one Gumbel-STE step, and
+wrote a boolean `(1,2)` mask pruning exactly one expert. The wrapper was
+restored afterward.
+
+This advances only the structural integration. Stock final hard-mask
+evaluation still uses its softmax-router assumption rather than V4.1's
+`sqrtsoftplus` scores and correction biases, so its KL is not yet a
+deployment-faithful DeepSeek evaluation. No released checkpoint was opened and
+no quality or runtime claim follows. Full machine, pins, substitutions,
+artifacts, hashes, and non-claims are in
+[stock-RCO tiny integration evidence](../evidence/deepseek-v41-rco-stock-tiny-2026-10-22.json).
