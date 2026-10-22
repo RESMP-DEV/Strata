@@ -39,6 +39,7 @@ __all__ = [
     "MoeCounts",
     "RcoAdapterError",
     "SparseMoePruneWrapper",
+    "evaluate_with_mask",
     "get_moe_info",
     "install_wrappers",
     "remove_wrappers",
@@ -412,6 +413,121 @@ def remove_wrappers(wrappers: list[SparseMoePruneWrapper]) -> None:
     """Restore every wrapped block's original forward."""
     for wrapper in wrappers:
         wrapper.restore()
+
+
+def evaluate_with_mask(
+    model: Any,
+    prune_mask: Any,
+    cal_data: Any,
+    ref_log_probs: Any,
+    ref_masks: Any,
+    batch_size: int = 4,
+) -> float:
+    """Evaluate full-vocabulary KL(reference || hard-masked model).
+    ``prune_mask`` uses RCO's discrete convention: ``True`` is pruned and
+    ``False`` is kept.  It is converted once to the adapter's survival-mask
+    convention and applied without renormalizing the surviving routing
+    weights.
+    """
+    torch = _torch()
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
+        raise RcoAdapterError(f"batch_size must be a positive integer, got {batch_size!r}")
+
+    n_layers, n_experts, _ = get_moe_info(model)
+    if not isinstance(prune_mask, torch.Tensor):
+        raise RcoAdapterError(f"prune_mask must be a tensor, got {type(prune_mask).__name__}")
+    if prune_mask.dtype != torch.bool:
+        raise RcoAdapterError(f"prune_mask must have dtype bool, got {prune_mask.dtype}")
+    if prune_mask.shape != (n_layers, n_experts):
+        raise RcoAdapterError(
+            f"prune_mask has shape {tuple(prune_mask.shape)}, expected {(n_layers, n_experts)}"
+        )
+    if not isinstance(cal_data, torch.Tensor) or cal_data.ndim != 2:
+        raise RcoAdapterError("cal_data must be an integer token tensor with shape (B, T)")
+    integer_dtypes = {
+        torch.int8,
+        torch.int16,
+        torch.int32,
+        torch.int64,
+        torch.uint8,
+        torch.uint16,
+        torch.uint32,
+        torch.uint64,
+    }
+    if cal_data.is_complex() or cal_data.dtype not in integer_dtypes:
+        raise RcoAdapterError(f"cal_data must have an integer dtype, got {cal_data.dtype}")
+    if len(ref_log_probs) != len(ref_masks):
+        raise RcoAdapterError(
+            f"ref_log_probs has {len(ref_log_probs)} batches but ref_masks has {len(ref_masks)}"
+        )
+
+    survival_mask = ~prune_mask
+    shared_state = {"ste_masks": survival_mask}
+    device = getattr(model, "device", None)
+    if device is None:
+        parameters = getattr(model, "parameters", None)
+        device = next(parameters()).device if callable(parameters) else None
+    if device is None:
+        raise RcoAdapterError("could not resolve the model's input device")
+
+    wrappers = install_wrappers(model, n_layers, n_experts, shared_state)
+    total_kl = 0.0
+    total_tokens = 0.0
+    with torch.no_grad():
+        try:
+            for start in range(0, cal_data.size(0), batch_size):
+                batch = cal_data[start : start + batch_size].to(device)
+                batch_index = min(start // batch_size, len(ref_log_probs) - 1)
+                reference = ref_log_probs[batch_index].to(device)
+                loss_mask = ref_masks[batch_index].to(device)
+
+                if not isinstance(reference, torch.Tensor) or reference.ndim != 3:
+                    raise RcoAdapterError(
+                        "each ref_log_probs entry must be a tensor with shape (B, T-1, V)"
+                    )
+                if not reference.is_floating_point() or reference.is_complex():
+                    raise RcoAdapterError(
+                        f"ref_log_probs must have a real floating dtype, got {reference.dtype}"
+                    )
+                if not bool(torch.isfinite(reference).all()):
+                    raise RcoAdapterError("ref_log_probs values must be finite")
+                if not isinstance(loss_mask, torch.Tensor) or loss_mask.shape != batch.shape:
+                    actual_mask_shape = (
+                        tuple(loss_mask.shape)
+                        if isinstance(loss_mask, torch.Tensor)
+                        else "non-tensor"
+                    )
+                    raise RcoAdapterError(
+                        "ref_masks entry has shape "
+                        f"{actual_mask_shape}, "
+                        f"expected {tuple(batch.shape)}"
+                    )
+                if loss_mask.is_complex() or not loss_mask.is_floating_point():
+                    raise RcoAdapterError(
+                        f"ref_masks must have a real floating dtype, got {loss_mask.dtype}"
+                    )
+                if not bool(torch.isfinite(loss_mask).all()):
+                    raise RcoAdapterError("ref_masks values must be finite")
+                minimum, maximum = loss_mask.aminmax()
+                if bool((minimum < 0).any() or (maximum > 1).any()):
+                    raise RcoAdapterError("ref_masks values must be in [0, 1]")
+                if tuple(reference.shape[:2]) != (batch.size(0), batch.size(1) - 1):
+                    raise RcoAdapterError(
+                        f"ref_log_probs has shape {tuple(reference.shape)}, expected "
+                        f"({batch.size(0)}, {batch.size(1) - 1}, V)"
+                    )
+
+                logits = model(input_ids=batch).logits[:, :-1, :].contiguous().float()
+                masked_log_probs = torch.log_softmax(logits, dim=-1)
+                reference = reference.float()
+                per_token_kl = (reference.exp() * (reference - masked_log_probs)).sum(-1)
+                shifted_mask = loss_mask[:, 1:].float()
+                total_kl += float((per_token_kl * shifted_mask).sum().item())
+                total_tokens += float(shifted_mask.sum().item())
+        finally:
+            remove_wrappers(wrappers)
+
+    return total_kl / max(total_tokens, 1.0)
 
 
 def get_moe_info(model: Any) -> MoeCounts:

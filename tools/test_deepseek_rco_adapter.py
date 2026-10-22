@@ -434,6 +434,96 @@ class AdapterMalformedInputTest(unittest.TestCase):
             ADAPTER.install_wrappers(model, 4, 4, state)
 
 
+class AdapterHardMaskEvaluationTest(unittest.TestCase):
+    """The stock-compatible hard-mask evaluation path."""
+
+    def setUp(self) -> None:
+        self.torch, self.build = _import_tiny_model()
+        self.model = self.build()
+        self.input_ids = self.torch.randint(0, 128, (2, 9))
+
+    def _reference_cache(self, batch_size: int = 2) -> tuple[list[Any], list[Any]]:
+        import torch.nn.functional as F
+
+        references = []
+        masks = []
+        for start in range(0, self.input_ids.size(0), batch_size):
+            batch = self.input_ids[start : start + batch_size]
+            with self.torch.no_grad():
+                logits = self.model(batch).logits[:, :-1, :].contiguous()
+                references.append(F.log_softmax(logits.float(), dim=-1).cpu())
+            masks.append(self.torch.ones(batch.size(0), 9))
+        return references, masks
+
+    def test_zero_prune_mask_has_zero_kl_against_the_unmasked_reference(self) -> None:
+        references, masks = self._reference_cache()
+        prune_mask = self.torch.zeros(5, 4, dtype=self.torch.bool)
+
+        score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, masks
+        )
+
+        self.assertEqual(score, 0.0)
+        for block in self.model.model.layers:
+            self.assertNotIn("forward", vars(block.mlp))
+
+    def test_nonempty_mask_is_finite_and_restores_all_wrappers(self) -> None:
+        references, masks = self._reference_cache(batch_size=1)
+        original_forwards = [type(layer.mlp).forward for layer in self.model.model.layers]
+        prune_mask = self.torch.zeros(5, 4, dtype=self.torch.bool)
+        prune_mask[0, 0] = True
+
+        score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, masks, batch_size=1
+        )
+
+        self.assertTrue(self.torch.isfinite(self.torch.tensor(score)))
+        self.assertGreaterEqual(score, 0.0)
+        for block, original in zip(self.model.model.layers, original_forwards, strict=True):
+            self.assertNotIn("forward", vars(block.mlp))
+            self.assertIs(block.mlp.forward.__func__, original)
+
+    def test_loss_mask_is_next_token_shifted_and_token_mean_normalized(self) -> None:
+        references, all_masks = self._reference_cache()
+        prune_mask = self.torch.zeros(5, 4, dtype=self.torch.bool)
+        all_score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, all_masks
+        )
+
+        subset_masks = [self.torch.ones(2, 9)]
+        subset_masks[0][:, 0] = 0.0
+        subset_score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, subset_masks
+        )
+
+        # The first source position contributes no target; its removal scales
+        # the same sum over the remaining 15 token positions.
+        self.assertAlmostEqual(subset_score, all_score * 16.0 / 15.0, places=12)
+
+    def test_malformed_prune_masks_fail_before_wrappers_are_installed(self) -> None:
+        references, masks = self._reference_cache()
+        original_forwards = [type(layer.mlp).forward for layer in self.model.model.layers]
+        cases = {
+            "wrong-shape": self.torch.zeros(4, 4, dtype=self.torch.bool),
+            "floating-dtype": self.torch.ones(5, 4),
+            "integer-dtype": self.torch.ones(5, 4, dtype=self.torch.long),
+            "not-a-tensor": [[False] * 4] * 5,
+        }
+
+        for description, prune_mask in cases.items():
+            with (
+                self.subTest(case=description),
+                self.assertRaises(ADAPTER.RcoAdapterError),
+            ):
+                ADAPTER.evaluate_with_mask(
+                    self.model, prune_mask, self.input_ids, references, masks
+                )
+
+        for block, original in zip(self.model.model.layers, original_forwards, strict=True):
+            self.assertNotIn("forward", vars(block.mlp))
+            self.assertIs(block.mlp.forward.__func__, original)
+
+
 class AdapterForwardTest(unittest.TestCase):
     """The wrapper's numerics against the block's own forward."""
 
