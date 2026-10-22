@@ -67,6 +67,18 @@ def output_config(source_config: dict[str, Any], keep: int) -> dict[str, Any]:
     result["num_experts"] = keep
     result["original_num_experts"] = custom_coder_plan.N_EXPERTS
     result["torch_dtype"] = "bfloat16"
+    # The materializer intentionally emits only the language model and lm_head.
+    # Qwen's text config can still describe a one-layer MTP block, so clear that
+    # declaration instead of asking a loader to instantiate tensors that were
+    # deliberately omitted.
+    result["mtp_num_hidden_layers"] = 0
+    if isinstance(result.get("mtp"), dict):
+        result["mtp"] = {
+            **result["mtp"],
+            "layer_types": [],
+            "mtp_use_hidden_state_from_layer": None,
+            "num_hidden_layers": 0,
+        }
     return result
 
 

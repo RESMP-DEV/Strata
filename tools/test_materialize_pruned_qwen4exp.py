@@ -88,11 +88,26 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
         self.assertEqual(result["omitted_tensors"], 2)
 
     def test_output_config_is_text_only_and_records_source_experts(self) -> None:
-        config = MODULE.output_config({"text_config": {"num_experts": 512}}, 288)
+        config = MODULE.output_config(
+            {
+                "text_config": {
+                    "num_experts": 512,
+                    "mtp": {
+                        "layer_types": ["full_attention"],
+                        "num_hidden_layers": 1,
+                    },
+                    "mtp_num_hidden_layers": 1,
+                }
+            },
+            288,
+        )
         self.assertEqual(config["architectures"], ["Qwen4ExpForCausalLM"])
         self.assertEqual(config["num_experts"], 288)
         self.assertEqual(config["original_num_experts"], 512)
         self.assertEqual(config["torch_dtype"], "bfloat16")
+        self.assertEqual(config["mtp_num_hidden_layers"], 0)
+        self.assertEqual(config["mtp"]["num_hidden_layers"], 0)
+        self.assertEqual(config["mtp"]["layer_types"], [])
 
     def test_optional_tiny_safetensors_materialization(self) -> None:
         try:

@@ -278,12 +278,17 @@ struct Geometry {
     }
     /// Expert tensors stored for one DSpark layer.
     std::size_t dspark_experts_per_layer() const noexcept {
-        return dspark_routed_experts;
+        // The published index has layers.* for the 40 backbone layers and
+        // mtp.* for the three DSpark stages.  Every DSpark stage also stores
+        // the same one shared-expert stack as a backbone layer.  Counting the
+        // tail here, rather than as a text layer below, prevents double-counting
+        // the three stages in total_expert_count().
+        return dspark_routed_experts + shared_experts;
     }
     /// Every expert tensor across the model: backbone and text and DSpark tail layers plus
     /// the DSpark layers.
     std::size_t total_expert_count() const noexcept {
-        return total_text_layers() * text_experts_per_layer() +
+        return text_layers * text_experts_per_layer() +
                dspark_layers * dspark_experts_per_layer();
     }
     std::size_t total_source_count() const noexcept {
