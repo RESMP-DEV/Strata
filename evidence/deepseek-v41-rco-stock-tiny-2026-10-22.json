@@ -1,10 +1,12 @@
 {
   "schema": "strata-work-evidence-v1",
   "recorded_at": "2026-10-22T22:28:30Z",
+  "updated_at": "2026-10-22T23:00:00Z",
   "agent": "Codex",
   "task": "Run the DeepSeek topology adapter inside unmodified stock RCO optimization on a tiny model.",
   "source_revision": "c88ec6347cf57d6e0a228ee87480e250793cf0f5",
   "source_dirty": false,
+  "follow_up_revision": "80c8932d125e37f168cb14f3b0a5a740fccaadae",
   "hardware": {
     "host": "B550",
     "machine_id": "27e232eefb5743a48455b58e0fb997a0",
@@ -15,7 +17,8 @@
     "stock_rco": "9a1e09c07d468109cbe60a1b87d5036034a79d10",
     "transformers_source": "62d7ebd7de4938e072b7aaeb881593b79dc56835",
     "torch": "2.14.0+cu130",
-    "adapter_sha256": "ddedf6add162d22dec3647c5ac920ecdeb1e3dcf02141f5334dfc433aad5ee75"
+    "initial_adapter_sha256": "ddedf6add162d22dec3647c5ac920ecdeb1e3dcf02141f5334dfc433aad5ee75",
+    "faithful_eval_adapter_sha256": "eea6040cf0364f202e3559e82468236e3759f453c12cc2526c6ddc7dbff35b31"
   },
   "procedure": {
     "model": "in-memory 1-layer DeepseekV41ForCausalLM, hidden 64, vocabulary 128, two routed experts, top-1, one shared expert",
@@ -36,15 +39,33 @@
     "mask_sum": 1,
     "wrapper_restored": true
   },
+  "faithful_eval_follow_up": {
+    "procedure": "process-locally replaced stock install_wrappers and final evaluate_with_mask with the DeepSeek adapter; stock reference construction and Gumbel-STE optimization remained unchanged",
+    "search_kl": 0.00020746214847479547,
+    "initial_stock_softmax_hook_kl": 0.00029305338726512024,
+    "per_layer_pruned": [1],
+    "n_pruned": 1,
+    "mask_shape": [1, 2],
+    "mask_dtype": "torch.bool",
+    "mask_sum": 1,
+    "routing_semantics": "hard survival mask zeros pruned routing weights without renormalizing surviving weights",
+    "wrapper_restored": true
+  },
   "artifact_sha256": {
     "log": "250bd478c68d3648379b2c1d2cd27c1e36c4b6783e1d8d3b56061a71284e2153",
     "result_json": "0d4ad952d196927f8a1a85f001c993b8285a8181280a273aa4ff8edd1672120c",
+    "mask": "2df1562e9987bcb36a9c6d195b750e57569ee86aa8c824c2adfda579c76fd2e2"
+  },
+  "faithful_eval_artifact_sha256": {
+    "log": "561d24c803610f9b894072ac46b0d7a1761e7a90325dc43ffaf7207e2402631c",
+    "result_json": "3f81043b5c22ba9196a14a8baffa9ac17625e1dfa3b7d1776648e4ff63cac49c",
     "mask": "2df1562e9987bcb36a9c6d195b750e57569ee86aa8c824c2adfda579c76fd2e2"
   },
   "non_claims": [
     "This is a one-step tiny-model structural integration, not a quality search or convergence result.",
     "The calibration tensor, model loader, and tokenizer were in-memory test substitutes; corpus loading and released-checkpoint loading were not exercised.",
     "Stock RCO final hard-mask evaluation ran, but its softmax-router assumption is not deployment-faithful to V4.1 sqrtsoftplus scores and correction biases.",
+    "The follow-up final evaluation is faithful to the adapter's hard-mask routing semantics, but it has not been compared with a physically materialized checkpoint or deployment engine.",
     "No released DeepSeek checkpoint shard was opened, downloaded, converted, quantized, packed, or benchmarked.",
     "The result says nothing about pruning quality, runtime performance, or the 216-of-384 budget lane.",
     "GPU0 calibration and the gated DeepSeek NVMe copy watcher remained active and undisturbed."

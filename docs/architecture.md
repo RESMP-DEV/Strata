@@ -2386,7 +2386,15 @@ restored afterward.
 This advances only the structural integration. Stock final hard-mask
 evaluation still uses its softmax-router assumption rather than V4.1's
 `sqrtsoftplus` scores and correction biases, so its KL is not yet a
-deployment-faithful DeepSeek evaluation. No released checkpoint was opened and
-no quality or runtime claim follows. Full machine, pins, substitutions,
-artifacts, hashes, and non-claims are in
+deployment-faithful DeepSeek evaluation.
+
+A follow-up at `80c8932d` added an adapter-faithful
+`evaluate_with_mask`: it converts RCO's prune mask to survival semantics, zeros
+pruned routing weights without renormalizing survivors, keeps stock next-token
+and token-mask normalization, and restores wrappers. The B550 rerun left stock
+reference construction and optimization intact, replaced only wrapper
+installation and final evaluation process-locally, and reported KL
+`0.000207462` while producing the same one-expert mask. No released checkpoint
+was opened and no quality or runtime claim follows. Full machine, pins,
+substitutions, artifacts, hashes, and non-claims are in
 [stock-RCO tiny integration evidence](../evidence/deepseek-v41-rco-stock-tiny-2026-10-22.json).
