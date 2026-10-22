@@ -12,7 +12,8 @@
 //
 // Runtime choices, each a trade of exactness for simplicity that only affects DRAFT quality, never the output
 // (the verify window decides every emitted token):
-//   * the large projections run as Q8_0 through the multi-column MMVQ (`tools/mtp_rt.py` quantizes them);
+//   * the large projections run through multi-column MMVQ as Q8_0, or as direct IQ4_NL/IQ4_XS blocks when
+//     `tools/mtp_iq4xs.py` repacked a qualified candidate (`mtp_format.hpp` owns the manifest contract);
 //   * the attention is DENSE over every cell the layer has seen - identical to the model's sparse selection
 //     below 2,051 cells - so speculative cells (draft steps, rejected window rows) never touch indexer state and
 //     are simply overwritten when their positions are processed again;
@@ -20,6 +21,7 @@
 #pragma once
 
 #include "strata/core/layer.hpp"
+#include "strata/core/mtp_format.hpp"
 #include "strata/core/pinned_ring.hpp"
 #include "strata/core/session.hpp"
 #include "strata/kernels/sampler.hpp"
@@ -242,7 +244,7 @@ private:
     cudaEvent_t sh_fork_ = nullptr, sh_join_ = nullptr;
     cudaGraphExec_t round_exec_[9] = {};
 
-    struct Tensor { std::string name, kind; int64_t rows = 0, cols = 0; uint64_t off = 0, bytes = 0; };
+    using Tensor = mtp_format::Tensor;
     std::vector<Tensor> tensors_;
     uint8_t* dense_ = nullptr;
     uint8_t* experts_ = nullptr;

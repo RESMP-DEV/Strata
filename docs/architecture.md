@@ -2293,3 +2293,43 @@ artifact claim: no heal, custom quantization, quality gate, or trained
 prefiller has run. Full machine, model, source, workload, and raw-evidence
 hashes are in [current-main runtime evidence](../evidence/flash-next-current-main-runtime-2026-10-21.json);
 raw request rows are retained in the [durable sweep](../evidence/flash-next-current-main-runtime-sweep-2026-10-21.json).
+
+### Direct IQ4 MTP draft projections, 2026-10-22
+
+The Flash-Next MTP candidate trained on a 4.25-bpw grid now has a Strata-side
+container path that does not collapse its projections back to Q8_0. The dense
+manifest accepts direct IQ4_XS and IQ4_NL blocks, `MtpDrafter::wq` passes each
+tensor's own GGML type to the existing MMVQ dispatch, and the loader rejects a
+bad kind, block alignment, byte count, duplicate name, unaligned offset, or
+out-of-range tensor before uploading `dense.bin`. The legacy `--mtp-q4` copy
+and a Q8_0-only runtime are unchanged. The batched prompt-K/V path still asks
+for Q8_0; when it finds IQ4 it declines and the drafter's own pass computes the
+prompt K/V, so the fallback is explicit rather than silent.
+
+`tools/mtp_iq4xs.py` repacks a qualified GGML safetensors candidate into a
+Strata runtime. It copies the ten MMVQ projections as native blocks (nine
+IQ4_XS tensors and IQ4_NL for the 640-column shared-expert down projection),
+copies `experts.bin` and every untouched tensor byte-for-byte, and writes a
+hash receipt. The eight trained fused-GR modules are not MMVQ tensors: the
+default repack dequantizes their IQ4 blocks with the GGML decoder and rounds
+them to BF16 for the existing fused-GR kernels; `--gr preserve-base` keeps the
+base weights. A partial GR set is refused. The Python decoders were checked
+bit-for-bit against the same `libggml-base` that packed the candidate.
+
+On the full 2,044-pair held-out bank, this Strata configuration reached 37.8180%
+teacher top-1 against 38.3072% for the MXFP4 grid and 4.8434% for the base
+weights. It retained 98.57% of MXFP4's absolute gain and was statistically
+indistinguishable from that grid (44 wins, 54 losses, 1,946 ties, exact McNemar
+p=0.363). A projection-only arm, with the GR modules left at base weights,
+still reached 35.7143%, which separates the MMVQ stage from a future direct
+low-bit fused-GR stage. The real repack reduced `dense.bin` from 116,058,112
+to 79,245,312 bytes while leaving the 675 MiB routed-expert blob unchanged.
+
+This is not yet a production promotion. Both B550 GPUs were occupied by
+unrelated live work, so no CUDA load, speculative acceptance, or throughput
+was measured. The evaluation also proves teacher-logit agreement, not kernel
+numerics: although the GGML decode is bit-exact and the engine's existing
+IQ4_XS/IQ4_NL kernels are pinned to the same layout, a real-artifact kernel
+parity check and live serve A/B remain gates. Full commands, hashes, build
+results, and non-claims are in
+[MTP IQ4 evidence](../evidence/2026-10-22-mtp-iq4xs-direct-projection-support.json).

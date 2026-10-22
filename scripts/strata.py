@@ -169,14 +169,31 @@ def quality() -> int:
                     [sys.executable, "-m", "unittest", "tools.test_prefiller_plan"],
                 ),
                 run_logged(
+                    "mtp-iq4xs-packer",
+                    [
+                        "uv",
+                        "run",
+                        "--python",
+                        "3.12",
+                        "--with",
+                        "numpy==2.5.3",
+                        "python",
+                        "-m",
+                        "unittest",
+                        "tools.test_mtp_iq4xs",
+                    ],
+                ),
+                run_logged(
                     "ruff-check",
                     [
                         "ruff",
                         "check",
                         "scripts",
                         "tools/kv_tier_acceptance.py",
+                        "tools/mtp_iq4xs.py",
                         "tools/prefiller_plan.py",
                         "tools/test_prefiller_plan.py",
+                        "tools/test_mtp_iq4xs.py",
                     ],
                 ),
                 run_logged(
@@ -187,8 +204,10 @@ def quality() -> int:
                         "--check",
                         "scripts",
                         "tools/kv_tier_acceptance.py",
+                        "tools/mtp_iq4xs.py",
                         "tools/prefiller_plan.py",
                         "tools/test_prefiller_plan.py",
+                        "tools/test_mtp_iq4xs.py",
                     ],
                 ),
                 run_logged(

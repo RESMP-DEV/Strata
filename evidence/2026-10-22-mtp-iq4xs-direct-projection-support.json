@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-22T20:55:00Z",
+  "agent": "Codex parent with two read-only Strata audit workers (loader/call-graph, packer/test)",
+  "source_revision": "02701077299759fce50780bbccf5e2434d052043",
+  "source_dirty": true,
+  "branch": "feature/mtp-iq4xs",
+  "worktree": "/Users/kearm/Strata/.worktrees/mtp-iq4xs",
+  "scope": "Add direct IQ4_XS/IQ4_NL support to the MTP draft layer's dense runtime so a qualified Flash-Next MTP IQ4 candidate can be served without a Q8_0 requantization pass, and repack one such candidate into a Strata runtime directory. This change does NOT serve the candidate live: it adds no live speculative-acceptance or throughput measurement, and it does not change the default Q8_0 path.",
+  "why_this_format": {
+    "question": "Which low-bit target matches the MXFP4-trained candidate's bits-per-weight and transfers its quantization-aware training?",
+    "chosen": "IQ4_XS for the 256-aligned projections, IQ4_NL for the 640-column shared-expert down projection",
+    "bits_per_weight": {
+      "mxfp4_training_grid": 4.25,
+      "iq4_xs": 4.25,
+      "iq4_nl": 4.5,
+      "mixed_artifact_effective": 4.282139577594123
+    },
+    "why_not_q4_0_or_k_quants": "Q4_0 is 4.5 bpw but has no per-group sub-scales and lost 2.0 points of teacher agreement against the mixed IQ4 candidate; the K-quants and IQ3 arms lost 7.1 to 12.1 points. IQ4_XS keeps the MXFP4 grid's 4.25 bpw and retains 98.68 percent of MXFP4's absolute teacher-logit gain.",
+    "recorded_in": "RESMP-DEV/mlx-stack evidence/2026-10-22-flashnext-mtp-iq4xs-format-selection.json"
+  },
+  "implementation": {
+    "runtime": {
+      "files": [
+        "include/strata/core/mtp_format.hpp",
+        "include/strata/core/mtp.hpp",
+        "src/core/mtp.cpp"
+      ],
+      "contract": "The dense manifest's kind column may now name iq4_xs or iq4_nl beside q8_0, bf16 and f32. MtpDrafter::wq returns the tensor's own GGML type and a pointer into dense.bin, so the projection runs through the existing native MMVQ dispatch (IQ4_XS=23, IQ4_NL=20) with no new kernel.",
+      "validation": "mtp_format::validate rejects an unknown kind, a duplicate name, a row/column/block misalignment, a byte count that disagrees with the format, a pointer that is not 4-byte aligned (the MMVQ contract's own requirement, not the 256-byte stride the packer writes), and a range outside dense.bin, all before the device upload.",
+      "backward_compatibility": "The old --mtp-q4 Q4_0 copy path and every Q8_0 runtime are unchanged; a Q8_0-only runtime still loads and still serves.",
+      "prefill_boundary": "Prefill::draft_kv reads the drafter's Q8_0 tensors directly (tensor_q8). With an IQ4 runtime it declines that path and the drafter's own pass computes the prompt K/V instead. This is a stated behavioural difference, not a silent one."
+    },
+    "packer": {
+      "file": "tools/mtp_iq4xs.py",
+      "inputs": [
+        "an existing tools/mtp_rt.py runtime directory",
+        "a GGML safetensors candidate with module_formats metadata"
+      ],
+      "outputs": [
+        "a new runtime directory with a rewritten dense.txt/dense.bin",
+        "mtp-iq4xs-receipt.json with the candidate, base and output SHA-256 digests"
+      ],
+      "fused_gr_handling": "The eight trained fused-GR modules are not MMVQ projections; Strata reads them as BF16. The packer dequantizes the candidate's IQ4 blocks with the GGML IQ4 decode and rounds them to BF16 (--gr dequantize-bf16, the default), or keeps the base runtime's GR weights (--gr preserve-base). A candidate with a partial GR set is refused rather than silently half-applied.",
+      "preserved": "experts.bin, draft_vocab.bin, the norm and router tensors, and the untouched projection bytes are copied byte-for-byte; the repacked experts.bin was compared byte-for-byte with the base.",
+      "dependencies": "Python standard library plus numpy only; no safetensors package is required."
+    },
+    "tests": [
+      "tests/core/mtp_format_test.cpp",
+      "tools/test_mtp_iq4xs.py",
+      "the mtp-iq4xs-packer check added to just quality"
+    ]
+  },
+  "measured": {
+    "decoder_bit_exactness": {
+      "claim": "The packer's IQ4_XS and IQ4_NL decoders are bit-exact against the same local libggml-base that produced the candidate.",
+      "method": "dequantize_row_iq4_xs and dequantize_row_iq4_nl called through ctypes on the candidate's own blocks; the float32 bit patterns were compared.",
+      "modules_checked": [
+        "self_attn.k_proj (iq4_xs)",
+        "mlp.shared_expert.down_proj (iq4_nl)",
+        "attn_hyper_connection.block_inject_weight (iq4_xs)"
+      ],
+      "result": "identical bit patterns on all three"
+    },
+    "teacher_logit_agreement": {
+      "claim": "The Strata serving approximation of the candidate (ten IQ4 projections plus the eight trained GR modules dequantized to BF16) keeps the MXFP4-trained candidate's quality.",
+      "protocol": "2,044 group-disjoint held-out pairs from four private banks, FP16 with SDPA attention on MPS, the same harness as the format-selection campaign; base, MXFP4 and candidate measured in one run.",
+      "top1_match": {
+        "base": 0.048434442270058706,
+        "mxfp4": 0.3830724070450098,
+        "strata_configuration": 0.37818003913894327
+      },
+      "retained_share_of_mxfp4_gain": 0.98538,
+      "versus_base": {
+        "mcnemar_exact_p_value": 5.319784164834795e-174,
+        "wins": 697,
+        "losses": 23
+      },
+      "versus_mxfp4": {
+        "mcnemar_exact_p_value": 0.36335418766405314,
+        "wins": 44,
+        "losses": 54,
+        "ties": 1946
+      },
+      "raw": "build/mtp-iq4xs/mps-sdpa-f16-full2044-iq4xs-strata-bf16gr.json",
+      "interpretation": "The candidate is statistically indistinguishable from the MXFP4 grid it was trained on (44 wins, 54 losses, 1,946 ties, p=0.36) and far above the base (p=1.5e-174). The BF16 rounding of the GR modules is the only approximation in this configuration."
+    },
+    "phase_one_only": {
+      "claim": "Quantizing only the ten MMVQ projections and leaving the GR modules at base weights still recovers most of the gain, so the two stages can be sequenced.",
+      "top1_match": 0.35714285714285715,
+      "note": "This arm evaluates BASE GR weights, so it is not the serving configuration; it only bounds the first stage."
+    },
+    "runtime_size": {
+      "base_dense_bytes": 116058112,
+      "repacked_dense_bytes": 79245312,
+      "saving_bytes": 36812400,
+      "note": "The dense projection blob shrinks from 110.7 MiB to 75.6 MiB. experts.bin (675 MiB) and the routed experts are untouched."
+    }
+  },
+  "checks": [
+    {
+      "check": "just quality",
+      "command": "just quality",
+      "exit": 0,
+      "result": "aggregate_passed true; the new mtp-iq4xs-packer check and Ruff on the two new files ran inside it",
+      "receipt": "build/reports/quality/receipt.json"
+    },
+    {
+      "check": "host format test",
+      "command": "c++ -std=c++20 -Iinclude tests/core/mtp_format_test.cpp -o build/mtp_format_test && ./build/mtp_format_test",
+      "exit": 0,
+      "result": "mtp_format_test: all ok"
+    },
+    {
+      "check": "packer unit tests",
+      "command": "uv run --python 3.12 --with numpy==2.5.3 python -m unittest tools.test_mtp_iq4xs -v",
+      "exit": 0,
+      "result": "3 tests passed"
+    },
+    {
+      "check": "CUDA build (sm_86)",
+      "command": "cmake --build /home/kearm/build/strata-mtp-iq4xs-sm86 --target mtp_format_test strata_engine -j 8 && ctest -R ^mtp_format_test$",
+      "exit": 0,
+      "result": "strata_engine linked; mtp_format_test passed",
+      "host": "B550"
+    },
+    {
+      "check": "HIP build (gfx1100)",
+      "command": "docker rocm/dev-ubuntu-22.04:10.1.0-full: cmake --build /build --target mtp_format_test strata_engine -j 8 && ctest -R ^mtp_format_test$",
+      "exit": 0,
+      "result": "strata_engine linked for gfx1100; mtp_format_test passed",
+      "host": "B550"
+    }
+  ],
+  "hosts": {
+    "b550": {
+      "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+      "gpus": "2 x NVIDIA GeForce RTX 3090 Ti (sm_86)",
+      "role": "compile-only build host for this change"
+    },
+    "main": {
+      "system": "macOS 26.7.1 arm64",
+      "role": "repository gate, packer, decoder proof, teacher-logit evaluation"
+    }
+  },
+  "artifacts": {
+    "candidate": {
+      "path": "/Users/kearm/mlx/.worktrees/mlx-gptq-mxfp/.worktrees/flashnext-mtp-qat/build/production-validation/flashnext_mtp_iq4_xs.safetensors",
+      "sha256": "252d76f66f57917baa7b1db0c9c29c460ad0f2429135e958770547ecb7a4acf2",
+      "bytes": 47754584
+    },
+    "repacked_runtime": {
+      "path": "build/mtp-iq4xs/rt-iq4xs",
+      "dense_sha256": "f1cd3417e4d2af0e343139d663fab9c50911f219409d39fb30bf2440f6007370",
+      "base_dense_sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a",
+      "replaced_tensors": 18,
+      "gr_mode": "dequantize-bf16"
+    }
+  },
+  "non_claims": [
+    "No live Strata serve ran with the IQ4 runtime: both B550 GPUs were occupied by unrelated work (an llama-imatrix process on GPU 0 at 22.4 GiB and a retrieval trainer on GPU 1 at 21.6 GiB), so no speculative acceptance, no draft quality, and no throughput number is claimed.",
+    "The teacher-logit evaluation measures agreement with the teacher on one private bank set, not speculative acceptance, and it evaluates the model's arithmetic, not the CUDA MMVQ kernels' numerics.",
+    "The BF16 rounding of the eight fused-GR modules is an approximation of the trained candidate; a direct low-bit fused-GR kernel is not implemented and is not claimed.",
+    "The IQ4 blocks were produced by the external GGML quantizer and are assumed to be byte-compatible with Strata's IQ4_XS/IQ4_NL kernels; the decoder path was proven bit-exact, but a kernel-level parity test on the real artifact has not run.",
+    "The repacked runtime directory lives in the ignored build tree and is not a published artifact.",
+    "The candidate was produced by a separate campaign in RESMP-DEV/mlx-stack; this change only consumes it."
+  ]
+}

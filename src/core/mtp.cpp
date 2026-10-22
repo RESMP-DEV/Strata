@@ -77,8 +77,7 @@ bool mtp_catchup_all() {
     }();
     return on;
 }
-constexpr int GGML_Q8_0 = 8;
-constexpr int GGML_Q4_0 = 2;
+namespace mf = mtp_format;
 using Clock = std::chrono::steady_clock;
 double ms_since(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
 
@@ -181,8 +180,16 @@ const void* MtpDrafter::q8(const char* name) const {
 const void* MtpDrafter::wq(const char* name, int& type) const {
     if (dense4_ != nullptr)
         for (const auto& e : q4_off_)
-            if (e.first == name) { type = GGML_Q4_0; return dense4_ + e.second; }
-    type = GGML_Q8_0;
+            if (e.first == name) { type = mf::kQ4_0; return dense4_ + e.second; }
+    for (const auto& t : tensors_) {
+        if (t.name != name || !mf::projection(t.kind)) continue;
+        bool known = false;
+        const int ggml_type = mf::ggml_type(t.kind, known);
+        if (!known) break;
+        type = ggml_type;
+        return dense_ + t.off;
+    }
+    type = mf::kQ8_0;
     return q8(name);
 }
 
@@ -237,7 +244,7 @@ bool MtpDrafter::make_q4_head(std::string& err) {
     }
     // the Q4_0 rows replace the subset in place (they are smaller)
     if (cudaMemcpy(dhead_, dst.data(), dst.size(), cudaMemcpyHostToDevice) != cudaSuccess) { err = "mtp: writing the draft head"; return false; }
-    dhead_type_ = GGML_Q4_0;
+    dhead_type_ = mf::kQ4_0;
     std::fprintf(stderr, "strata mtp: --mtp-q4: draft head over %lld tokens as Q4_0 (%.1f MiB read per step, was %.1f)\n",
                  (long long) n_dvocab_, (double) dst.size() / 1048576.0, (double) src.size() / 1048576.0);
     return true;
@@ -293,6 +300,7 @@ bool MtpDrafter::load(const std::string& rt_dir, const ModelGeometry& g, Session
         }
         std::vector<uint8_t> blob;
         if (!read_file(rt_dir + "/dense.bin", blob)) { err = "mtp: cannot read dense.bin"; return false; }
+        if (!mf::validate(tensors_, (int64_t) blob.size(), err)) return false;
         const cudaError_t alloc = cudaMalloc((void**) &dense_, blob.size());
         if (alloc != cudaSuccess) {
             size_t free_bytes = 0, total_bytes = 0;
@@ -333,7 +341,13 @@ bool MtpDrafter::load(const std::string& rt_dir, const ModelGeometry& g, Session
     const char* required[] = {"fc_embedding.weight", "fc_hidden.weight", "self_attn.q_proj.weight", "self_attn.k_proj.weight",
                               "self_attn.v_proj.weight", "self_attn.o_proj.weight", "mlp.shared_expert.gate_proj.weight",
                               "mlp.shared_expert.up_proj.weight", "mlp.shared_expert.down_proj.weight"};
-    for (const char* n : required) if (!q8(n)) { err = std::string("mtp: ") + n + " is missing (q8_0)"; return false; }
+    for (const char* n : required) {
+        int type = -1;
+        if (wq(n, type) == nullptr || !strata::kernels::native_mmvq_supported(type)) {
+            err = std::string("mtp: ") + n + " is missing or has an unsupported projection format";
+            return false;
+        }
+    }
 
     // ---- the layer's own K/V (dense attention: no indexer state is read)
     const strata::kernels::QsaShapes s = shapes_of(g);
