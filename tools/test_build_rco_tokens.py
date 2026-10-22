@@ -5,15 +5,18 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("build_rco_tokens", TOOLS / "build_rco_tokens.py")
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
@@ -80,6 +83,51 @@ class BuildRcoTokensTest(unittest.TestCase):
         )
         self.assertEqual(result.records_read, 1)
         self.assertEqual(result.sequences, [[0, 1, 2, 9]])
+
+    def test_non_positive_limits_are_rejected(self) -> None:
+        path = self.write_rows("rows.jsonl", [{"text": "abc"}])
+        for keyword in ("max_records", "max_sequences"):
+            with self.subTest(keyword=keyword):
+                limits = {"max_records": None, "max_sequences": None}
+                limits[keyword] = 0
+                with self.assertRaisesRegex(ValueError, f"--{keyword.replace('_', '-')}"):
+                    MODULE.build_sequences(
+                        [path],
+                        FakeTokenizer(),
+                        sequence_length=4,
+                        **limits,
+                        field="text",
+                    )
+
+    def test_cli_limits_and_remote_code_opt_in_are_validated(self) -> None:
+        arguments = [
+            "build",
+            "rows.jsonl",
+            "--tokenizer",
+            "tokenizer",
+            "--out",
+            "out.pt",
+            "--dataset-name",
+            "test",
+        ]
+        with patch("sys.argv", arguments):
+            args = MODULE.parse_args()
+        self.assertIsNone(args.max_records)
+        self.assertIsNone(args.max_sequences)
+        self.assertFalse(args.trust_remote_code)
+
+        with (
+            patch("sys.argv", [*arguments, "--max-records", "0"]),
+            self.assertRaises(SystemExit),
+        ):
+            MODULE.parse_args()
+        with (
+            patch("sys.argv", [*arguments, "--max-sequences", "-1"]),
+            self.assertRaises(SystemExit),
+        ):
+            MODULE.parse_args()
+        with patch("sys.argv", [*arguments, "--trust-remote-code"]):
+            self.assertTrue(MODULE.parse_args().trust_remote_code)
 
     def test_padding_is_reported_without_inventing_source_tokens(self) -> None:
         path = self.write_rows("rows.jsonl", [{"text": "ab"}])

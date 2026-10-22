@@ -2336,3 +2336,33 @@ that double-counted the DSpark tail and omitted its shared stacks. The Qwen
 text-only materializer likewise now clears inherited MTP configuration when it
 omits MTP tensors. Full evidence, upstream pins, commands, and non-claims are in
 [DeepSeek RCO preflight](../evidence/deepseek-v41-rco-preflight-2026-10-22.json).
+
+### RCO review hardening, 2026-10-22
+
+PR review repaired the contracts around the first DeepSeek preflight and the
+stacked Qwen own-Coder tools without expanding their runtime claims. The
+DeepSeek planner now rounds signed exact ratios half-away-from-zero and reports
+per-layer and 40-layer routed-expert byte totals under distinct names. DSpark's
+per-token total includes its three routed experts plus its shared expert. The
+Qwen token builder rejects non-positive limits and makes tokenizer remote code
+an explicit opt-in. The own-Coder planner validates the declared source expert
+count and binds generated commands to the actual mask destinations; the
+materializer validates tokenizer files before dry-run or shard streaming,
+rejects unexpected source expert dimensions, and its round-trip test now checks
+non-identity, layer-varying source rows. The trace control's seed-and-trace
+metric no longer counts trace-scored fills as seed support.
+
+A read-only trace of pinned stock RCO also fixed the next integration boundary:
+stock `search.prune.optimize` must use the DeepSeek adapter's `install_wrappers`
+through a process-local replacement, is CUDA-only because it allocates search
+state directly on `cuda:0`, and its hard-mask evaluation still assumes a
+softmax router rather than V4.1's `sqrtsoftplus` scores and correction biases.
+No stock integration search has passed yet.
+
+Parent acceptance ran all 78 modified-area system tests, the 20 pinned
+Torch/Transformers adapter tests, all seven Torch/safetensors materializer
+tests, both DeepSeek C++ contract builds and test binaries, Ruff, format,
+whitespace, and `just quality` (20/20). These checks do not run stock RCO on
+the released model or establish pruning quality. Full commands and boundaries
+are in
+[RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).

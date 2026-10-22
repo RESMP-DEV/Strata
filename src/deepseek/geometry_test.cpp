@@ -222,7 +222,7 @@ void test_derived_helpers() {
 
     check(g.routed_experts_per_token_total() == 7, "text layer computes 6 routed plus 1 shared");
     check(g.text_experts_per_layer() == 385, "text layer stores 384 routed plus 1 shared");
-    check(g.dspark_experts_per_token_total() == 3, "DSpark layer computes 3 routed experts");
+    check(g.dspark_experts_per_token_total() == 4, "DSpark layer computes 3 routed plus 1 shared");
     check(
         g.dspark_experts_per_layer() == 129,
         "DSpark layer stores 128 routed experts plus one shared expert");

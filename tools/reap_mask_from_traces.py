@@ -113,6 +113,15 @@ def choose_mask(
     return keep_ids, fill_ids, selected_scores
 
 
+def count_seed_and_trace_selected(
+    seeds: list[set[int]] | None, scores: dict[tuple[int, int], float]
+) -> int:
+    """Count seed cells that were selected and have trace support."""
+    return sum(
+        (layer, expert) in scores for layer, experts in enumerate(seeds or []) for expert in experts
+    )
+
+
 def parse_seed_allocation(path: Path, n_layers: int, n_expert: int) -> list[set[int]]:
     pattern = re.compile(r"^blk\.(\d+)\.ffn_down_exps\.weight\[(\d+)\]:\s*(\S+)\s*$")
     result: list[set[int]] = [set() for _ in range(n_layers)]
@@ -182,6 +191,7 @@ def main() -> int:
         (layer, expert) in scores for layer, experts in enumerate(keep_ids) for expert in experts
     )
     seed_selected = sum(len(row) for row in (seeds or []))
+    seed_and_trace_selected = count_seed_and_trace_selected(seeds, scores)
     filled_selected = sum(len(row) for row in fills)
     total_weight = sum(max(0.0, score) for score in scores.values())
     selected_weight = sum(
@@ -203,7 +213,7 @@ def main() -> int:
         "filled_selected": filled_selected,
         "unobserved_selected": args.layers * args.keep - trace_supported,
         "seed_selected": seed_selected,
-        "seed_and_trace_selected": trace_supported,
+        "seed_and_trace_selected": seed_and_trace_selected,
         "positive_trace_weight_covered": selected_weight / total_weight if total_weight else 0.0,
         "keep_ids": keep_ids,
         "fill_ids": fills,

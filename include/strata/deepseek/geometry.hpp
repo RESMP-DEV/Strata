@@ -274,7 +274,7 @@ struct Geometry {
     }
     /// Expert columns computed per token in a DSpark layer.
     std::size_t dspark_experts_per_token_total() const noexcept {
-        return dspark_routed_experts_per_token;
+        return dspark_routed_experts_per_token + shared_experts;
     }
     /// Expert tensors stored for one DSpark layer.
     std::size_t dspark_experts_per_layer() const noexcept {

@@ -82,7 +82,7 @@ def output_config(source_config: dict[str, Any], keep: int) -> dict[str, Any]:
     return result
 
 
-def copy_tokenizer_files(source: Path, output: Path) -> list[str]:
+def validate_tokenizer_files(source: Path) -> list[str]:
     prefixes = (
         "tokenizer",
         "special_tokens_map",
@@ -90,16 +90,36 @@ def copy_tokenizer_files(source: Path, output: Path) -> list[str]:
         "generation_config",
         "chat_template",
     )
-    copied: list[str] = []
+    names: list[str] = []
     for path in sorted(source.iterdir()):
         if not path.is_file() or not path.name.startswith(prefixes):
             continue
-        target = output / path.name
-        target.write_bytes(path.read_bytes())
-        copied.append(path.name)
-    if not any(name.startswith("tokenizer") for name in copied):
+        names.append(path.name)
+    if not any(name.startswith("tokenizer") for name in names):
         raise ValueError("source checkpoint has no tokenizer files")
+    return names
+
+
+def copy_tokenizer_files(source: Path, output: Path, names: Sequence[str]) -> list[str]:
+    copied: list[str] = []
+    for name in names:
+        target = output / name
+        target.write_bytes((source / name).read_bytes())
+        copied.append(name)
     return copied
+
+
+def validate_source_expert_dimension(tensor: Any, kind: str, name: str) -> tuple[int, ...]:
+    values = tuple(tensor.shape)
+    expected_rank = 2 if kind == "router" else 3
+    if len(values) != expected_rank:
+        raise ValueError(f"{name}: expert tensor rank {len(values)}, expected {expected_rank}")
+    if values[0] != custom_coder_plan.N_EXPERTS:
+        raise ValueError(
+            f"{name}: source expert dimension {values[0]} "
+            f"does not match {custom_coder_plan.N_EXPERTS}"
+        )
+    return values
 
 
 def materialize(
@@ -114,6 +134,7 @@ def materialize(
         raise ValueError(f"output already exists; refuse to overwrite: {output}")
     index_path = source / "model.safetensors.index.json"
     config_path = source / "config.json"
+    tokenizer_files = validate_tokenizer_files(source)
     source_index = json.loads(index_path.read_text(encoding="utf-8"))
     source_config = json.loads(config_path.read_text(encoding="utf-8"))
     mask_document = json.loads(mask_path.read_text(encoding="utf-8"))
@@ -149,6 +170,7 @@ def materialize(
         "keep_per_layer": keep,
         "selected_tensors": len(selected_names),
         "omitted_tensors": len(weight_map) - len(selected_names),
+        "tokenizer_files": tokenizer_files,
         "dry_run": dry_run,
     }
     if dry_run:
@@ -183,7 +205,8 @@ def materialize(
                     copied_counts["other"] += 1
                 else:
                     kind, layer = classified
-                    wanted = prune_shape(tuple(tensor.shape), kind, keep)
+                    source_shape = validate_source_expert_dimension(tensor, kind, name)
+                    wanted = prune_shape(source_shape, kind, keep)
                     tensors[name] = tensor.index_select(0, selection_index[layer])
                     if tuple(tensors[name].shape) != wanted:
                         raise ValueError(
@@ -227,7 +250,7 @@ def materialize(
     (output / "expert-id-map.json").write_text(
         json.dumps(expert_map, indent=2) + "\n", encoding="utf-8"
     )
-    copied_tokenizer = copy_tokenizer_files(source, output)
+    copied_tokenizer = copy_tokenizer_files(source, output, tokenizer_files)
     receipt = {
         **plan,
         "format": "strata-pruned-qwen4exp-bf16-v1",

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from argparse import Namespace
@@ -14,6 +15,7 @@ TOOLS = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("custom_coder_plan", TOOLS / "custom_coder_plan.py")
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
@@ -83,6 +85,14 @@ class CustomCoderPlanTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "keep count 320"):
             MODULE.load_own_mask(path)
 
+    def test_mask_source_expert_count_is_required(self) -> None:
+        path = self.write_mask(288)
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["n_expert"] = 256
+        path.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "n_expert must be 512"):
+            MODULE.load_own_mask(path)
+
     def test_budgets_use_exact_block_geometry(self) -> None:
         result = MODULE.budget(288, "iq3s-iq4nl")
         self.assertEqual(result["kept_experts"], 13_824)
@@ -111,6 +121,8 @@ class CustomCoderPlanTest(unittest.TestCase):
             calibration_tokens=self.root / "cal.pt",
             evaluation_tokens=self.root / "eval.pt",
             work_root=self.root / "work",
+            rco_mask_out=self.root / "actual-own-mask.pt",
+            parent_rco_mask_out=self.root / "actual-parent-mask.pt",
             recipe="iq3s-iq4nl",
             sequence_length=2048,
             calibration_chunks=256,
@@ -127,6 +139,34 @@ class CustomCoderPlanTest(unittest.TestCase):
         self.assertIn("ffn_gate_exps=IQ3_S", quantize)
         self.assertIn("ffn_down_exps=IQ4_NL", quantize)
         self.assertIn("COPY", quantize)
+        actual_own = str(self.root / "actual-own-mask.pt")
+        actual_parent = str(self.root / "actual-parent-mask.pt")
+        self.assertEqual(manifest["commands"]["search_own_mask"]["argv"][-1], actual_own)
+        self.assertEqual(
+            manifest["commands"]["eval_own_mask"]["argv"][
+                manifest["commands"]["eval_own_mask"]["argv"].index("--eval-mask") + 1
+            ],
+            actual_own,
+        )
+        self.assertEqual(
+            manifest["commands"]["eval_parent_mask"]["argv"][
+                manifest["commands"]["eval_parent_mask"]["argv"].index("--eval-mask") + 1
+            ],
+            actual_parent,
+        )
+        materialize = manifest["commands"]["materialize_pruned_bf16"]["argv"]
+        self.assertEqual(materialize[materialize.index("--prune-mask") + 1], actual_own)
+
+    def test_parent_control_requires_an_explicit_destination(self) -> None:
+        args = Namespace(
+            mask=self.write_mask(288),
+            parent_allocation=self.write_parent(),
+            work_root=self.root / "work",
+            rco_mask_out=None,
+            parent_rco_mask_out=None,
+        )
+        with self.assertRaisesRegex(ValueError, "--parent-rco-mask-out is required"):
+            MODULE.rco_mask_paths(args)
 
 
 if __name__ == "__main__":

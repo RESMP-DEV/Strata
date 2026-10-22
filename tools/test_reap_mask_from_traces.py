@@ -72,6 +72,17 @@ class ReapMaskTest(unittest.TestCase):
         self.assertEqual(fills, [[]])
         self.assertEqual(selected, [[0.0, 0.5]])
 
+    def test_seed_and_trace_count_excludes_trace_scored_fill(self) -> None:
+        path = self.root / "trace.bin"
+        trace(path, [(0, [3], [0.4])])
+        scores, _ = MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
+        keep, fills, _ = MODULE.choose_mask(scores, 1, 4, 2, seeds=[{2}])
+        trace_supported = sum((0, expert) in scores for expert in keep[0])
+        self.assertEqual(keep, [[2, 3]])
+        self.assertEqual(fills, [[]])
+        self.assertEqual(trace_supported, 1)
+        self.assertEqual(MODULE.count_seed_and_trace_selected([{2}], scores), 0)
+
     def test_seed_above_budget_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "seed has 3 experts, above budget 2"):
             MODULE.choose_mask({}, 1, 4, 2, seeds=[{1, 2, 3}])

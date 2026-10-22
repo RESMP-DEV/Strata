@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ SPEC = importlib.util.spec_from_file_location(
 )
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
@@ -35,7 +37,7 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def source(self, keep: int) -> tuple[Path, Path]:
+    def source(self, keep: int, *, tokenizer: bool = True) -> tuple[Path, Path]:
         source = self.root / "source"
         source.mkdir()
         weight_map = {
@@ -48,7 +50,12 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
         for layer in range(48):
             for name in expert_names(layer):
                 weight_map[name] = "model.safetensors"
-            rows.append(list(range(keep)))
+            rows.append(
+                [
+                    (expert * 7 + layer) % MODULE.custom_coder_plan.N_EXPERTS
+                    for expert in range(keep)
+                ]
+            )
         (source / "config.json").write_text(
             json.dumps({"text_config": {"num_experts": 512, "hidden_size": 3}}),
             encoding="utf-8",
@@ -63,12 +70,15 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
             json.dumps(
                 {
                     "format": "strata-reap-mask-v1",
+                    "n_expert": MODULE.custom_coder_plan.N_EXPERTS,
                     "keep_per_layer": keep,
                     "keep_ids": rows,
                 }
             ),
             encoding="utf-8",
         )
+        if tokenizer:
+            (source / "tokenizer.json").write_text("{}", encoding="utf-8")
         return source, mask
 
     def test_tensor_classification_and_shape_contracts(self) -> None:
@@ -86,6 +96,22 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
         self.assertEqual(result["keep_per_layer"], 288)
         self.assertEqual(result["selected_tensors"], 146)
         self.assertEqual(result["omitted_tensors"], 2)
+        self.assertEqual(result["tokenizer_files"], ["tokenizer.json"])
+
+    def test_dry_run_rejects_a_checkpoint_without_tokenizer_files(self) -> None:
+        source, mask = self.source(288, tokenizer=False)
+        output = self.root / "out"
+        with self.assertRaisesRegex(ValueError, "no tokenizer files"):
+            MODULE.materialize(source, mask, output, dry_run=True)
+        self.assertFalse(output.exists())
+
+    def test_mask_expert_dimension_mismatch_is_rejected(self) -> None:
+        source, mask = self.source(288)
+        document = json.loads(mask.read_text(encoding="utf-8"))
+        document["n_expert"] = 256
+        mask.write_text(json.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "n_expert must be 512"):
+            MODULE.materialize(source, mask, self.root / "out", dry_run=True)
 
     def test_output_config_is_text_only_and_records_source_experts(self) -> None:
         config = MODULE.output_config(
@@ -119,6 +145,7 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
 
         source, mask = self.source(256)
         (source / "model.safetensors").unlink()
+        selected_rows = json.loads(mask.read_text(encoding="utf-8"))["keep_ids"]
         tensors: dict[str, object] = {
             "model.language_model.norm.weight": torch.randn(3),
             "lm_head.weight": torch.randn(3, 3),
@@ -127,11 +154,11 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
         }
         for layer in range(48):
             router, gate_up, down = expert_names(layer)
-            tensors[router] = torch.randn(512, 3)
-            tensors[gate_up] = torch.randn(512, 4, 3)
-            tensors[down] = torch.randn(512, 3, 2)
+            source_experts = torch.arange(512, dtype=torch.float32)
+            tensors[router] = source_experts.reshape(512, 1).expand(512, 3).contiguous()
+            tensors[gate_up] = source_experts.reshape(512, 1, 1).expand(512, 4, 3).contiguous()
+            tensors[down] = source_experts.reshape(512, 1, 1).expand(512, 3, 2).contiguous()
         save_file(tensors, str(source / "model.safetensors"), metadata={"format": "pt"})
-        (source / "tokenizer.json").write_text("{}", encoding="utf-8")
         output = self.root / "out"
         result = MODULE.materialize(source, mask, output, dry_run=False)
         self.assertEqual(result["materialized_tensor_counts"]["router"], 48)
@@ -147,7 +174,41 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
             self.assertNotIn("model.visual.weight", handle.keys())
             self.assertNotIn("mtp.weight", handle.keys())
         expert_map = json.loads((output / "expert-id-map.json").read_text())
-        self.assertEqual(expert_map["physical_to_source"][0], list(range(256)))
+        self.assertEqual(expert_map["physical_to_source"][0], selected_rows[0])
+        self.assertNotEqual(
+            expert_map["physical_to_source"][0],
+            expert_map["physical_to_source"][1],
+        )
+        with safe_open(output / "model.safetensors", framework="pt") as handle:
+            for layer in range(48):
+                selection = torch.tensor(selected_rows[layer], dtype=torch.long)
+                for name in expert_names(layer):
+                    selected = handle.get_tensor(name)
+                    self.assertTrue(torch.equal(selected, tensors[name].index_select(0, selection)))
+
+    def test_source_expert_dimension_is_validated_before_index_select(self) -> None:
+        try:
+            import torch
+            from safetensors.torch import save_file
+        except ImportError:
+            self.skipTest("torch and safetensors are required for this round trip")
+
+        source, mask = self.source(256)
+        (source / "model.safetensors").unlink()
+        tensors = {
+            "model.language_model.norm.weight": torch.randn(3),
+            "lm_head.weight": torch.randn(3, 3),
+        }
+        router, gate_up, down = expert_names(0)
+        tensors[router] = torch.randn(256, 3)
+        tensors[gate_up] = torch.randn(256, 4, 3)
+        tensors[down] = torch.randn(256, 3, 2)
+        for layer in range(1, 48):
+            for name in expert_names(layer):
+                tensors[name] = torch.randn(512, 3)
+        save_file(tensors, str(source / "model.safetensors"), metadata={"format": "pt"})
+        with self.assertRaisesRegex(ValueError, "source expert dimension 256"):
+            MODULE.materialize(source, mask, self.root / "out", dry_run=False)
 
 
 if __name__ == "__main__":

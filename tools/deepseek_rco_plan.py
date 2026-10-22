@@ -182,10 +182,11 @@ def round_ratio(value: Fraction, mode: str) -> int:
     if mode == "nearest":
         if value.denominator == 1:
             return value.numerator
-        doubled = 2 * value.numerator
-        if doubled >= value.denominator:
-            return (doubled + value.denominator) // (2 * value.denominator)
-        return (doubled - value.denominator) // (2 * value.denominator)
+        sign = 1 if value.numerator >= 0 else -1
+        quotient, remainder = divmod(abs(value.numerator), value.denominator)
+        if 2 * remainder >= value.denominator:
+            quotient += 1
+        return sign * quotient
     raise PlanError(f"unknown rounding mode {mode!r}")
 
 
@@ -420,7 +421,11 @@ def config_geometry(text: dict[str, Any]) -> dict[str, int]:
 
 @dataclass(frozen=True)
 class Budget:
-    """One derived pruning budget for the backbone routed experts."""
+    """One derived pruning budget for one backbone layer's routed experts.
+
+    ``*_bytes_per_layer`` is the packed storage selected in that layer.
+    ``*_bytes_total`` multiplies that selection by every backbone layer.
+    """
 
     name: str
     basis: str
@@ -429,8 +434,10 @@ class Budget:
     retained_fraction: Fraction
     active_experts: int
     retained_per_active: Fraction
-    retained_bytes: int
-    removed_bytes: int
+    retained_bytes_per_layer: int
+    removed_bytes_per_layer: int
+    retained_bytes_total: int
+    removed_bytes_total: int
 
     def as_json(self) -> dict[str, Any]:
         return {
@@ -449,10 +456,12 @@ class Budget:
                 "denominator": self.retained_per_active.denominator,
                 "decimal": float(self.retained_per_active),
             },
-            "retained_bytes": self.retained_bytes,
-            "removed_bytes": self.removed_bytes,
-            "retained_bytes_decimal_gb": self.retained_bytes / 1_000_000_000,
-            "retained_bytes_gib": self.retained_bytes / 2**30,
+            "retained_bytes_per_layer": self.retained_bytes_per_layer,
+            "removed_bytes_per_layer": self.removed_bytes_per_layer,
+            "retained_bytes_total": self.retained_bytes_total,
+            "removed_bytes_total": self.removed_bytes_total,
+            "retained_bytes_total_decimal_gb": self.retained_bytes_total / 1_000_000_000,
+            "retained_bytes_total_gib": self.retained_bytes_total / 2**30,
         }
 
 
@@ -460,41 +469,46 @@ def build_budget(
     name: str,
     basis: str,
     retained_experts: int,
-    routed_experts: int,
+    routed_experts_per_layer: int,
     active_experts: int,
     bytes_per_expert: int,
+    backbone_layers: int,
 ) -> Budget:
-    """Assemble one budget with exact fractions and exact byte counts."""
-    if not 0 < retained_experts <= routed_experts:
+    """Assemble one budget with exact per-layer and model-total byte counts."""
+    if backbone_layers <= 0:
+        raise PlanError("the backbone layer count must be positive")
+    if not 0 < retained_experts <= routed_experts_per_layer:
         raise PlanError(
-            f"budget {name}: retained {retained_experts} is outside (0, {routed_experts}]"
+            f"budget {name}: retained {retained_experts} is outside (0, {routed_experts_per_layer}]"
         )
     if not 0 < active_experts <= retained_experts:
         raise PlanError(
             f"budget {name}: {active_experts} active experts exceed {retained_experts} retained"
         )
-    retained_fraction = Fraction(retained_experts, routed_experts)
+    retained_fraction = Fraction(retained_experts, routed_experts_per_layer)
     retained_per_active = Fraction(retained_experts, active_experts)
-    retained_bytes = exact_bytes(retained_fraction, routed_experts * bytes_per_expert)
-    removed_bytes = exact_bytes(
-        Fraction(routed_experts - retained_experts, routed_experts),
-        routed_experts * bytes_per_expert,
-    )
+    retained_bytes_per_layer = retained_experts * bytes_per_expert
+    removed_bytes_per_layer = (routed_experts_per_layer - retained_experts) * bytes_per_expert
+    retained_bytes_total = retained_bytes_per_layer * backbone_layers
+    removed_bytes_total = removed_bytes_per_layer * backbone_layers
     return Budget(
         name=name,
         basis=basis,
         retained_experts=retained_experts,
-        removed_experts=routed_experts - retained_experts,
+        removed_experts=routed_experts_per_layer - retained_experts,
         retained_fraction=retained_fraction,
         active_experts=active_experts,
         retained_per_active=retained_per_active,
-        retained_bytes=retained_bytes,
-        removed_bytes=removed_bytes,
+        retained_bytes_per_layer=retained_bytes_per_layer,
+        removed_bytes_per_layer=removed_bytes_per_layer,
+        retained_bytes_total=retained_bytes_total,
+        removed_bytes_total=removed_bytes_total,
     )
 
 
 def derive_budgets(
     *,
+    backbone_layers: int,
     routed_experts: int,
     active_experts: int,
     bytes_per_expert: int,
@@ -519,9 +533,10 @@ def derive_budgets(
                 "rounded down"
             ),
             retained_experts=fraction_retained,
-            routed_experts=routed_experts,
+            routed_experts_per_layer=routed_experts,
             active_experts=active_experts,
             bytes_per_expert=bytes_per_expert,
+            backbone_layers=backbone_layers,
         )
     )
     for mode in ("floor", "nearest", "ceil"):
@@ -537,9 +552,10 @@ def derive_budgets(
                     f"rounded {mode}"
                 ),
                 retained_experts=retained,
-                routed_experts=routed_experts,
+                routed_experts_per_layer=routed_experts,
                 active_experts=active_experts,
                 bytes_per_expert=bytes_per_expert,
+                backbone_layers=backbone_layers,
             )
         )
     return budgets
@@ -641,6 +657,7 @@ def build_plan(
 
     bytes_per_expert = expert_bytes()
     budgets = derive_budgets(
+        backbone_layers=BACKBONE_LAYERS,
         routed_experts=BACKBONE_ROUTED_EXPERTS,
         active_experts=BACKBONE_ACTIVE_EXPERTS,
         bytes_per_expert=bytes_per_expert,

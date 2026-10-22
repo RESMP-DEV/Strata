@@ -1,0 +1,99 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-22T22:14:04Z",
+  "agent": "Codex parent with three MiniMax CCR implementation workers; parent acceptance by Codex",
+  "task": "Repair every actionable CodeRabbit finding on DeepSeek/Qwen RCO PR #20 without expanding runtime claims.",
+  "source_revision": "fed9d1983b363d03ca12e9019aae6cd968e5e399",
+  "source_dirty": true,
+  "review_repairs": {
+    "count": 13,
+    "deepseek": [
+      "round_ratio nearest now implements exact round-half-away-from-zero for signed values, including values below one half",
+      "budget serialization separates per-layer and 40-layer backbone byte totals",
+      "DSpark per-token expert total includes three routed plus one shared expert"
+    ],
+    "qwen_coder_tools": [
+      "token-builder limits reject zero and negative values at function and CLI boundaries",
+      "tokenizer trust_remote_code is explicit opt-in and defaults false",
+      "test module loaders register modules in sys.modules before exec_module",
+      "masks must declare the expected 512 source experts",
+      "generated search, evaluation, and materialization commands use actual mask destinations and parent control output is required",
+      "materializer validates tokenizer files before dry-run or shard streaming and copies them at completion",
+      "materializer rejects a source expert dimension other than 512 before index_select",
+      "tiny materialization round trip uses non-identity layer-varying selections and checks every selected source row"
+    ],
+    "trace_control": [
+      "seed_and_trace_selected counts only seed cells with trace support rather than all trace-supported selected cells"
+    ]
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_materialize_pruned_qwen4exp tools.test_deepseek_rco_plan tools.test_deepseek_rco_adapter tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "78 tests passed; 20 optional Torch tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "20/20 tests passed with Torch and pinned Transformers"
+    },
+    {
+      "command": "/tmp/strata-rco-torch313-venv/bin/python -m unittest tools.test_materialize_pruned_qwen4exp",
+      "exit": 0,
+      "result": "7/7 tests passed with Torch 2.14.1, safetensors 0.8.0, and NumPy; no optional test skipped"
+    },
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "manifest gate plus both standalone DeepSeek C++ contract tests passed"
+    },
+    {
+      "command": "clang++ -std=c++20 -Iinclude src/deepseek/geometry_test.cpp -o build/deepseek-geometry-review && ./build/deepseek-geometry-review",
+      "exit": 0,
+      "result": "289 geometry checks passed"
+    },
+    {
+      "command": "ruff check [12 modified Python files] && ruff format --check [same files] && git diff --check",
+      "exit": 0,
+      "result": "lint, formatting, and whitespace checks passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "20/20 checks passed; ignored receipt at build/reports/quality/receipt.json"
+    }
+  ],
+  "implementation_workers": [
+    {
+      "lane": "Qwen/Coder tooling and materializer",
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-145822-8jt7tg50"
+    },
+    {
+      "lane": "DeepSeek planner and geometry",
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-145829-l_ez3xai"
+    },
+    {
+      "lane": "trace-mask accounting",
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-145834-5g62ye3j"
+    },
+    {
+      "lane": "read-only stock-RCO contract trace",
+      "run_dir": "/Users/kearm/.cache/ccr-worker-runs/20261022-150033-lb9kfl8z"
+    }
+  ],
+  "stock_rco_contract_trace": {
+    "evidence_basis": "code reading of pinned stock RCO 9a1e09c and pinned Transformers 62d7ebd7; no integration run passed",
+    "search_boundary": "stock search.prune.optimize must have its module-global install_wrappers replaced by the DeepSeek adapter before optimization; shared_state['ste_masks'] remains the search-owned state contract",
+    "device_boundary": "stock optimize allocates alpha and costs directly on cuda:0, so an unmodified stock run requires CUDA; CPU-only stock execution fails before model work",
+    "evaluation_boundary": "stock apply_hard_pruning_mask assumes raw logits can be masked then softmaxed, but V4.1 uses sqrtsoftplus scores and correction biases, so a zero-exit stock final evaluation is not yet a DeepSeek-faithful deployment evaluation",
+    "router_init_boundary": "stock compute_router_scores treats output[0] as probabilities, so --router-init must not be used for DeepSeek under stock RCO"
+  },
+  "non_claims": [
+    "This is review hardening and contract validation only; it does not establish DeepSeek or Qwen pruning quality.",
+    "The stock-RCO contract trace was read-only; no adapter-inside-stock search or stock hard-mask evaluation passed.",
+    "No stock RCO search, released DeepSeek checkpoint execution, expert mask selection, quantization, packing, or runtime benchmark ran.",
+    "The tiny pinned Transformers model and tiny safetensors fixture are structural execution probes, not the released models.",
+    "The B550 DeepSeek NVMe copy had not started at this receipt because the own-Coder calibration job still owned GPU0; the copy watcher remained alive.",
+    "Passing these tests does not clear the PR; CodeRabbit must re-review the pushed head."
+  ]
+}

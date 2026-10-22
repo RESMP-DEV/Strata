@@ -87,6 +87,13 @@ def token_ids(value: Any) -> list[int]:
     raise ValueError("tokenizer did not return token IDs")
 
 
+def optional_positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got {parsed}")
+    return parsed
+
+
 def build_sequences(
     paths: Sequence[Path],
     tokenizer: Any,
@@ -98,6 +105,10 @@ def build_sequences(
 ) -> TokenBuild:
     if sequence_length <= 0:
         raise ValueError("--sequence-length must be positive")
+    if max_records is not None and max_records <= 0:
+        raise ValueError("--max-records must be positive")
+    if max_sequences is not None and max_sequences <= 0:
+        raise ValueError("--max-sequences must be positive")
 
     base_vocabulary = int(getattr(tokenizer, "vocab_size", 0) or 0)
     vocabulary = int(getattr(tokenizer, "__len__", lambda: base_vocabulary)())
@@ -217,8 +228,13 @@ def parse_args() -> argparse.Namespace:
         help="unsigned little-endian int32 token stream for Strata's patched llama-imatrix",
     )
     parser.add_argument("--sequence-length", type=int, default=2048)
-    parser.add_argument("--max-records", type=int)
-    parser.add_argument("--max-sequences", type=int)
+    parser.add_argument("--max-records", type=optional_positive_int)
+    parser.add_argument("--max-sequences", type=optional_positive_int)
+    parser.add_argument(
+        "--trust-remote-code",
+        action="store_true",
+        help="opt in to tokenizer code supplied by the local checkpoint",
+    )
     parser.add_argument(
         "--field",
         choices=("auto", "text", "passage", "query"),
@@ -234,7 +250,9 @@ def main() -> int:
     args = parse_args()
     from transformers import AutoTokenizer  # pylint: disable=import-outside-toplevel
 
-    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.tokenizer, trust_remote_code=args.trust_remote_code
+    )
     build = build_sequences(
         args.jsonl,
         tokenizer,

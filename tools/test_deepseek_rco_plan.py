@@ -63,6 +63,12 @@ class ExactArithmeticTest(unittest.TestCase):
         self.assertEqual(MODULE.round_ratio(Fraction(7, 3), "floor"), 2)
         self.assertEqual(MODULE.round_ratio(Fraction(7, 3), "nearest"), 2)
         self.assertEqual(MODULE.round_ratio(Fraction(7, 3), "ceil"), 3)
+        self.assertEqual(MODULE.round_ratio(Fraction(1, 3), "nearest"), 0)
+        self.assertEqual(MODULE.round_ratio(Fraction(2, 3), "nearest"), 1)
+        self.assertEqual(MODULE.round_ratio(Fraction(-1, 3), "nearest"), 0)
+        self.assertEqual(MODULE.round_ratio(Fraction(-2, 3), "nearest"), -1)
+        self.assertEqual(MODULE.round_ratio(Fraction(-1, 2), "nearest"), -1)
+        self.assertEqual(MODULE.round_ratio(Fraction(-5, 2), "nearest"), -3)
 
     def test_retained_fraction_is_exact(self) -> None:
         retained = MODULE.retained_from_fraction(384, Fraction(9, 16), "floor")
@@ -235,11 +241,26 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(budgets["retained-per-active-nearest"]["retained_experts"], 173)
         self.assertEqual(budgets["retained-per-active-ceil"]["retained_experts"], 173)
 
-    def test_budget_bytes_are_exact(self) -> None:
+    def test_budget_bytes_separate_layer_and_model_totals(self) -> None:
         budgets = {entry["name"]: entry for entry in self.plan()["budgets"]}
-        self.assertEqual(budgets["retained-fraction"]["retained_bytes"], 216 * 18800640)
-        self.assertEqual(budgets["retained-per-active-floor"]["retained_bytes"], 172 * 18800640)
-        self.assertEqual(budgets["retained-per-active-nearest"]["retained_bytes"], 173 * 18800640)
+        fraction_budget = budgets["retained-fraction"]
+        floor_budget = budgets["retained-per-active-floor"]
+        nearest_budget = budgets["retained-per-active-nearest"]
+        self.assertEqual(fraction_budget["retained_bytes_per_layer"], 216 * 18800640)
+        self.assertEqual(
+            fraction_budget["removed_bytes_per_layer"],
+            (384 - 216) * 18800640,
+        )
+        self.assertEqual(
+            fraction_budget["retained_bytes_total"],
+            40 * 216 * 18800640,
+        )
+        self.assertEqual(
+            fraction_budget["removed_bytes_total"],
+            40 * (384 - 216) * 18800640,
+        )
+        self.assertEqual(floor_budget["retained_bytes_per_layer"], 172 * 18800640)
+        self.assertEqual(nearest_budget["retained_bytes_per_layer"], 173 * 18800640)
         fraction = budgets["retained-fraction"]["retained_fraction"]
         self.assertEqual(fraction["numerator"], 9)
         self.assertEqual(fraction["denominator"], 16)

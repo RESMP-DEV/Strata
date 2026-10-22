@@ -70,6 +70,8 @@ def load_own_mask(path: Path) -> tuple[int, list[set[int]]]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if value.get("format") != "strata-reap-mask-v1":
         raise ValueError(f"{path}: expected format strata-reap-mask-v1")
+    if value.get("n_expert") != N_EXPERTS:
+        raise ValueError(f"{path}: n_expert must be {N_EXPERTS}")
     rows = value.get("keep_ids")
     if not isinstance(rows, list) or len(rows) != N_LAYERS:
         raise ValueError(f"{path}: keep_ids must contain {N_LAYERS} layers")
@@ -169,13 +171,22 @@ def command(command_arguments: list[str]) -> dict[str, str]:
     return {"argv": command_arguments, "shell": shlex.join(command_arguments)}
 
 
+def rco_mask_paths(args: argparse.Namespace) -> tuple[Path, Path]:
+    own = args.rco_mask_out
+    if own is None:
+        own = args.work_root / "own-prune-mask.pt"
+    parent = args.parent_rco_mask_out
+    if parent is None:
+        raise ValueError("--parent-rco-mask-out is required for the parent control arm")
+    return own, parent
+
+
 def build_manifest(args: argparse.Namespace, keep: int) -> dict[str, Any]:
     _, own = load_own_mask(args.mask)
     parent = parse_parent_allocation(args.parent_allocation)
     comparison = compare_masks(own, parent)
     work = args.work_root
-    own_prune_mask = work / f"own-{keep}-prune-mask.pt"
-    parent_prune_mask = work / "parent-256-prune-mask.pt"
+    own_prune_mask, parent_prune_mask = rco_mask_paths(args)
     pruned_model = work / f"pruned-bf16-{keep}"
     bf16_gguf = work / f"flash-next-own-{keep}-bf16.gguf"
     imatrix = work / f"own-{keep}-imatrix.gguf"
@@ -372,7 +383,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--parent-allocation", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--rco-mask-out", type=Path)
-    parser.add_argument("--parent-rco-mask-out", type=Path)
+    parser.add_argument(
+        "--parent-rco-mask-out",
+        type=Path,
+        required=True,
+        help="destination for the parent mask used by the required control arm",
+    )
     parser.add_argument(
         "--model", type=Path, default=Path.home() / "models/Qwen3.8-Flash-Next-BF16"
     )
@@ -405,12 +421,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     keep, own = load_own_mask(args.mask)
-    if args.rco_mask_out is not None:
-        write_rco_prune_mask(args.rco_mask_out, own)
-    if args.parent_rco_mask_out is not None:
-        write_rco_prune_mask(
-            args.parent_rco_mask_out, parse_parent_allocation(args.parent_allocation)
-        )
+    own_prune_mask, parent_prune_mask = rco_mask_paths(args)
+    write_rco_prune_mask(own_prune_mask, own)
+    write_rco_prune_mask(parent_prune_mask, parse_parent_allocation(args.parent_allocation))
     manifest = build_manifest(args, keep)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
