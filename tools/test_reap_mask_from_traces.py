@@ -63,6 +63,19 @@ class ReapMaskTest(unittest.TestCase):
         self.assertEqual(scores[(0, 1)], 2.0)
         self.assertEqual(scores[(0, 2)], 1.0)
 
+    def test_seed_experts_are_selected_before_trace_scores(self) -> None:
+        path = self.root / "trace.bin"
+        trace(path, [(0, [1, 3], [0.2, 0.5])])
+        scores, _ = MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
+        keep, fills, selected = MODULE.choose_mask(scores, 1, 4, 2, seeds=[{2}])
+        self.assertEqual(keep, [[2, 3]])
+        self.assertEqual(fills, [[]])
+        self.assertEqual(selected, [[0.0, 0.5]])
+
+    def test_seed_above_budget_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "seed has 3 experts, above budget 2"):
+            MODULE.choose_mask({}, 1, 4, 2, seeds=[{1, 2, 3}])
+
     def test_sparse_layers_are_filled_to_exact_budget(self) -> None:
         path = self.root / "sparse.bin"
         trace(path, [(0, [3], [0.1]), (1, [5], [0.1])])

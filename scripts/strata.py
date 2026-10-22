@@ -23,6 +23,7 @@ SCOPE = (
     "accelerator-plugin ABI test, the disaggregated KV coordinator's state-machine and "
     "store-refusal contract tests, the KV tier acceptance gate's own decision tests, "
     "DeepSeek manifest and host C++ contract tests, "
+    "custom Coder token and variant-planning contracts, "
     "script tests, maintained-script Ruff lint/format, shell warning lint, and Git "
     "whitespace on this host. It does not compile CUDA, HIP, or SYCL, run the full "
     "setup matrix, start the "
@@ -162,7 +163,15 @@ def quality() -> int:
                 ),
                 run_logged(
                     "compression-tools",
-                    [sys.executable, "-m", "unittest", "tools.test_reap_mask_from_traces"],
+                    [
+                        sys.executable,
+                        "-m",
+                        "unittest",
+                        "tools.test_reap_mask_from_traces",
+                        "tools.test_build_rco_tokens",
+                        "tools.test_custom_coder_plan",
+                        "tools.test_materialize_pruned_qwen4exp",
+                    ],
                 ),
                 run_logged(
                     "prefiller-planner",
@@ -177,6 +186,12 @@ def quality() -> int:
                         "tools/kv_tier_acceptance.py",
                         "tools/prefiller_plan.py",
                         "tools/test_prefiller_plan.py",
+                        "tools/build_rco_tokens.py",
+                        "tools/test_build_rco_tokens.py",
+                        "tools/custom_coder_plan.py",
+                        "tools/test_custom_coder_plan.py",
+                        "tools/materialize_pruned_qwen4exp.py",
+                        "tools/test_materialize_pruned_qwen4exp.py",
                     ],
                 ),
                 run_logged(
@@ -189,6 +204,12 @@ def quality() -> int:
                         "tools/kv_tier_acceptance.py",
                         "tools/prefiller_plan.py",
                         "tools/test_prefiller_plan.py",
+                        "tools/build_rco_tokens.py",
+                        "tools/test_build_rco_tokens.py",
+                        "tools/custom_coder_plan.py",
+                        "tools/test_custom_coder_plan.py",
+                        "tools/materialize_pruned_qwen4exp.py",
+                        "tools/test_materialize_pruned_qwen4exp.py",
                     ],
                 ),
                 run_logged(

@@ -1,0 +1,427 @@
+#!/usr/bin/env python3
+"""Plan and validate a Strata-owned Flash-Next Coder artifact.
+
+This is a deterministic planner, not a model executor.  It validates an expert
+mask, compares it with the published Coder allocation, calculates exact expert
+footprints for Strata-native recipes, optionally emits RCO prune masks, and
+writes the downstream prune/convert/iMatrix/quantize command manifest.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import shlex
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+N_LAYERS = 48
+N_EXPERTS = 512
+EXPERT_PARAMETERS = 2 * 640 * 2560 + 640 * 2560
+ALLOWED_KEEP = (256, 288, 384, 512)
+
+RECIPES: dict[str, dict[str, Any]] = {
+    "parent-mix": {
+        "gate_up": "mixed",
+        "down": "mixed",
+        "bpw": 3.3307,
+        "description": "published Coder allocation exact retained-expert width",
+    },
+    "iq3s-iq4nl": {
+        "gate_up": "IQ3_S",
+        "down": "IQ4_NL",
+        "bpw": 3.7916666666666665,
+        "description": "Strata-native gate/up and executable 4.5-bpw down path",
+    },
+    "iq4xs-iq4nl": {
+        "gate_up": "IQ4_XS",
+        "down": "IQ4_NL",
+        "bpw": 4.333333333333333,
+        "description": "higher-width lane; still executable by the existing native kernels",
+    },
+}
+
+
+@dataclass(frozen=True)
+class Comparison:
+    own_kept: int
+    parent_kept: int
+    intersection: int
+    union: int
+    jaccard: float
+    parent_capture: float
+    own_capture: float
+    min_layer_intersection: int
+    max_layer_intersection: int
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def load_own_mask(path: Path) -> tuple[int, list[set[int]]]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if value.get("format") != "strata-reap-mask-v1":
+        raise ValueError(f"{path}: expected format strata-reap-mask-v1")
+    rows = value.get("keep_ids")
+    if not isinstance(rows, list) or len(rows) != N_LAYERS:
+        raise ValueError(f"{path}: keep_ids must contain {N_LAYERS} layers")
+    keep = len(rows[0]) if isinstance(rows[0], list) and rows[0] else 0
+    if keep not in ALLOWED_KEEP:
+        raise ValueError(f"{path}: keep count {keep} is not one of {ALLOWED_KEEP}")
+    result: list[set[int]] = []
+    for layer, row in enumerate(rows):
+        if not isinstance(row, list) or len(row) != keep:
+            raise ValueError(f"{path}: layer {layer} does not keep exactly {keep} experts")
+        if any(not isinstance(item, int) or not 0 <= item < N_EXPERTS for item in row):
+            raise ValueError(f"{path}: layer {layer} has an invalid expert id")
+        if len(set(row)) != len(row):
+            raise ValueError(f"{path}: layer {layer} has duplicate experts")
+        result.append(set(row))
+    return keep, result
+
+
+def parse_parent_allocation(path: Path) -> list[set[int]]:
+    pattern = re.compile(r"^blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight\[(\d+)\]:\s*(\S+)\s*$")
+    observed: dict[tuple[int, int, str], str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = pattern.match(line)
+        if match is None:
+            continue
+        layer, kind, expert, quant = int(match[1]), match[2], int(match[3]), match[4]
+        if quant:
+            observed[(layer, expert, kind)] = quant
+    result: list[set[int]] = []
+    for layer in range(N_LAYERS):
+        kept: set[int] = set()
+        for expert in range(N_EXPERTS):
+            kinds = tuple(
+                observed.get((layer, expert, kind), "") for kind in ("gate", "up", "down")
+            )
+            if any(kinds) and not all(kinds):
+                raise ValueError(
+                    f"{path}:{layer}:{expert}: gate/up/down retention disagreement {kinds}"
+                )
+            if all(kinds):
+                kept.add(expert)
+        result.append(kept)
+    if not all(len(row) == 256 for row in result):
+        sizes = sorted({len(row) for row in result})
+        raise ValueError(f"{path}: parent allocation is not uniform 256/layer: {sizes}")
+    return result
+
+
+def compare_masks(own: list[set[int]], parent: list[set[int]]) -> Comparison:
+    intersections = [len(left & right) for left, right in zip(own, parent, strict=True)]
+    intersection = sum(intersections)
+    union = sum(len(left | right) for left, right in zip(own, parent, strict=True))
+    own_total = sum(len(row) for row in own)
+    parent_total = sum(len(row) for row in parent)
+    return Comparison(
+        own_kept=own_total,
+        parent_kept=parent_total,
+        intersection=intersection,
+        union=union,
+        jaccard=intersection / union,
+        parent_capture=intersection / parent_total,
+        own_capture=intersection / own_total,
+        min_layer_intersection=min(intersections),
+        max_layer_intersection=max(intersections),
+    )
+
+
+def budget(keep: int, recipe_name: str) -> dict[str, Any]:
+    recipe = RECIPES[recipe_name]
+    bits = N_LAYERS * keep * EXPERT_PARAMETERS * float(recipe["bpw"])
+    parent_bits = N_LAYERS * 256 * EXPERT_PARAMETERS * RECIPES["parent-mix"]["bpw"]
+    return {
+        "recipe": recipe_name,
+        "gate_up": recipe["gate_up"],
+        "down": recipe["down"],
+        "bpw": recipe["bpw"],
+        "kept_experts": N_LAYERS * keep,
+        "removed_experts": N_LAYERS * (N_EXPERTS - keep),
+        "expert_bytes": int(round(bits / 8)),
+        "expert_gb_decimal": bits / 8 / 1_000_000_000,
+        "expert_gib": bits / 8 / 2**30,
+        "relative_to_parent_expert_bytes": bits / parent_bits,
+    }
+
+
+def write_rco_prune_mask(path: Path, own: list[set[int]]) -> None:
+    import torch  # pylint: disable=import-outside-toplevel
+
+    rows = []
+    for kept in own:
+        rows.append([expert not in kept for expert in range(N_EXPERTS)])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(torch.tensor(rows, dtype=torch.bool), path)
+
+
+def command(command_arguments: list[str]) -> dict[str, str]:
+    return {"argv": command_arguments, "shell": shlex.join(command_arguments)}
+
+
+def build_manifest(args: argparse.Namespace, keep: int) -> dict[str, Any]:
+    _, own = load_own_mask(args.mask)
+    parent = parse_parent_allocation(args.parent_allocation)
+    comparison = compare_masks(own, parent)
+    work = args.work_root
+    own_prune_mask = work / f"own-{keep}-prune-mask.pt"
+    parent_prune_mask = work / "parent-256-prune-mask.pt"
+    pruned_model = work / f"pruned-bf16-{keep}"
+    bf16_gguf = work / f"flash-next-own-{keep}-bf16.gguf"
+    imatrix = work / f"own-{keep}-imatrix.gguf"
+    control_imatrix = work / "standard-ptq-imatrix.gguf"
+    quantized = work / f"flash-next-own-{keep}-{args.recipe}.gguf"
+    control_quantized = work / f"flash-next-own-{keep}-{args.recipe}-standard-cal.gguf"
+    rco = args.rco_root
+    python = args.python
+    recipe = RECIPES[args.recipe]
+
+    quantize_arguments = [
+        str(args.llama_quantize),
+        "--imatrix",
+        str(imatrix),
+        "--tensor-type",
+        "ffn_gate_exps=IQ3_S" if recipe["gate_up"] == "IQ3_S" else "ffn_gate_exps=IQ4_XS",
+        "--tensor-type",
+        "ffn_up_exps=IQ3_S" if recipe["gate_up"] == "IQ3_S" else "ffn_up_exps=IQ4_XS",
+        "--tensor-type",
+        "ffn_down_exps=IQ4_NL",
+        "--tensor-type",
+        "per_layer_token_embd=IQ4_NL",
+        str(bf16_gguf),
+        str(quantized),
+        "COPY",
+        str(args.threads),
+    ]
+    control_quantize_arguments = [
+        str(control_imatrix) if value == str(imatrix) else value for value in quantize_arguments
+    ]
+    control_quantize_arguments[control_quantize_arguments.index(str(quantized))] = str(
+        control_quantized
+    )
+    return {
+        "format": "strata-custom-coder-plan-v1",
+        "mask": str(args.mask),
+        "mask_sha256": sha256(args.mask),
+        "parent_allocation": str(args.parent_allocation),
+        "parent_allocation_sha256": sha256(args.parent_allocation),
+        "keep_per_layer": keep,
+        "physical_constraint": (
+            "the Strata expert sidecar admits uniform 256, 288, 384, or 512 slots"
+        ),
+        "mask_comparison": comparison.__dict__,
+        "budgets": [budget(item, name) for name in RECIPES for item in (keep,)],
+        "selected_budget": budget(keep, args.recipe),
+        "commands": {
+            "search_own_mask": command(
+                [
+                    python,
+                    str(rco / "rco_search_prune.py"),
+                    "--model",
+                    str(args.model),
+                    "--sparsity",
+                    str((N_EXPERTS - keep) / N_EXPERTS),
+                    "--per-layer-budget",
+                    "--calibration-data",
+                    str(args.calibration_tokens),
+                    "--batch-size",
+                    str(args.batch_size),
+                    "--save-mask",
+                    str(own_prune_mask),
+                ]
+            ),
+            "eval_own_mask": command(
+                [
+                    python,
+                    str(rco / "rco_search_prune.py"),
+                    "--model",
+                    str(args.model),
+                    "--eval-mask",
+                    str(own_prune_mask),
+                    "--calibration-data",
+                    str(args.evaluation_tokens),
+                    "--batch-size",
+                    str(args.batch_size),
+                ]
+            ),
+            "eval_parent_mask": command(
+                [
+                    python,
+                    str(rco / "rco_search_prune.py"),
+                    "--model",
+                    str(args.model),
+                    "--eval-mask",
+                    str(parent_prune_mask),
+                    "--calibration-data",
+                    str(args.evaluation_tokens),
+                    "--batch-size",
+                    str(args.batch_size),
+                ]
+            ),
+            "materialize_pruned_bf16": command(
+                [
+                    python,
+                    str(rco / "run_build_checkpoint.py"),
+                    "prune",
+                    "--model",
+                    str(args.model),
+                    "--prune-mask",
+                    str(own_prune_mask),
+                    "--output",
+                    str(pruned_model),
+                    "--prune-mode",
+                    "remove",
+                ]
+            ),
+            "convert_bf16_gguf": command(
+                [
+                    python,
+                    str(args.llama_convert),
+                    str(pruned_model),
+                    "--outfile",
+                    str(bf16_gguf),
+                    "--outtype",
+                    "bf16",
+                    "--split-max-size",
+                    args.split_max_size,
+                ]
+            ),
+            "build_own_imatrix": command(
+                [
+                    str(args.llama_imatrix),
+                    "--token-file",
+                    str(args.calibration_raw_tokens),
+                    "-m",
+                    str(bf16_gguf),
+                    "-o",
+                    str(imatrix),
+                    "-c",
+                    str(args.sequence_length),
+                    "--chunks",
+                    str(args.calibration_chunks),
+                    "--no-ppl",
+                    "--output-frequency",
+                    "10",
+                    "--save-frequency",
+                    "50",
+                ]
+            ),
+            "build_standard_control_imatrix": command(
+                [
+                    str(args.llama_imatrix),
+                    "--token-file",
+                    str(args.control_raw_tokens),
+                    "-m",
+                    str(bf16_gguf),
+                    "-o",
+                    str(control_imatrix),
+                    "-c",
+                    str(args.sequence_length),
+                    "--chunks",
+                    str(args.calibration_chunks),
+                    "--no-ppl",
+                    "--output-frequency",
+                    "10",
+                    "--save-frequency",
+                    "50",
+                ]
+            ),
+            "quantize_experts": command(quantize_arguments),
+            "quantize_standard_calibration_control": command(control_quantize_arguments),
+        },
+        "acceptance": {
+            "heldout_rco_kl": (
+                "own mask must beat the parent mask on the untouched internal-code split"
+            ),
+            "calibration_control": (
+                "the own-data and pinned-standard iMatrix artifacts are compared separately"
+            ),
+            "heal_gate": ("heal only if unhealed own-mask held-out KL loses to the parent mask"),
+            "pack_inversion": (
+                "a production verifier must compare every native experts.bin slice "
+                "to its named GGUF shard byte-for-byte"
+            ),
+            "runtime_gate": (
+                "same-day vendor Coder and full-model controls precede throughput claims"
+            ),
+        },
+        "non_claims": [
+            "Footprints count routed-expert bytes only; dense weights, metadata, "
+            "the PLE table, and serving arenas are not included.",
+            "No RCO search, model forward, heal, conversion, iMatrix, quantization, "
+            "pack, or runtime ran while writing this manifest.",
+            "More retained experts and higher width remain hypotheses until held-out "
+            "quality and same-day runtime gates pass.",
+        ],
+    }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--mask", required=True, type=Path)
+    parser.add_argument("--parent-allocation", required=True, type=Path)
+    parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument("--rco-mask-out", type=Path)
+    parser.add_argument("--parent-rco-mask-out", type=Path)
+    parser.add_argument(
+        "--model", type=Path, default=Path.home() / "models/Qwen3.8-Flash-Next-BF16"
+    )
+    parser.add_argument(
+        "--rco-root", type=Path, default=Path.home() / ".local/share/strata-tools/RCO"
+    )
+    parser.add_argument("--llama-convert", required=True, type=Path)
+    parser.add_argument("--llama-imatrix", required=True, type=Path)
+    parser.add_argument("--llama-quantize", required=True, type=Path)
+    parser.add_argument("--calibration-raw-tokens", required=True, type=Path)
+    parser.add_argument(
+        "--control-raw-tokens",
+        required=True,
+        type=Path,
+        help="pinned standard PTQ token stream for the calibration control arm",
+    )
+    parser.add_argument("--calibration-tokens", required=True, type=Path)
+    parser.add_argument("--evaluation-tokens", required=True, type=Path)
+    parser.add_argument("--work-root", required=True, type=Path)
+    parser.add_argument("--recipe", choices=("iq3s-iq4nl", "iq4xs-iq4nl"), default="iq3s-iq4nl")
+    parser.add_argument("--sequence-length", type=int, default=2048)
+    parser.add_argument("--calibration-chunks", type=int, default=256)
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--threads", type=int, default=32)
+    parser.add_argument("--python", default="python3")
+    parser.add_argument("--split-max-size", default="40G")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    keep, own = load_own_mask(args.mask)
+    if args.rco_mask_out is not None:
+        write_rco_prune_mask(args.rco_mask_out, own)
+    if args.parent_rco_mask_out is not None:
+        write_rco_prune_mask(
+            args.parent_rco_mask_out, parse_parent_allocation(args.parent_allocation)
+        )
+    manifest = build_manifest(args, keep)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    args.out.write_text(payload, encoding="utf-8")
+    selected = manifest["selected_budget"]
+    print(
+        f"wrote {args.out}: keep={keep}/layer, {selected['expert_gb_decimal']:.3f} GB "
+        f"experts at {selected['bpw']:.4f} bpw"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
