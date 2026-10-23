@@ -111,8 +111,18 @@ layer at a time on GPU0. Its deterministic 192-expert mask has:
 - mean retained top-6 frequency: 0.803393245;
 - mask SHA-256: `52e0d859c19b739186364658e157c1ff70eca8a63a65f01f22f700c4bb381ea2`.
 
-A 128×1024 pass was then launched as a stronger control before any physical
-materialization or RCO STE search.
+A 128×1024 pass then completed in 603.232 seconds on the same single visible
+GPU. Its deterministic 192-expert mask has:
+
+- mean retained router mass: 0.835313082;
+- mean retained top-6 frequency: 0.817712247;
+- mask SHA-256: `5fb120f83678d6bc3396b61c2588cba5628bce615e81762b22c1d7d25fc38dc5`.
+
+The stronger mask is the current control baseline. It remains a router-score
+control, not the final Gumbel-STE RCO selection.
+
+Local ignored copies of both B550 runs are under
+`build/reports/flint/b550/`.
 
 ## Architecture
 

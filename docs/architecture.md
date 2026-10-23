@@ -2600,6 +2600,7 @@ The first B550 full-source control is real but limited. The feature branch and
 Flint adapter passed on the host, and a streamed 16×256 router pass used one
 BF16 layer at a time on GPU0 to emit a deterministic 192-expert mask retaining
 84.35% router mass and 80.34% top-6 frequency. GPU1 remained untouched behind
-VFIO, and the stronger 128×1024 control was launched. This is still a
-router-score control, not a Gumbel-STE search, hard-mask KL, quantized
-artifact, or performance result.
+VFIO. The stronger 128×1024 pass completed in 603.232 seconds and retained
+83.53% router mass plus 81.77% top-6 frequency. This is still a router-score
+control, not a Gumbel-STE search, hard-mask KL, quantized artifact, or
+performance result.
