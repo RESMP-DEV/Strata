@@ -2644,3 +2644,21 @@ that previously emptied all token segments and killed the generation thread;
 the dedicated regression test fails before the fix and passes afterward, and
 the full server suite passes 42 tests. The Flint top-logprob Shannon-entropy
 controller therefore no longer carries that serving blocker.
+
+The target-workload check changed the disposition. On 16 real agentic-coding
+windows, the 192-expert leave-one-out checkpoint raised perplexity from 9.049
+to 11.321 (+0.22394 nats/token, 95% CI 0.04077 to 0.37019), lowered top-1
+accuracy by 3.70 percentage points, and agreed on only 84.01% of choices. This
+failed every pre-registered criterion. A halved 224-expert lane also failed:
+perplexity 9.049 to 9.664 (+0.06570 nats/token, CI 0.01419 to 0.11179), top-1
+down 1.45 points, agreement 89.06%. The 25% prune was therefore rejected for
+the target workload, and even 12.5% was not promoted. No pruned checkpoint was
+quantized or uploaded. The leave-one-out mask remains the strongest measured
+candidate, but the data does not support shipping it as a quality-preserving
+prune.
+
+The search is deterministic: two full runs at different revisions produced the
+same 192-expert mask SHA-256
+`7f3389f70afa160611c70df2dc517d2221246dda5f9e2989400306a574d984c6`.
+The paired evaluator also now rejects the missing extra token for a 1024-token
+window file instead of silently evaluating a shifted target.

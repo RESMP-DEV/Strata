@@ -399,3 +399,72 @@ mask is therefore not promoted to MXFP4 calibration under the pre-registered
 gate. This is the strongest measured mask so far, and it is the one to carry
 forward if the user relaxes the agreement threshold; it is not yet a finished
 quantized artifact.
+
+The search was rerun at revision `b9970a82` with per-round impact records
+enabled. It produced the identical mask SHA-256
+`7f3389f70afa160611c70df2dc517d2221246dda5f9e2989400306a574d984c6` in
+160.932 seconds, confirming deterministic selection. The detailed receipt
+SHA-256 is
+`1501d06d16b08b9747745662c6fd1bec250378b1b2b804335647c007e05ca08c`.
+
+### Agentic-coding target-workload gate
+
+The 192-expert leave-one-out checkpoint was then evaluated on 16 real
+agentic-coding windows from the held-out corpus, tokenized with the Flint
+tokenizer. The token-array SHA-256 is
+`156221bdbdfc450999a2e85f229e195149d58207e535dac303a9a2b9adfc5a4b`.
+
+| metric | 256-expert BF16 source | physical 192-expert BF16 |
+| --- | --- | --- |
+| mean NLL (nats/token) | 2.202686766920426 | 2.426629744567646 |
+| perplexity | 9.049294210860637 | 11.320664184176582 |
+| top-1 accuracy | 0.61273193359375 | 0.57574462890625 |
+
+- NLL delta (candidate minus source): `+0.22394297764721968` nats/token;
+- window-bootstrap 95% CI:
+  `[0.04076583168404919, 0.3701914922866968]`;
+- top-1 agreement: `0.840087890625`;
+- both correct 8426, candidate only 1007, source only 1613;
+- elapsed 262.398 s.
+
+Receipt SHA-256: `abaa3ab6db0f9aa75e0c21811aa14ee2e6526cf2a19a72cf80c275faa40880ab`.
+
+This fails every pre-registered criterion. A 25% expert prune is too
+aggressive for the target agentic-coding workload: perplexity rises by 25.1%
+and top-1 accuracy falls by 3.70 percentage points. It is not promoted.
+
+### 224-expert sensitivity lane
+
+Because the 192-expert lane failed the target workload, the same leave-one-out
+search was repeated with half the prune budget: rounds 16/8/4/4, 32 experts
+removed per routed layer, 224 retained. It completed in 172.462 seconds and
+emitted mask SHA-256
+`b7944db2718903ffbbc4d8abeecb6888da1338018376c4b7e222bd28a528c429`.
+
+Materialization took 400.299 seconds and produced 32,222 tensors, 31,584 expert
+tensors, 47 sliced routers, 70,102,064,704 payload bytes, and expert-ID-map
+SHA-256
+`507e4e901d512ef0bd72c0e48ce114095273646ca1506d5a67b3c67f2418bac5`.
+Materialization receipt SHA-256:
+`f44c8bcafaf28bc8e263690728e0734c474764d3ad2fe0e07c71e38bebf86e3a`.
+
+Agentic-coding gate:
+
+| metric | 256-expert BF16 source | physical 224-expert BF16 |
+| --- | --- | --- |
+| mean NLL (nats/token) | 2.202686766920426 | 2.268387622112280 |
+| perplexity | 9.049294210860637 | 9.663806537545630 |
+| top-1 accuracy | 0.61273193359375 | 0.59820556640625 |
+
+- NLL delta (candidate minus source): `+0.0657008551918541` nats/token;
+- window-bootstrap 95% CI:
+  `[0.014188017067963542, 0.11178702235286228]`;
+- top-1 agreement: `0.890625`;
+- both correct 9024, candidate only 777, source only 1015;
+- receipt SHA-256:
+  `a69ba7f9b9de65107bb544d785df1e9ef77003303fb7cf91ca68d571c9556026`.
+
+This also fails every pre-registered criterion. Halving the prune budget cuts
+the damage roughly in half, but a 12.5% prune still raises coding perplexity by
+6.8% and loses 1.45 percentage points of top-1 accuracy. There is no measured
+prune lane here that can be honestly promoted to quantization or publication.
