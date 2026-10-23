@@ -1,0 +1,52 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T20:26:00Z",
+  "agent": "Codex parent with MiniMax implementation worker",
+  "task": "Make DeepSeek stock-RCO adapter injection reproducible without modifying the pinned tool tree",
+  "source_revision": "f3f214952fa87c6ff8e2b4dd1b57d8243770a62d",
+  "source_dirty": true,
+  "source_revision_role": "clean main head before the runner",
+  "worker_receipt": "20261023-130514-z7t52u0x",
+  "implementation": {
+    "tool": "tools/rco_adapter_runner.py",
+    "modes": {
+      "deepseek": "Injects get_moe_info, install_wrappers, remove_wrappers, and evaluate_with_mask from tools/deepseek_rco_adapter.py into the in-process stock search.prune module, then restores the originals.",
+      "qwen4exp": "Explicit stock-RCO pass-through with no injection."
+    },
+    "safety": [
+      "Refuses an RCO tree that is not exactly revision 9a1e09c07d468109cbe60a1b87d5036034a79d10.",
+      "Refuses tracked dirty state and records RCO tree-clean provenance.",
+      "Disables bytecode writes while importing the pinned tree.",
+      "Restores module attributes, sys.path, and sys.modules on normal exit, exception, or SystemExit.",
+      "Records entry/prune hashes and verifies the tree is byte-identical after a run."
+    ]
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_rco_adapter_runner -v",
+      "exit": 0,
+      "result": "19 tests passed; one optional pinned-dependency test skipped"
+    },
+    {
+      "command": "uv run with torch, numpy, tqdm, datasets, transformers 5.20.2, and accelerate; python -m unittest tools.test_rco_adapter_runner -v",
+      "exit": 0,
+      "result": "19/19 tests passed, including real pinned-tree adapter injection and restoration"
+    },
+    {
+      "command": "ruff check and format on the runner and test",
+      "exit": 0,
+      "result": "lint and formatting passed"
+    },
+    {
+      "command": "just quality with local llama.cpp source and task-local ccache directories",
+      "exit": 0,
+      "result": "all repository checks passed"
+    }
+  ],
+  "non_claims": [
+    "No model, checkpoint payload, CUDA device, optimizer search, KL score, or remote host was used.",
+    "The fake-tree tests prove injection and restoration mechanics, not DeepSeek quality.",
+    "The pinned integration test imports the real RCO module but does not run its CLI search.",
+    "Qwen4Exp pass-through claims only stock topology compatibility already established by the earlier tiny probes."
+  ]
+}
