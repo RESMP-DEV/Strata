@@ -93,6 +93,27 @@ A synthetic 192-per-layer dry run against the real BF16 metadata selected
 27,710 tensors and omitted 9,024. It did not open a tensor payload or create
 the approximately 56.8 GB routed-expert output.
 
+### B550 live router-control pass
+
+The branch was staged on B550 via a local owned Git remote. The real 75 GB
+BF16 source has config SHA-256
+`a57c33d11f725099105b657043c113149763066d204fd472d0b2ee399abc2ba7` and index
+SHA-256
+`e5e9c492685f84c8d2d8369f36c74674b03410715f23f6179313f6f1feb90311`.
+The machine exposes only GPU0; GPU1 is `vfio-pci` and remains untouched.
+
+The adapter and tiny stock-RCO integration passed on B550 in the Torch
+2.14 environment. A new streaming collector then performed the first
+full-source 16×256 real-token pass in 193.787 seconds using one resident
+layer at a time on GPU0. Its deterministic 192-expert mask has:
+
+- mean retained router mass: 0.843538642;
+- mean retained top-6 frequency: 0.803393245;
+- mask SHA-256: `52e0d859c19b739186364658e157c1ff70eca8a63a65f01f22f700c4bb381ea2`.
+
+A 128×1024 pass was then launched as a stronger control before any physical
+materialization or RCO STE search.
+
 ## Architecture
 
 ### RCO lane

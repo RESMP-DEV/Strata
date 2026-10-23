@@ -181,6 +181,7 @@ def quality() -> int:
                         "tools.test_flint_rco_adapter",
                         "tools.test_materialize_pruned_flint",
                         "tools.test_validate_flint_rco",
+                        "tools.test_collect_flint_router_scores",
                     ],
                 ),
                 run_logged(
@@ -217,6 +218,8 @@ def quality() -> int:
                         "tools/test_materialize_pruned_flint.py",
                         "tools/validate_flint_rco.py",
                         "tools/test_validate_flint_rco.py",
+                        "tools/collect_flint_router_scores.py",
+                        "tools/test_collect_flint_router_scores.py",
                     ],
                 ),
                 run_logged(
@@ -250,6 +253,8 @@ def quality() -> int:
                         "tools/test_materialize_pruned_flint.py",
                         "tools/validate_flint_rco.py",
                         "tools/test_validate_flint_rco.py",
+                        "tools/collect_flint_router_scores.py",
+                        "tools/test_collect_flint_router_scores.py",
                     ],
                 ),
                 run_logged(

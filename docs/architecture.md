@@ -2595,3 +2595,11 @@ recognition, the owned MLX-LM fork, no-RoPE attention contracts, and a
 materialization, calibration, GSQ run, or Metal server run is claimed. Full
 architecture and commands are in
 [Flint RCO/GSQ architecture](../evidence/flint-rco-gsq-architecture-2026-10-23.md).
+
+The first B550 full-source control is real but limited. The feature branch and
+Flint adapter passed on the host, and a streamed 16×256 router pass used one
+BF16 layer at a time on GPU0 to emit a deterministic 192-expert mask retaining
+84.35% router mass and 80.34% top-6 frequency. GPU1 remained untouched behind
+VFIO, and the stronger 128×1024 control was launched. This is still a
+router-score control, not a Gumbel-STE search, hard-mask KL, quantized
+artifact, or performance result.
