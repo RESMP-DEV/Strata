@@ -1,7 +1,7 @@
 {
   "schema": "strata-work-evidence-v1",
   "recorded_at": "2026-10-22T22:14:04Z",
-  "updated_at": "2026-10-22T22:22:30Z",
+  "updated_at": "2026-10-23T00:38:37Z",
   "agent": "Codex parent with three MiniMax CCR implementation workers; parent acceptance by Codex",
   "task": "Repair every actionable CodeRabbit finding on DeepSeek/Qwen RCO PR #20 without expanding runtime claims.",
   "source_revision": "fed9d1983b363d03ca12e9019aae6cd968e5e399",
@@ -26,6 +26,52 @@
     ],
     "trace_control": [
       "seed_and_trace_selected counts only seed cells with trace support rather than all trace-supported selected cells"
+    ]
+  },
+  "second_review_round": {
+    "reviewed_head": "c852e04894ddd6a72325c35c4da3a9a25e94097e",
+    "dirty_base_revision": "932b687e7ff7e7eebcc524377c3a21e85e927fda",
+    "code_rabbit_repairs": [
+      {
+        "finding": 4354855273,
+        "repair": "replace the raw B550 machine-id in stock-tiny evidence with its SHA-256 digest"
+      },
+      {
+        "finding": 4354855280,
+        "repair": "reject empty, ragged, misaligned, or non-tensor reference caches before wrapper installation and score each calibration batch against its exact cache entry"
+      },
+      {
+        "finding": 4354855281,
+        "repair": "require both the observed Python type name and value repr in token-ids errors, including an int case"
+      },
+      {
+        "finding": 4354855285,
+        "repair": "replace the vacuous loss-mask comparison with nonzero-prune-mask tests for the unscored source column, token-mean normalization, and a changed scored column"
+      },
+      {
+        "finding": 4354855296,
+        "repair": "prove metadata-only planning imports neither torch nor safetensors in a fresh subprocess"
+      }
+    ],
+    "open_code_review_follow_up": [
+      "rename header evidence to its 2026-10-23 recorded timestamp and update the architecture link",
+      "record the source-revision role and verifier script SHA-256 in header evidence",
+      "the duplicate adapter cache-alignment finding is covered by the adapter repair",
+      "consolidate Qwen materializer total-size accumulation into explicit copied-tensor branches"
+    ],
+    "implementation_workers": [
+      {
+        "lane": "adapter cache and loss-mask regressions",
+        "receipt_id": "20261022-172243-ydgzhdx_"
+      },
+      {
+        "lane": "planner dependency, token errors, evidence sanitation, and accounting",
+        "receipt_id": "20261022-172253-_peg3mry"
+      },
+      {
+        "lane": "independent combined-diff review",
+        "receipt_id": "20261022-173118-rav8nh3l"
+      }
     ]
   },
   "openreview_follow_up": {
@@ -86,6 +132,31 @@
       "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
       "exit": 0,
       "result": "21/21 adapter tests passed after adding mask-range and router-index regressions"
+    },
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_adapter tools.test_deepseek_rco_materialization_plan tools.test_build_rco_tokens",
+      "exit": 0,
+      "result": "61 tests ran and the suite passed; 30 tests executed and 31 Torch-dependent adapter tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "33/33 adapter tests passed with Torch and pinned Transformers after the cache repairs"
+    },
+    {
+      "command": "python3 -m unittest tools.test_materialize_pruned_qwen4exp",
+      "exit": 0,
+      "result": "7 tests passed; 2 optional Torch-dependent tests skipped under system Python"
+    },
+    {
+      "command": "ruff check [five modified tool files] && ruff format --check [same files] && git diff --check",
+      "exit": 0,
+      "result": "modified-tool lint, formatting, and whitespace checks passed"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "repository quality gate passed on dirty head 932b687e; ignored receipt build/reports/quality/receipt.json"
     }
   ],
   "implementation_workers": [

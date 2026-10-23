@@ -203,6 +203,7 @@ def materialize(
                 if classified is None:
                     tensors[name] = tensor
                     copied_counts["other"] += 1
+                    total_size += tensors[name].numel() * tensors[name].element_size()
                 else:
                     kind, layer = classified
                     source_shape = validate_source_expert_dimension(tensor, kind, name)
@@ -213,8 +214,6 @@ def materialize(
                             f"{name}: pruned shape {tuple(tensors[name].shape)}, expected {wanted}"
                         )
                     copied_counts[kind] += 1
-                    total_size += tensors[name].numel() * tensors[name].element_size()
-                if classified is None:
                     total_size += tensors[name].numel() * tensors[name].element_size()
                 del tensor
         if tensors:

@@ -9,7 +9,8 @@
   "follow_up_revision": "80c8932d125e37f168cb14f3b0a5a740fccaadae",
   "hardware": {
     "host": "B550",
-    "machine_id": "27e232eefb5743a48455b58e0fb997a0",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "machine_id_hash_recipe": "sha256sum /etc/machine-id over the file bytes, including its trailing newline",
     "gpu": "RTX 3090 Ti GPU1, UUID GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
     "concurrent_state": "GPU0 was owned by the existing llama-imatrix calibration process; GPU1 had no compute process before or after the probe"
   },

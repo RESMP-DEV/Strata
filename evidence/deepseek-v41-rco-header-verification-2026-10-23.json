@@ -15,6 +15,8 @@
   "schema": "strata-work-evidence-v1",
   "source_dirty": false,
   "source_revision": "c852e04894ddd6a72325c35c4da3a9a25e94097e",
+  "source_revision_role": "clean worktree head carrying the planner implementation and planning evidence; the ignored verifier script generated this receipt, and the receipt was committed later at 932b687e",
+  "verification_script_sha256": "e6b3bec8e4d10ab9db2c484d3632d247e34c455282150643da3a159f422efd41",
   "task": "Verify every pinned DeepSeek safetensors shard header without reading payloads",
   "verification": {
     "checkpoint": "/mnt/resmp-24tb/hf-weights/deepseek-ai_DeepSeek-V4.1-Flash-1017",

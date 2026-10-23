@@ -176,11 +176,21 @@ class BuildRcoTokensTest(unittest.TestCase):
                 field="text",
             )
 
-    def test_non_sequence_token_ids_include_observed_value(self) -> None:
-        observed = None
-        with self.assertRaisesRegex(ValueError, "got NoneType") as context:
+    def test_non_sequence_token_ids_report_type_and_value(self) -> None:
+        with self.assertRaises(ValueError) as context:
             MODULE.token_ids(None)
-        self.assertIn(repr(observed), str(context.exception))
+        message = str(context.exception)
+        # The type name and the observed value are separate tokens: "NoneType" is
+        # the type, "None" is the value repr. A bare "None" substring also
+        # matches inside "NoneType" and would not prove the value was reported.
+        self.assertIn("got NoneType:", message)
+        self.assertTrue(message.endswith(": None"), message)
+        self.assertNotIn("NoneType: NoneType", message)
+
+    def test_non_sequence_token_ids_report_other_types(self) -> None:
+        with self.assertRaises(ValueError) as context:
+            MODULE.token_ids(7)
+        self.assertIn("got int: 7", str(context.exception))
 
     def test_non_object_jsonl_is_rejected(self) -> None:
         path = self.root / "bad.jsonl"

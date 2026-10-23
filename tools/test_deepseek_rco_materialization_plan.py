@@ -7,6 +7,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,50 @@ SPEC = importlib.util.spec_from_file_location(
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
+
+
+RUNTIME_DEPENDENCY_PROBE = '''"""Fresh-interpreter probe: plan without torch or safetensors."""
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+TOOLS = Path(sys.argv[1])
+CONFIG, INDEX, MANIFEST, MASK = (Path(value) for value in sys.argv[2:6])
+RUNTIME_MODULES = {"torch", "safetensors"}
+
+
+def runtime_modules(loaded):
+    return sorted(name for name in loaded if name.split(".")[0] in RUNTIME_MODULES)
+
+
+before = set(sys.modules)
+spec = importlib.util.spec_from_file_location(
+    "deepseek_rco_materialization_plan_probe",
+    TOOLS / "deepseek_rco_materialization_plan.py",
+)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+plan = module.build_plan(
+    config_path=CONFIG,
+    index_path=INDEX,
+    manifest_path=MANIFEST,
+    mask_path=MASK,
+)
+after = set(sys.modules)
+print(
+    json.dumps(
+        {
+            "status": "ok",
+            "format": plan["format"],
+            "source_tensor_count": plan["tensor_count"]["source"],
+            "loaded": runtime_modules(after),
+            "imported_by_probe": runtime_modules(after - before),
+        }
+    )
+)
+'''
 
 
 def build_mask(keep_ids: list[int] | None = None) -> dict[str, Any]:
@@ -95,13 +140,37 @@ class MaterializationTest(unittest.TestCase):
 
 class MetadataOnlyPlanningTest(MaterializationTest):
     def test_plans_without_shard_files(self) -> None:
-        before = set(sys.modules) & {"torch", "safetensors"}
-        self.assertEqual(before, set())
         plan = self.plan()
-        after = set(sys.modules) & {"torch", "safetensors"}
-        self.assertEqual(after, set())
         self.assertEqual(plan["format"], MODULE.PLAN_FORMAT)
         self.assertEqual(list(self.root.glob("*.safetensors")), [])
+
+    def test_fresh_process_planning_imports_no_runtime_dependency(self) -> None:
+        # A fresh interpreter is the only honest proof that the planner itself
+        # needs neither torch nor safetensors: an earlier test in this process
+        # may already have imported them into the shared module table.
+        probe = self.root / "no_runtime_dependency_probe.py"
+        probe.write_text(RUNTIME_DEPENDENCY_PROBE, encoding="utf-8")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(probe),
+                str(TOOLS),
+                str(self.config_path),
+                str(self.index_path),
+                str(self.manifest_path),
+                str(self.mask_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["format"], MODULE.PLAN_FORMAT)
+        self.assertEqual(report["source_tensor_count"], 96_085)
+        self.assertEqual(report["loaded"], [])
+        self.assertEqual(report["imported_by_probe"], [])
 
     def test_primary_lane_counts_and_bytes(self) -> None:
         plan = self.plan()

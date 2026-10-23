@@ -2429,4 +2429,26 @@ routed tensors comprise exactly 31,488 each of `I8 [2304,2560]` and
 `F8_E8M0 [2304,160]`, plus 15,744 each of `I8 [5120,1152]` and
 `F8_E8M0 [5120,72]`. This verifies the source header geometry but still does
 not execute or materialize the model. Full shard rows and failures are in
-[header verification evidence](../evidence/deepseek-v41-rco-header-verification-2026-10-22.json).
+[header verification evidence](../evidence/deepseek-v41-rco-header-verification-2026-10-23.json).
+
+### PR review follow-up, 2026-10-23
+
+The second PR review round hardened evidence provenance and test semantics
+without expanding runtime scope. Machine identity in the stock-tiny receipt is
+now a SHA-256 digest, header evidence names its verifier script hash and the
+role of its source revision, and its filename matches its UTC timestamp. The
+Qwen materializer accounts every copied tensor in one explicit branch, token
+export errors report both observed type and value repr, and loss-mask tests now
+use a nonzero prune mask so the source column, token normalization, and scored
+column are individually observable. The DeepSeek adapter rejects empty, ragged,
+misaligned, or non-tensor reference caches before installing wrappers and uses
+each batch's exact reference entry. Metadata-only planning now proves in a
+fresh subprocess that it imports neither `torch` nor `safetensors`.
+
+Parent acceptance ran the combined 61-test system suite (30 executed and 31
+Torch-dependent adapter tests skipped), the 33-test pinned Torch adapter suite,
+the seven-test materializer suite, Ruff, formatting, whitespace, and
+`just quality`; all passed. These checks still do not execute or materialize
+the released DeepSeek checkpoint and do not establish pruning quality. Full
+findings, worker receipts, commands, and non-claims are in the
+updated [RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).

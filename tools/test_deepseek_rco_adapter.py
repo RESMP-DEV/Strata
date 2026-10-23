@@ -13,6 +13,9 @@ matters -- and prove the adapter's contract:
 * a zeroed survival mask drops the routed experts and keeps the shared one;
 * the wrapper restores the block's original forward exactly;
 * malformed masks and malformed counts fail loudly.
+* an empty, ragged, misaligned, or non-tensor reference cache is rejected
+  before any wrapper is installed, and every batch is scored against its
+  own reference entry.
 
 The stock RCO tree is *not* imported: its dependency stack (accelerate,
 datasets, compressed-tensors) is not assumed to be present.  The stock
@@ -455,6 +458,18 @@ class AdapterHardMaskEvaluationTest(unittest.TestCase):
             masks.append(self.torch.ones(batch.size(0), 9))
         return references, masks
 
+    def _nonzero_prune_mask(self) -> Any:
+        """A prune mask that really changes the model's logits.
+
+        Every routed expert of layer 0 is dropped, so the masked model
+        differs from the reference whatever the router selects.  Under an
+        all-kept mask the KL is exactly zero, and every comparison below
+        would compare zero against zero.
+        """
+        prune_mask = self.torch.zeros(5, 4, dtype=self.torch.bool)
+        prune_mask[0, :] = True
+        return prune_mask
+
     def test_zero_prune_mask_has_zero_kl_against_the_unmasked_reference(self) -> None:
         references, masks = self._reference_cache()
         prune_mask = self.torch.zeros(5, 4, dtype=self.torch.bool)
@@ -483,22 +498,65 @@ class AdapterHardMaskEvaluationTest(unittest.TestCase):
             self.assertNotIn("forward", vars(block.mlp))
             self.assertIs(block.mlp.forward.__func__, original)
 
-    def test_loss_mask_is_next_token_shifted_and_token_mean_normalized(self) -> None:
+    def test_loss_mask_column_zero_is_unscored(self) -> None:
         references, all_masks = self._reference_cache()
-        prune_mask = self.torch.zeros(5, 4, dtype=self.torch.bool)
-        all_score = ADAPTER.evaluate_with_mask(
+        prune_mask = self._nonzero_prune_mask()
+
+        baseline = ADAPTER.evaluate_with_mask(
             self.model, prune_mask, self.input_ids, references, all_masks
         )
+        # The pruned model must differ from the reference, otherwise the
+        # comparison below would compare zero against zero.
+        self.assertGreater(baseline, 0.0)
 
-        subset_masks = [self.torch.ones(2, 9)]
-        subset_masks[0][:, 0] = 0.0
-        subset_score = ADAPTER.evaluate_with_mask(
-            self.model, prune_mask, self.input_ids, references, subset_masks
+        zeroed = [mask.clone() for mask in all_masks]
+        for mask in zeroed:
+            mask[:, 0] = 0.0
+        column_zero_score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, zeroed
         )
 
-        # The first source position contributes no target; its removal scales
-        # the same sum over the remaining 15 token positions.
-        self.assertAlmostEqual(subset_score, all_score * 16.0 / 15.0, places=12)
+        # Source position 0 has no target, so the next-token shift drops it:
+        # its weight is never scored and cannot move the score.
+        self.assertEqual(column_zero_score, baseline)
+
+    def test_uniform_half_weights_preserve_the_token_mean(self) -> None:
+        references, all_masks = self._reference_cache()
+        prune_mask = self._nonzero_prune_mask()
+
+        baseline = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, all_masks
+        )
+        self.assertGreater(baseline, 0.0)
+
+        half_masks = [mask * 0.5 for mask in all_masks]
+        half_score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, half_masks
+        )
+
+        # Every scored weight is halved, so the summed KL and the scored-token
+        # count are both halved: the mean KL per scored token is unchanged.
+        self.assertAlmostEqual(half_score, baseline, places=12)
+
+    def test_zeroing_a_scored_column_changes_the_score(self) -> None:
+        references, all_masks = self._reference_cache()
+        prune_mask = self._nonzero_prune_mask()
+
+        baseline = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, all_masks
+        )
+        self.assertGreater(baseline, 0.0)
+
+        zeroed = [mask.clone() for mask in all_masks]
+        for mask in zeroed:
+            mask[:, 1] = 0.0
+        score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, zeroed
+        )
+
+        # Column 1 is a scored target position: dropping it removes a token
+        # from the mean, and the per-token KLs differ, so the score moves.
+        self.assertNotAlmostEqual(score, baseline, places=12)
 
     def test_malformed_prune_masks_fail_before_wrappers_are_installed(self) -> None:
         references, masks = self._reference_cache()
@@ -522,6 +580,100 @@ class AdapterHardMaskEvaluationTest(unittest.TestCase):
         for block, original in zip(self.model.model.layers, original_forwards, strict=True):
             self.assertNotIn("forward", vars(block.mlp))
             self.assertIs(block.mlp.forward.__func__, original)
+
+    def test_reference_cache_batch_count_must_match_the_calibration_batches(self) -> None:
+        references, masks = self._reference_cache(batch_size=1)
+        prune_mask = self._nonzero_prune_mask()
+
+        # Two cached batches, but batch_size=2 runs a single batch: the extra
+        # entry is a misalignment, not a spare.
+        with self.assertRaises(ADAPTER.RcoAdapterError):
+            ADAPTER.evaluate_with_mask(
+                self.model, prune_mask, self.input_ids, references, masks, batch_size=2
+            )
+
+        # One cached batch, but batch_size=1 runs two batches: the missing
+        # entry must not be silently replaced by the last cached one.
+        with self.assertRaises(ADAPTER.RcoAdapterError):
+            ADAPTER.evaluate_with_mask(
+                self.model,
+                prune_mask,
+                self.input_ids,
+                references[:1],
+                masks[:1],
+                batch_size=1,
+            )
+
+    def test_each_batch_is_scored_against_its_own_reference(self) -> None:
+        references, masks = self._reference_cache(batch_size=1)
+        prune_mask = self._nonzero_prune_mask()
+
+        baseline = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, references, masks, batch_size=1
+        )
+        self.assertGreater(baseline, 0.0)
+
+        # Replace the second batch's reference: a clamped batch index would
+        # ignore that entry and the score would not move.
+        perturbed = [reference.clone() for reference in references]
+        perturbed[1] = perturbed[1] - 1.0
+        perturbed_score = ADAPTER.evaluate_with_mask(
+            self.model, prune_mask, self.input_ids, perturbed, masks, batch_size=1
+        )
+
+        self.assertNotAlmostEqual(perturbed_score, baseline, places=12)
+
+    def test_empty_reference_cache_fails(self) -> None:
+        prune_mask = self._nonzero_prune_mask()
+        with self.assertRaises(ADAPTER.RcoAdapterError):
+            ADAPTER.evaluate_with_mask(self.model, prune_mask, self.input_ids, [], [])
+
+    def test_ragged_reference_cache_fails(self) -> None:
+        references, masks = self._reference_cache()
+        prune_mask = self._nonzero_prune_mask()
+        with self.assertRaises(ADAPTER.RcoAdapterError):
+            ADAPTER.evaluate_with_mask(
+                self.model, prune_mask, self.input_ids, references, masks + [masks[0]]
+            )
+
+    def test_non_tensor_cache_entries_fail(self) -> None:
+        references, masks = self._reference_cache()
+        prune_mask = self._nonzero_prune_mask()
+        original_forwards = [type(layer.mlp).forward for layer in self.model.model.layers]
+        cases = {
+            "reference-not-a-tensor": ([[0.0] * 4], masks),
+            "mask-not-a-tensor": (references, [[1.0] * 9]),
+        }
+
+        for description, (refs, msks) in cases.items():
+            with (
+                self.subTest(case=description),
+                self.assertRaises(ADAPTER.RcoAdapterError),
+            ):
+                ADAPTER.evaluate_with_mask(self.model, prune_mask, self.input_ids, refs, msks)
+
+        # The cache is rejected before any wrapper is installed.
+        for block, original in zip(self.model.model.layers, original_forwards, strict=True):
+            self.assertNotIn("forward", vars(block.mlp))
+            self.assertIs(block.mlp.forward.__func__, original)
+
+    def test_misaligned_cache_entries_fail(self) -> None:
+        references, masks = self._reference_cache()
+        prune_mask = self._nonzero_prune_mask()
+
+        # The cached reference has one row too few for the batch.
+        short_reference = [references[0][:1].clone()]
+        with self.assertRaises(ADAPTER.RcoAdapterError):
+            ADAPTER.evaluate_with_mask(
+                self.model, prune_mask, self.input_ids, short_reference, masks
+            )
+
+        # The cached loss mask has one column too few for the batch.
+        short_mask = [masks[0][:, :-1].clone()]
+        with self.assertRaises(ADAPTER.RcoAdapterError):
+            ADAPTER.evaluate_with_mask(
+                self.model, prune_mask, self.input_ids, references, short_mask
+            )
 
 
 class AdapterForwardTest(unittest.TestCase):

@@ -279,6 +279,72 @@ def _require_image_mask_capable(block: Any) -> None:
         )
 
 
+def _cache_length(name: str, cache: Any) -> int:
+    """Number of per-batch entries in a reference cache."""
+    try:
+        return len(cache)
+    except TypeError as error:
+        raise RcoAdapterError(
+            f"{name} must be a sized container of per-batch tensors, got {type(cache).__name__}"
+        ) from error
+
+
+def _cache_entry(name: str, cache: Any, index: int) -> Any:
+    """Read one per-batch entry out of a reference cache."""
+    try:
+        return cache[index]
+    except (KeyError, IndexError, TypeError) as error:
+        raise RcoAdapterError(
+            f"{name}[{index}] could not be read from the {type(cache).__name__} cache"
+        ) from error
+
+
+def _check_reference_cache(
+    ref_log_probs: Any,
+    ref_masks: Any,
+    n_calibration_rows: int,
+    batch_size: int,
+) -> None:
+    """Validate the per-batch reference cache before any model work.
+
+    The stock RCO contract (``src/search/prune.py::build_ref_cache``) is two
+    parallel lists of ``ceil(N / batch_size)`` entries, one per calibration
+    batch.  A cache that is empty, ragged, or the wrong length cannot be
+    aligned with the batches the evaluator is about to run, and reusing
+    another batch's entry (the stock code clamps the batch index to the last
+    entry) would score one batch against a different batch's reference.
+    Both are rejected here, before a single wrapper is installed.
+    """
+    torch = _torch()
+    n_refs = _cache_length("ref_log_probs", ref_log_probs)
+    n_mask_entries = _cache_length("ref_masks", ref_masks)
+    if n_refs == 0:
+        raise RcoAdapterError("ref_log_probs is empty: there is no reference to score against")
+    if n_mask_entries == 0:
+        raise RcoAdapterError("ref_masks is empty: there is no loss mask to score against")
+    if n_refs != n_mask_entries:
+        raise RcoAdapterError(
+            f"ref_log_probs has {n_refs} batches but ref_masks has {n_mask_entries}"
+        )
+    expected_batches = (n_calibration_rows + batch_size - 1) // batch_size
+    if n_refs != expected_batches:
+        raise RcoAdapterError(
+            f"ref_log_probs has {n_refs} batches but the calibration data needs "
+            f"{expected_batches} batches at batch_size={batch_size}"
+        )
+    for index in range(n_refs):
+        reference = _cache_entry("ref_log_probs", ref_log_probs, index)
+        if not isinstance(reference, torch.Tensor):
+            raise RcoAdapterError(
+                f"ref_log_probs[{index}] must be a tensor, got {type(reference).__name__}"
+            )
+        loss_mask = _cache_entry("ref_masks", ref_masks, index)
+        if not isinstance(loss_mask, torch.Tensor):
+            raise RcoAdapterError(
+                f"ref_masks[{index}] must be a tensor, got {type(loss_mask).__name__}"
+            )
+
+
 class SparseMoePruneWrapper:
     """Patch a ``DeepseekV41SparseMoeBlock`` so RCO's STE mask scales its experts.
 
@@ -428,6 +494,13 @@ def evaluate_with_mask(
     ``False`` is kept.  It is converted once to the adapter's survival-mask
     convention and applied without renormalizing the surviving routing
     weights.
+
+    ``ref_log_probs`` and ``ref_masks`` are the stock RCO per-batch caches:
+    two parallel lists of ``ceil(cal_data.size(0) / batch_size)`` entries,
+    one entry per calibration batch.  A cache that cannot be aligned with
+    the batches is rejected before any wrapper is installed, and the batch
+    index is never clamped, so a batch is never scored against another
+    batch's reference.
     """
     torch = _torch()
     if isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size <= 0:
@@ -456,10 +529,7 @@ def evaluate_with_mask(
     }
     if cal_data.is_complex() or cal_data.dtype not in integer_dtypes:
         raise RcoAdapterError(f"cal_data must have an integer dtype, got {cal_data.dtype}")
-    if len(ref_log_probs) != len(ref_masks):
-        raise RcoAdapterError(
-            f"ref_log_probs has {len(ref_log_probs)} batches but ref_masks has {len(ref_masks)}"
-        )
+    _check_reference_cache(ref_log_probs, ref_masks, cal_data.size(0), batch_size)
 
     survival_mask = ~prune_mask
     shared_state = {"ste_masks": survival_mask}
@@ -477,11 +547,23 @@ def evaluate_with_mask(
         try:
             for start in range(0, cal_data.size(0), batch_size):
                 batch = cal_data[start : start + batch_size].to(device)
-                batch_index = min(start // batch_size, len(ref_log_probs) - 1)
-                reference = ref_log_probs[batch_index].to(device)
-                loss_mask = ref_masks[batch_index].to(device)
+                batch_index = start // batch_size
+                reference = _cache_entry("ref_log_probs", ref_log_probs, batch_index)
+                loss_mask = _cache_entry("ref_masks", ref_masks, batch_index)
 
-                if not isinstance(reference, torch.Tensor) or reference.ndim != 3:
+                if not isinstance(reference, torch.Tensor):
+                    raise RcoAdapterError(
+                        f"ref_log_probs[{batch_index}] must be a tensor, "
+                        f"got {type(reference).__name__}"
+                    )
+                if not isinstance(loss_mask, torch.Tensor):
+                    raise RcoAdapterError(
+                        f"ref_masks[{batch_index}] must be a tensor, got {type(loss_mask).__name__}"
+                    )
+                reference = reference.to(device)
+                loss_mask = loss_mask.to(device)
+
+                if reference.ndim != 3:
                     raise RcoAdapterError(
                         "each ref_log_probs entry must be a tensor with shape (B, T-1, V)"
                     )
@@ -491,15 +573,9 @@ def evaluate_with_mask(
                     )
                 if not bool(torch.isfinite(reference).all()):
                     raise RcoAdapterError("ref_log_probs values must be finite")
-                if not isinstance(loss_mask, torch.Tensor) or loss_mask.shape != batch.shape:
-                    actual_mask_shape = (
-                        tuple(loss_mask.shape)
-                        if isinstance(loss_mask, torch.Tensor)
-                        else "non-tensor"
-                    )
+                if loss_mask.shape != batch.shape:
                     raise RcoAdapterError(
-                        "ref_masks entry has shape "
-                        f"{actual_mask_shape}, "
+                        f"ref_masks entry has shape {tuple(loss_mask.shape)}, "
                         f"expected {tuple(batch.shape)}"
                     )
                 if loss_mask.is_complex() or not loss_mask.is_floating_point():
