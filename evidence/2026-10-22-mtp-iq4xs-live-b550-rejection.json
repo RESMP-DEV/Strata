@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-23T00:50:00Z",
+  "agent": "Codex",
+  "source_revision": "557d78305032fb66e11ad3f6d311cf739523ea58",
+  "source_dirty": false,
+  "branch": "feature/mtp-iq4xs",
+  "scope": "Run the live B550 speculative-decoding gate for the direct IQ4 MTP runtime and isolate whether a regression is caused by Strata's IQ4 kernels, the QAT projections, or the QAT fused-GR modules.",
+  "host": {
+    "alias": "b550-zt",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "gpu": "GPU 1, NVIDIA GeForce RTX 3090 Ti, sm_86",
+    "concurrent_gpu0_work": "PID 12164 llama-imatrix using 17,010 MiB on GPU 0; the test used GPU 1 only",
+    "engine": "/home/kearm/build/strata-mtp-iq4xs-sm86/strata",
+    "engine_sha256": "8a98ac526690da02416be7f78b4836d392d8779d4986c846fc244c507e6459b1"
+  },
+  "model_and_workload": {
+    "model": "Qwen3.8-Flash-Next IQ2_XS/Q2_0 iMatrix-Calibrated 256x2048, first native shard",
+    "pack": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/pack-split",
+    "expert_profile": "/home/kearm/strata-main/data/expert-profile.bin",
+    "prompt_tokens": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/prefill-routing-v2-20261021/prompt-tokens.txt",
+    "prompt_tokens_count": 13963,
+    "generation": "greedy, 128 new tokens, --spec 4, --mtp-max-t 4, --spec-min-p 0, --suffix-draft 0, --prompt-cache 0",
+    "common_flags": "--expert-cache auto --prefill auto --max-context 16384 --kv-resident 2048 --kv int8 --ple-io direct --stats --short-read 0"
+  },
+  "runtimes": {
+    "base": {
+      "path": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-bf16/rt",
+      "dense_sha256": "c724dc0b0822ada5d2977bf5bde821605feabaa64ea2e0045b67ca656329070a",
+      "weights": "base Q8_0 projections and base BF16 fused GR"
+    },
+    "full_iq4": {
+      "path": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-iq4xs-rt",
+      "dense_sha256": "f1cd3417e4d2af0e343139d663fab9c50911f219409d39fb30bf2440f6007370",
+      "weights": "ten QAT IQ4 projections and eight QAT fused-GR modules dequantized to BF16"
+    },
+    "projection_only": {
+      "path": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-proj-only-rt",
+      "dense_sha256": "dfa10f34059712194c09bad8ab4198d630395526dae78ed3518553a2f67d2e06",
+      "weights": "ten QAT IQ4 projections, base BF16 fused GR"
+    },
+    "shared_experts": "All three use the same 675 MiB experts.bin; base dense provenance is identical to the runtime used by the packer."
+  },
+  "live_ab": [
+    {
+      "arm": "base",
+      "exit": 0,
+      "rounds": 43,
+      "drafts_accepted": 86,
+      "drafts_total": 126,
+      "acceptance": 0.6825396825396826,
+      "tokens_per_round": 3.0,
+      "mtp_ms_per_round": 3.352,
+      "mtp_prompt_ms": 37.9,
+      "mtp_vram_mib": 813,
+      "decode_tokens_per_second": 46.19,
+      "prefill_tokens_per_second": 82.85,
+      "final_residual_sha256": "c0f70880b087233d31b9df37626ca17ee9a43ab47ba2a7b7df2342f9e0538fd1",
+      "prompt_stream_sha256": "e7d05826de35cbd8306a3a420d9b6cdd761661b6441e02be3aabddc815cdb000",
+      "raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-iq4xs-live-20261022/base-128"
+    },
+    {
+      "arm": "full_iq4",
+      "exit": 0,
+      "rounds": 92,
+      "drafts_accepted": 36,
+      "drafts_total": 273,
+      "acceptance": 0.13186813186813187,
+      "tokens_per_round": 1.39,
+      "mtp_ms_per_round": 2.99,
+      "mtp_prompt_ms": 461.8,
+      "mtp_vram_mib": 778,
+      "decode_tokens_per_second": 13.21,
+      "prefill_tokens_per_second": 80.59,
+      "final_residual_sha256": "c0f70880b087233d31b9df37626ca17ee9a43ab47ba2a7b7df2342f9e0538fd1",
+      "prompt_stream_sha256": "e7d05826de35cbd8306a3a420d9b6cdd761661b6441e02be3aabddc815cdb000",
+      "raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-iq4xs-live-20261022/iq4-128"
+    },
+    {
+      "arm": "projection_only",
+      "exit": 0,
+      "rounds": 63,
+      "drafts_accepted": 65,
+      "drafts_total": 186,
+      "acceptance": 0.34946236559139787,
+      "tokens_per_round": 2.03,
+      "mtp_ms_per_round": 3.167,
+      "mtp_prompt_ms": 451.5,
+      "mtp_vram_mib": 778,
+      "decode_tokens_per_second": 26.63,
+      "prefill_tokens_per_second": 80.9,
+      "final_residual_sha256": "c0f70880b087233d31b9df37626ca17ee9a43ab47ba2a7b7df2342f9e0538fd1",
+      "prompt_stream_sha256": "e7d05826de35cbd8306a3a420d9b6cdd761661b6441e02be3aabddc815cdb000",
+      "raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-iq4xs-live-20261022/proj-only-128"
+    }
+  ],
+  "kernel_parity": {
+    "method": "Real candidate blocks, deterministic normal inputs, Strata native_iq4_xs_f32/native_iq4_nl_f32 on GPU 1, and independent GGML-dequantized FP32 dot products. Columns 1 through 8 were checked.",
+    "modules": [
+      "self_attn.k_proj IQ4_XS 512x2560",
+      "self_attn.o_proj IQ4_XS 2560x6144",
+      "self_attn.q_proj IQ4_XS 12288x2560",
+      "mlp.shared_expert.down_proj IQ4_NL 2560x640"
+    ],
+    "max_relative_error": 0.0083126981,
+    "result": "all checks passed; differences are consistent with Q8_1 activation rounding, not a block-layout or dispatch mismatch",
+    "raw": "/home/kearm/strata-scratch/qwen-iq2xs-calibrated/mtp-iq4xs-live-20261022/kernel-parity"
+  },
+  "finding": "The IQ4 runtime is executable and verifier-correct, but it fails the live speculative-acceptance gate on this target/workload. Base accepted 68.25%, projection-only QAT accepted 34.95%, and full QAT accepted 13.19%. Since real-block CUDA parity passed, the regression is in candidate-target transfer, not Strata IQ4 block decoding. Both QAT projection transfer and QAT fused-GR transfer reduce acceptance; the GR set reduces it further on this workload.",
+  "decision": "Do not promote the Flash-Next MTP IQ4 candidate to production. Retain direct IQ4 loader support as tested infrastructure, but keep the existing Q8_0 runtime as the production MTP path.",
+  "non_claims": [
+    "This is one 13,963-token source prompt and 128 generated tokens, not a multi-prompt acceptance sweep.",
+    "Prefill was dominated by 167-178 seconds of random PLE reads from a rotational disk on every arm; decode rate is the comparable timing metric, not prefill or wall clock.",
+    "The final residual and prompt token stream are identical across arms, proving verifier correctness for this run; window hashes differ because speculative acceptance differs.",
+    "GPU 0 had an unrelated llama-imatrix process during the test, but all model runs were bound to GPU 1.",
+    "No claim is made about the candidate on the BF16 target model or on workloads matching its training banks.",
+    "The teacher-logit top-1 result did not predict live acceptance on this IQ2_XS target; architecture/target transfer remains unproven and now has one negative live measurement."
+  ]
+}

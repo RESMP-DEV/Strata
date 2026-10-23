@@ -2333,3 +2333,30 @@ IQ4_XS/IQ4_NL kernels are pinned to the same layout, a real-artifact kernel
 parity check and live serve A/B remain gates. Full commands, hashes, build
 results, and non-claims are in
 [MTP IQ4 evidence](../evidence/2026-10-22-mtp-iq4xs-direct-projection-support.json).
+
+### Live IQ4 MTP rejection, 2026-10-22
+
+The pending B550 gate ran when GPU 1 became idle. The patched engine loaded the
+repacked runtime, the existing IQ4_XS/IQ4_NL kernels passed a real-block parity
+check against independent GGML dequantization across one to eight columns, and
+the verifier remained exact: the base and IQ4 arms produced the same prompt
+stream and final residual. The candidate still failed live speculative
+acceptance.
+
+On the same 13,963-token source prompt, 128 greedy output tokens, `--spec 4`,
+and `--mtp-max-t 4`, the existing Q8_0 MTP runtime accepted 86 of 126 drafts
+(68.25%) and decoded at 46.19 tok/s. The ten QAT IQ4 projections with base GR
+weights accepted 65 of 186 (34.95%) and decoded at 26.63 tok/s. The full QAT
+configuration, adding the eight dequantized GR modules, accepted only 36 of 273
+(13.19%) and decoded at 13.21 tok/s. This isolates the failure from Strata's
+IQ4 block path: projection-only transfer already loses most of the acceptance,
+and the QAT GR set loses more on this target.
+
+The production decision is therefore negative for this candidate. The direct
+IQ4 loader and packer remain exercised infrastructure, but the existing Q8_0
+MTP runtime stays the production path. The earlier held-out teacher-logit win
+did not transfer to live acceptance on the IQ2_XS target; target/workload
+transfer needs to be part of the next candidate gate, not inferred from bits
+per weight or teacher agreement alone. Full commands, hashes, kernel-parity
+results, and limits are in
+[live rejection evidence](../evidence/2026-10-22-mtp-iq4xs-live-b550-rejection.json).
