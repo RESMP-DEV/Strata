@@ -164,6 +164,21 @@ class ReapMaskTest(unittest.TestCase):
         self.assertEqual(len(seeds), 1)
         self.assertEqual(sorted(seeds[0]), list(range(256)))
 
+    def test_seed_allocation_accepts_any_projection_and_non_256_budget(self) -> None:
+        path = self.root / "allocation.txt"
+        lines = []
+        for layer, retained in enumerate(({1, 2}, {4, 5})):
+            for expert in range(6):
+                quant = "IQ3_S" if expert in retained else ""
+                lines.append(f"blk.{layer}.ffn_gate_exps.weight[{expert}]: {quant}")
+                lines.append(f"blk.{layer}.ffn_up_exps.weight[{expert}]: {quant}")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        seeds = MODULE.parse_seed_allocation(path, n_layers=2, n_expert=6)
+        self.assertEqual(seeds, [{1, 2}, {4, 5}])
+
+        keep, _, _ = MODULE.choose_mask({}, 2, 6, 3, seeds=seeds)
+        self.assertEqual(keep, [[1, 2, 0], [4, 5, 0]])
+
 
 def subprocess_run(argv: list[str]):
     import subprocess

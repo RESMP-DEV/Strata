@@ -196,6 +196,12 @@ class CustomCoderPlanTest(unittest.TestCase):
         materialize = manifest["commands"]["materialize_pruned_bf16"]["argv"]
         self.assertEqual(materialize[materialize.index("--prune-mask") + 1], actual_own)
 
+    def test_reference_only_mixed_recipe_cannot_emit_quantization_arguments(self) -> None:
+        args = self.make_args()
+        args.recipe = "parent-mix"
+        with self.assertRaisesRegex(ValueError, "parent-mix.*no complete llama.cpp tensor recipe"):
+            MODULE.build_manifest(args, 288)
+
     def test_parent_control_requires_an_explicit_destination(self) -> None:
         args = Namespace(
             mask=self.write_mask(288),

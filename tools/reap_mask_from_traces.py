@@ -129,19 +129,21 @@ def parse_seed_allocation(path: Path, n_layers: int, n_expert: int) -> list[set[
     pruned expert is listed with an empty type, so the type token is matched
     optionally and a line without one marks a pruned expert.
     """
-    pattern = re.compile(r"^blk\.(\d+)\.ffn_down_exps\.weight\[(\d+)\]:\s*(\S*)\s*$")
+    pattern = re.compile(r"^blk\.(\d+)\.ffn_(?:gate|up|down)_exps\.weight\[(\d+)\]:\s*(\S*)\s*$")
     result: list[set[int]] = [set() for _ in range(n_layers)]
     for line in path.read_text(encoding="utf-8").splitlines():
         match = pattern.match(line)
         if match is None:
             continue
         layer, expert, quant = int(match[1]), int(match[2]), match[3]
+        if not 0 <= layer < n_layers or not 0 <= expert < n_expert:
+            continue
         # An empty quantization type marks a pruned expert, not a retained one.
-        if quant and 0 <= layer < n_layers and 0 <= expert < n_expert:
+        if quant:
             result[layer].add(expert)
-    if not all(len(row) == 256 for row in result):
-        sizes = sorted({len(row) for row in result})
-        raise ValueError(f"{path}: seed allocation is not uniform 256/layer: {sizes}")
+    empty_layers = [layer for layer, experts in enumerate(result) if not experts]
+    if empty_layers:
+        raise ValueError(f"{path}: seed allocation has no retained experts in {empty_layers}")
     return result
 
 

@@ -311,7 +311,13 @@ def build_manifest(
     python = args.python
     recipe = RECIPES[args.recipe]
 
-    gate_up_type = "IQ3_S" if recipe["gate_up"] == "IQ3_S" else "IQ4_XS"
+    gate_up_type = recipe["gate_up"]
+    down_type = recipe["down"]
+    if gate_up_type not in {"IQ3_S", "IQ4_XS"} or down_type != "IQ4_NL":
+        raise ValueError(
+            f"recipe {args.recipe!r} has no complete llama.cpp tensor recipe "
+            f"(gate_up={gate_up_type!r}, down={down_type!r})"
+        )
     quantize_argv = quantize_arguments(
         args.llama_quantize,
         imatrix,
@@ -486,7 +492,7 @@ def build_manifest(
                     "--gate-up-type",
                     gate_up_type,
                     "--down-type",
-                    "IQ4_NL",
+                    down_type,
                     "--ple-type",
                     "IQ4_NL",
                 ]

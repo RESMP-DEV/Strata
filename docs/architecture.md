@@ -2547,3 +2547,13 @@ model load because the service expects GPU1 first; the restart loop was stopped 
 the VM boundary was preserved. This is a resource-ownership blocker, not evidence
 that GPU1 failed. Full commands and non-claims are in
 [B550 GPU1 VFIO boundary evidence](../evidence/b550-gpu1-vfio-service-boundary-2026-10-23.json).
+
+A final OpenCodeReview sweep repaired three code findings that CodeRabbit's latest
+success did not supersede: the reference-only mixed Coder allocation now refuses to
+emit quantization arguments, REAP seed allocations accept any expert projection and
+any non-hard-coded budget, and safetensors interval validation reports every gap or
+overlap. Historical receipt hashes were also separated into tracked, pinned,
+reproduced, and superseded categories. The 98-test host-safe planning suite and the
+36-test pinned Torch adapter suite passed; no optimizer or payload was run. Details
+are in
+[OpenCodeReview repair evidence](../evidence/open-code-review-code-repairs-2026-10-23.json).

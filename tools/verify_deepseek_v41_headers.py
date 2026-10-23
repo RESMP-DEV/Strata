@@ -167,7 +167,6 @@ def main() -> int:
                     f"{shard}:{name}: interval gap/overlap at {start}, expected {cursor}"
                 )
                 interval_failures += 1
-                break
             cursor = end
         expected_file_size = data_start + cursor
         if cursor == 0 or expected_file_size != actual_size:

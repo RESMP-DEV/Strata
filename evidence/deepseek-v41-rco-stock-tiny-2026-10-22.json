@@ -7,6 +7,13 @@
   "source_revision": "c88ec6347cf57d6e0a228ee87480e250793cf0f5",
   "source_dirty": false,
   "follow_up_revision": "80c8932d125e37f168cb14f3b0a5a740fccaadae",
+  "revision_hash_verification": {
+    "source_commit_type": "commit",
+    "follow_up_commit_type": "commit",
+    "initial_adapter_at_source_revision_sha256": "ddedf6add162d22dec3647c5ac920ecdeb1e3dcf02141f5334dfc433aad5ee75",
+    "faithful_eval_adapter_at_follow_up_revision_sha256": "eea6040cf0364f202e3559e82468236e3759f453c12cc2526c6ddc7dbff35b31",
+    "command": "git cat-file -t REVISION && git show REVISION:tools/deepseek_rco_adapter.py | sha256sum"
+  },
   "hardware": {
     "host": "B550",
     "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",

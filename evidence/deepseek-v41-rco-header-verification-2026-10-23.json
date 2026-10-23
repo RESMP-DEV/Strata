@@ -19,6 +19,13 @@
   "verification_script_path": "tools/verify_deepseek_v41_headers.py",
   "verification_script_sha256": "d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c",
   "original_execution_script_sha256": "e6b3bec8e4d10ab9db2c484d3632d247e34c455282150643da3a159f422efd41",
+  "hash_verification": {
+    "tracked_commit": "13d6469c3cdf470ac496e42179a1520f6e75db4d",
+    "tracked_commit_script_sha256": "d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c",
+    "b550_pinned_script_sha256": "d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c",
+    "current_script_after_interval_repair_sha256": "19ea9cec3e8fc3e9f3bffbb1685ab64ee149afacd86753a6de128b056fc3bb0d",
+    "original_execution_script_boundary": "The e6b3... hash is retained as historical provenance for the first execution; that exact pre-tracking buffer is not a Git object and is superseded by the tracked and B550-pinned d6c9... verifier used for reproduction."
+  },
   "reproduction": {
     "recorded_at": "2026-10-23T01:40:09Z",
     "host": "B550",
@@ -26,6 +33,7 @@
     "exit": 0,
     "payload_bytes_read": 0,
     "output": "build/deepseek-rco-materialization/header-reproduction-20261023.json",
+    "output_sha256": "329a35b223f2f252e3c934fb3a497d998b6b8b8292e8bed8017fff22568ac038",
     "verification_fields_match_original": true
   },
   "task": "Verify every pinned DeepSeek safetensors shard header without reading payloads",

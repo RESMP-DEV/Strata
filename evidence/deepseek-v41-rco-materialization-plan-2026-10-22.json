@@ -29,6 +29,8 @@
     "index_sha256": "74b0686a3d2891980d5e303251b075a3bccae2c2ff650747db2620a649b98fa8",
     "mask_sha256": "05f657fd4efe7a62710b22c2ac8fdfda2725075949fce4cdb16acf2dd172d207",
     "plan_sha256": "e1d0a806de3d05868ba310ed1d61a59acbe95efa67f6357e40c195141bc838f0",
+    "router_arithmetic_plan_sha256": "244188328c3638047c76de302736ed7e8af4d53dc7fef81a63f7a1c03bb1ebcd",
+    "hash_verification_boundary": "The mask, config, and index hashes were recomputed from the pinned local copies on 2026-10-23. The e1d0... plan hash is the superseded initial plan; 2441... is the surviving router-arithmetic plan regenerated at the recorded command.",
     "shards_opened": 0
   },
   "primary_216_of_384_result": {
