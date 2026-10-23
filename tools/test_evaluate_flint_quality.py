@@ -75,6 +75,17 @@ class EvaluateFlintQualityTest(unittest.TestCase):
         self.assertEqual(result["candidate_only_correct"], 1)
         self.assertAlmostEqual(result["top1_agreement"], 1 / 3)
 
+    def test_stack_batch_rows_preserves_sample_windows(self) -> None:
+        try:
+            import torch
+        except ImportError as error:
+            raise unittest.SkipTest("torch is not installed") from error
+
+        result = MODULE.stack_batch_rows(
+            [torch.tensor([[1.0, 2.0], [3.0, 4.0]]), torch.tensor([[5.0, 6.0]])]
+        )
+        self.assertEqual(result.tolist(), [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+
 
 if __name__ == "__main__":
     unittest.main()

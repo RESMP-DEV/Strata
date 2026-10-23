@@ -123,6 +123,13 @@ def compare_metrics(
     return result
 
 
+def stack_batch_rows(parts: list[Any]) -> Any:
+    """Stack per-batch token metric rows into the original sample order."""
+    import torch
+
+    return torch.cat(parts, dim=0)
+
+
 def np_random(seed: int) -> Any:
     import numpy as np
 
@@ -214,11 +221,13 @@ def evaluate_checkpoint(
         torch.bfloat16,
     )
 
-    nll_parts: list[Any] = []
-    top1_parts: list[Any] = []
+    nll_rows: list[Any] = []
+    top1_rows: list[Any] = []
     for batch_index, (hid_cpu, _context) in enumerate(batches):
         hidden = hid_cpu.to(args.device, torch.bfloat16)
         sample_start = batch_index * args.batch_size
+        batch_nll_parts: list[Any] = []
+        batch_top1_parts: list[Any] = []
         for start in range(0, hidden.shape[1], args.logit_batch_tokens):
             stop = min(start + args.logit_batch_tokens, hidden.shape[1])
             with torch.no_grad():
@@ -229,14 +238,16 @@ def evaluate_checkpoint(
                 )
                 log_probs = torch.log_softmax(logits, dim=-1)
                 token_nll = -log_probs.gather(-1, target[:, :, None]).squeeze(-1)
-            nll_parts.append(token_nll.detach().cpu())
-            top1_parts.append((logits.argmax(-1) == target).detach().cpu())
+            batch_nll_parts.append(token_nll.detach().cpu())
+            batch_top1_parts.append((logits.argmax(-1) == target).detach().cpu())
             del logits, log_probs, token_nll
+        nll_rows.append(torch.cat(batch_nll_parts, dim=1))
+        top1_rows.append(torch.cat(batch_top1_parts, dim=1))
 
     import numpy as np
 
-    nll = torch.cat(nll_parts, dim=1).numpy().astype("float32", copy=False)
-    top1 = torch.cat(top1_parts, dim=1).numpy().astype(bool, copy=False)
+    nll = stack_batch_rows(nll_rows).numpy().astype("float32", copy=False)
+    top1 = stack_batch_rows(top1_rows).numpy().astype(bool, copy=False)
     if not np.isfinite(nll).all():
         raise RuntimeError(f"{label} produced non-finite NLL")
     free_module(model.model.norm)
