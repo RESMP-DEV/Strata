@@ -2371,6 +2371,24 @@ the released model or establish pruning quality. Full commands and boundaries
 are in
 [RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
 
+### Header verifier provenance and adapter guards, 2026-10-23
+
+The header-only DeepSeek verifier is now tracked at
+`tools/verify_deepseek_v41_headers.py`. A B550 rerun used script SHA-256
+`d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c`, read only
+each 8-byte prefix and JSON header, and matched every verification field in the
+original 48-shard receipt. The receipt now also states that each file contains
+an 8-byte little-endian header-length prefix before JSON and data; that prefix,
+not unexplained padding, accounts for the additional 384 bytes across 48
+shards. The adapter likewise now rejects an empty or malformed parameter
+iterator during device resolution and rejects a router whose forward signature
+cannot be inspected. This still does not read tensor payloads, execute the
+checkpoint, or claim loader compatibility.
+The same round also validates every reference-cache dtype, shape, finite value,
+loss-mask range, and exact batch shape before installing any wrapper, and the
+Coder planner rejects own/parent mask destinations that collide with each other
+or would overwrite either input document before either output is written.
+
 ### DeepSeek stock-RCO tiny integration, 2026-10-22
 
 The adapter then crossed the first real stock-RCO execution boundary on B550

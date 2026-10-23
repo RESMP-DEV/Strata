@@ -201,6 +201,7 @@ def quality() -> int:
                         "tools/test_deepseek_rco_plan.py",
                         "tools/deepseek_rco_materialization_plan.py",
                         "tools/test_deepseek_rco_materialization_plan.py",
+                        "tools/verify_deepseek_v41_headers.py",
                     ],
                 ),
                 run_logged(
@@ -223,6 +224,7 @@ def quality() -> int:
                         "tools/test_deepseek_rco_plan.py",
                         "tools/deepseek_rco_materialization_plan.py",
                         "tools/test_deepseek_rco_materialization_plan.py",
+                        "tools/verify_deepseek_v41_headers.py",
                     ],
                 ),
                 run_logged(

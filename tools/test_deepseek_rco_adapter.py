@@ -388,6 +388,29 @@ class AdapterMalformedInputTest(unittest.TestCase):
             wrapper.restore()
             block.gate = original
 
+    def test_uninspectable_router_signature_is_rejected(self) -> None:
+        class Gate:
+            def forward(self, hidden_states, image_mask=None):
+                return hidden_states
+
+        Gate.forward.__signature__ = 123  # type: ignore[assignment]
+        block = type("Block", (), {"gate": Gate()})()
+        with self.assertRaisesRegex(ADAPTER.RcoAdapterError, "could not inspect"):
+            ADAPTER._require_image_mask_capable(block)
+
+    def test_device_iterator_failures_are_converted(self) -> None:
+        class EmptyParameters:
+            def parameters(self):
+                return iter(())
+
+        class ListParameters:
+            def parameters(self):
+                return []
+
+        for model in (EmptyParameters(), ListParameters()):
+            with self.subTest(model=type(model).__name__):
+                self.assertRaises(ADAPTER.RcoAdapterError, ADAPTER._resolve_device, model)
+
     def test_malformed_router_indices_fail(self) -> None:
         torch, build = _import_tiny_model()
         model = build()
@@ -674,6 +697,43 @@ class AdapterHardMaskEvaluationTest(unittest.TestCase):
             ADAPTER.evaluate_with_mask(
                 self.model, prune_mask, self.input_ids, references, short_mask
             )
+
+    def test_malformed_cache_values_fail_before_wrappers_are_installed(self) -> None:
+        references, masks = self._reference_cache(batch_size=1)
+        prune_mask = self._nonzero_prune_mask()
+        original_forwards = [type(layer.mlp).forward for layer in self.model.model.layers]
+
+        nan_reference = [reference.clone() for reference in references]
+        nan_reference[1][0, 0, 0] = float("nan")
+        nan_mask = [mask.clone() for mask in masks]
+        nan_mask[1][0, 0] = float("nan")
+        out_of_range_mask = [mask.clone() for mask in masks]
+        out_of_range_mask[1][0, 0] = 1.5
+        short_reference = [reference[:, :-1, :].clone() for reference in references]
+        short_mask = [mask[:, :-1].clone() for mask in masks]
+        cases = {
+            "non-finite-reference": (nan_reference, masks),
+            "non-finite-mask": (references, nan_mask),
+            "mask-out-of-range": (references, out_of_range_mask),
+            "wrong-reference-shape": (short_reference, masks),
+            "wrong-mask-shape": (references, short_mask),
+        }
+
+        for description, (refs, cache_masks) in cases.items():
+            with self.subTest(case=description):
+                self.assertRaises(
+                    ADAPTER.RcoAdapterError,
+                    ADAPTER.evaluate_with_mask,
+                    self.model,
+                    prune_mask,
+                    self.input_ids,
+                    refs,
+                    cache_masks,
+                )
+
+        for block, original in zip(self.model.model.layers, original_forwards, strict=True):
+            self.assertNotIn("forward", vars(block.mlp))
+            self.assertIs(block.mlp.forward.__func__, original)
 
 
 class AdapterForwardTest(unittest.TestCase):

@@ -1,6 +1,6 @@
 {
   "agent": "Codex parent",
-  "command": "python3 verify_dsv41_headers.py CHECKPOINT model.safetensors.index.json RESULT.json",
+  "command": "python3 tools/verify_deepseek_v41_headers.py CHECKPOINT model.safetensors.index.json RESULT.json",
   "exit": 0,
   "hardware": {
     "disk": "24TB hard-drive checkpoint",
@@ -15,8 +15,19 @@
   "schema": "strata-work-evidence-v1",
   "source_dirty": false,
   "source_revision": "c852e04894ddd6a72325c35c4da3a9a25e94097e",
-  "source_revision_role": "clean worktree head carrying the planner implementation and planning evidence; the ignored verifier script generated this receipt, and the receipt was committed later at 932b687e",
-  "verification_script_sha256": "e6b3bec8e4d10ab9db2c484d3632d247e34c455282150643da3a159f422efd41",
+  "source_revision_role": "clean worktree head carrying the planner implementation and planning evidence; the verifier generated this receipt, and the receipt was committed later at 932b687e",
+  "verification_script_path": "tools/verify_deepseek_v41_headers.py",
+  "verification_script_sha256": "d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c",
+  "original_execution_script_sha256": "e6b3bec8e4d10ab9db2c484d3632d247e34c455282150643da3a159f422efd41",
+  "reproduction": {
+    "recorded_at": "2026-10-23T01:40:09Z",
+    "host": "B550",
+    "script_sha256": "d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c",
+    "exit": 0,
+    "payload_bytes_read": 0,
+    "output": "build/deepseek-rco-materialization/header-reproduction-20261023.json",
+    "verification_fields_match_original": true
+  },
   "task": "Verify every pinned DeepSeek safetensors shard header without reading payloads",
   "verification": {
     "checkpoint": "/mnt/resmp-24tb/hf-weights/deepseek-ai_DeepSeek-V4.1-Flash-1017",
@@ -29,6 +40,9 @@
     "interval_failures": 0,
     "passed": true,
     "payload_bytes_read": 0,
+    "prefix_bytes_per_shard": 8,
+    "total_prefix_bytes": 384,
+    "file_size_basis": "8-byte little-endian header-length prefix plus header JSON plus data",
     "routed_signature_counts": {
       "F8_E8M0:2304x160": 31488,
       "F8_E8M0:5120x72": 15744,

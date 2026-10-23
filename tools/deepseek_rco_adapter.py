@@ -270,8 +270,10 @@ def _require_image_mask_capable(block: Any) -> None:
         raise RcoAdapterError("the MoE block has no 'gate' attribute")
     try:
         parameters = inspect.signature(gate.forward).parameters
-    except (TypeError, ValueError):  # pragma: no cover - exotic callables
-        return
+    except (TypeError, ValueError) as error:
+        raise RcoAdapterError(
+            f"could not inspect {type(gate).__name__}.forward for image_mask support"
+        ) from error
     if "image_mask" not in parameters:
         raise RcoAdapterError(
             f"{type(gate).__name__}.forward does not accept an image_mask; "
@@ -302,7 +304,7 @@ def _cache_entry(name: str, cache: Any, index: int) -> Any:
 def _check_reference_cache(
     ref_log_probs: Any,
     ref_masks: Any,
-    n_calibration_rows: int,
+    cal_data: Any,
     batch_size: int,
 ) -> None:
     """Validate the per-batch reference cache before any model work.
@@ -316,6 +318,7 @@ def _check_reference_cache(
     Both are rejected here, before a single wrapper is installed.
     """
     torch = _torch()
+    n_calibration_rows = cal_data.size(0)
     n_refs = _cache_length("ref_log_probs", ref_log_probs)
     n_mask_entries = _cache_length("ref_masks", ref_masks)
     if n_refs == 0:
@@ -333,6 +336,8 @@ def _check_reference_cache(
             f"{expected_batches} batches at batch_size={batch_size}"
         )
     for index in range(n_refs):
+        start = index * batch_size
+        expected_rows = min(batch_size, n_calibration_rows - start)
         reference = _cache_entry("ref_log_probs", ref_log_probs, index)
         if not isinstance(reference, torch.Tensor):
             raise RcoAdapterError(
@@ -343,6 +348,52 @@ def _check_reference_cache(
             raise RcoAdapterError(
                 f"ref_masks[{index}] must be a tensor, got {type(loss_mask).__name__}"
             )
+        if reference.ndim != 3:
+            raise RcoAdapterError(
+                "each ref_log_probs entry must be a tensor with shape (B, T-1, V)"
+            )
+        if not reference.is_floating_point() or reference.is_complex():
+            raise RcoAdapterError(
+                f"ref_log_probs must have a real floating dtype, got {reference.dtype}"
+            )
+        if not bool(torch.isfinite(reference).all()):
+            raise RcoAdapterError("ref_log_probs values must be finite")
+        if tuple(reference.shape[:2]) != (expected_rows, cal_data.size(1) - 1):
+            raise RcoAdapterError(
+                f"ref_log_probs has shape {tuple(reference.shape)}, expected "
+                f"({expected_rows}, {cal_data.size(1) - 1}, V)"
+            )
+        if loss_mask.shape != (expected_rows, cal_data.size(1)):
+            raise RcoAdapterError(
+                f"ref_masks entry has shape {tuple(loss_mask.shape)}, expected "
+                f"{(expected_rows, cal_data.size(1))}"
+            )
+        if loss_mask.is_complex() or not loss_mask.is_floating_point():
+            raise RcoAdapterError(
+                f"ref_masks must have a real floating dtype, got {loss_mask.dtype}"
+            )
+        if not bool(torch.isfinite(loss_mask).all()):
+            raise RcoAdapterError("ref_masks values must be finite")
+        minimum, maximum = loss_mask.aminmax()
+        if bool((minimum < 0).any() or (maximum > 1).any()):
+            raise RcoAdapterError("ref_masks values must be in [0, 1]")
+
+
+def _resolve_device(model: Any) -> Any:
+    """Resolve a model device without leaking iterator protocol errors."""
+    device = getattr(model, "device", None)
+    if device is not None:
+        return device
+    parameters_factory = getattr(model, "parameters", None)
+    if not callable(parameters_factory):
+        raise RcoAdapterError("could not resolve the model's input device")
+    try:
+        parameter = next(parameters_factory())
+    except StopIteration as error:
+        raise RcoAdapterError("the model has no parameters from which to resolve device") from error
+    except TypeError as error:
+        raise RcoAdapterError("model.parameters() did not return a parameter iterator") from error
+    return getattr(parameter, "device", None)
 
 
 class SparseMoePruneWrapper:
@@ -529,14 +580,11 @@ def evaluate_with_mask(
     }
     if cal_data.is_complex() or cal_data.dtype not in integer_dtypes:
         raise RcoAdapterError(f"cal_data must have an integer dtype, got {cal_data.dtype}")
-    _check_reference_cache(ref_log_probs, ref_masks, cal_data.size(0), batch_size)
+    _check_reference_cache(ref_log_probs, ref_masks, cal_data, batch_size)
 
     survival_mask = ~prune_mask
     shared_state = {"ste_masks": survival_mask}
-    device = getattr(model, "device", None)
-    if device is None:
-        parameters = getattr(model, "parameters", None)
-        device = next(parameters()).device if callable(parameters) else None
+    device = _resolve_device(model)
     if device is None:
         raise RcoAdapterError("could not resolve the model's input device")
 
@@ -550,48 +598,8 @@ def evaluate_with_mask(
                 batch_index = start // batch_size
                 reference = _cache_entry("ref_log_probs", ref_log_probs, batch_index)
                 loss_mask = _cache_entry("ref_masks", ref_masks, batch_index)
-
-                if not isinstance(reference, torch.Tensor):
-                    raise RcoAdapterError(
-                        f"ref_log_probs[{batch_index}] must be a tensor, "
-                        f"got {type(reference).__name__}"
-                    )
-                if not isinstance(loss_mask, torch.Tensor):
-                    raise RcoAdapterError(
-                        f"ref_masks[{batch_index}] must be a tensor, got {type(loss_mask).__name__}"
-                    )
                 reference = reference.to(device)
                 loss_mask = loss_mask.to(device)
-
-                if reference.ndim != 3:
-                    raise RcoAdapterError(
-                        "each ref_log_probs entry must be a tensor with shape (B, T-1, V)"
-                    )
-                if not reference.is_floating_point() or reference.is_complex():
-                    raise RcoAdapterError(
-                        f"ref_log_probs must have a real floating dtype, got {reference.dtype}"
-                    )
-                if not bool(torch.isfinite(reference).all()):
-                    raise RcoAdapterError("ref_log_probs values must be finite")
-                if loss_mask.shape != batch.shape:
-                    raise RcoAdapterError(
-                        f"ref_masks entry has shape {tuple(loss_mask.shape)}, "
-                        f"expected {tuple(batch.shape)}"
-                    )
-                if loss_mask.is_complex() or not loss_mask.is_floating_point():
-                    raise RcoAdapterError(
-                        f"ref_masks must have a real floating dtype, got {loss_mask.dtype}"
-                    )
-                if not bool(torch.isfinite(loss_mask).all()):
-                    raise RcoAdapterError("ref_masks values must be finite")
-                minimum, maximum = loss_mask.aminmax()
-                if bool((minimum < 0).any() or (maximum > 1).any()):
-                    raise RcoAdapterError("ref_masks values must be in [0, 1]")
-                if tuple(reference.shape[:2]) != (batch.size(0), batch.size(1) - 1):
-                    raise RcoAdapterError(
-                        f"ref_log_probs has shape {tuple(reference.shape)}, expected "
-                        f"({batch.size(0)}, {batch.size(1) - 1}, V)"
-                    )
 
                 logits = model(input_ids=batch).logits[:, :-1, :].contiguous().float()
                 masked_log_probs = torch.log_softmax(logits, dim=-1)

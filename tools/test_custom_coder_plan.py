@@ -201,6 +201,27 @@ class CustomCoderPlanTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "--parent-rco-mask-out is required"):
             MODULE.rco_mask_paths(args)
 
+    def test_rco_mask_destinations_reject_collisions_and_input_aliases(self) -> None:
+        args = Namespace(
+            mask=self.write_mask(288),
+            parent_allocation=self.write_parent(),
+            work_root=self.root / "work",
+            rco_mask_out=self.root / "own.pt",
+            parent_rco_mask_out=self.root / "own.pt",
+        )
+        with self.assertRaisesRegex(ValueError, "destinations must be different"):
+            MODULE.rco_mask_paths(args)
+
+        args.parent_rco_mask_out = self.root / "parent.pt"
+        args.rco_mask_out = args.mask
+        with self.assertRaisesRegex(ValueError, "must not overwrite own mask input"):
+            MODULE.rco_mask_paths(args)
+
+        args.rco_mask_out = self.root / "own.pt"
+        args.parent_rco_mask_out = args.parent_allocation
+        with self.assertRaisesRegex(ValueError, "must not overwrite parent allocation input"):
+            MODULE.rco_mask_paths(args)
+
     def test_command_annotation_matches_the_returned_shape(self) -> None:
         hints = get_type_hints(MODULE.command)
         self.assertEqual(hints["return"], MODULE.CommandSpec)

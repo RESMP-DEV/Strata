@@ -246,6 +246,16 @@ def rco_mask_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     parent = args.parent_rco_mask_out
     if parent is None:
         raise ValueError("--parent-rco-mask-out is required for the parent control arm")
+    if own.resolve() == parent.resolve():
+        raise ValueError("own and parent RCO mask destinations must be different files")
+    destinations = (("own mask", own), ("parent mask", parent))
+    sources = (("own mask input", args.mask), ("parent allocation input", args.parent_allocation))
+    for destination_label, destination in destinations:
+        for source_label, source in sources:
+            if destination.resolve() == source.resolve():
+                raise ValueError(
+                    f"{destination_label} destination must not overwrite {source_label}: {source}"
+                )
     return own, parent
 
 
