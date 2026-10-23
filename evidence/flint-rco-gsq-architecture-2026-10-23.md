@@ -468,3 +468,8 @@ This also fails every pre-registered criterion. Halving the prune budget cuts
 the damage roughly in half, but a 12.5% prune still raises coding perplexity by
 6.8% and loses 1.45 percentage points of top-1 accuracy. There is no measured
 prune lane here that can be honestly promoted to quantization or publication.
+
+Gate-timing clarification: an earlier run at `f78cad51` had already been seen,
+but its per-window assembly was invalid. The table above was fixed before the
+corrected `1b47e1f9` window-level report existed. "Pre-registered" here means
+before the valid report, not blind to every earlier aggregate number.
