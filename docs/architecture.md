@@ -2627,3 +2627,16 @@ compact top-k reference cache to both splits. The output keeps `gpu_allowed=fals
 defers execution to the optimizer readiness gate. No candidate, oracle, model payload,
 benchmark, or GPU ran. Full evidence is in
 [quant candidate planner evidence](../evidence/quant-candidate-oracle-planner-2026-10-23.json).
+
+### Consolidated quant-aware fork integration, 2026-10-23
+
+The first implementation tranche is now merged across four RESMP-DEV PRs. Strata gained the exact
+W4A16/W4A4/BF16-oracle provenance planner and the reproducible DeepSeek RCO adapter-injection
+runner. The owned GSQ fork gained config-first Qwen4Exp dispatch and accelerator/meta placement
+with explicit fail-closed quantization boundaries. The owned RCO fork gained a dry-run
+per-expert WeightStore planner that requires exact W4 byte-cost coverage. Combined Strata main
+passes the common quality gate, and the fork tests pass in their pinned host environments. This
+remains infrastructure only: no candidate artifact, reference cache, optimizer run, W4
+measurement, CUDA work, or quality/runtime claim was produced. The parent-level PR and validation
+inventory is in
+[quant-aware fork integration evidence](../evidence/quant-aware-fork-integration-2026-10-23.json).

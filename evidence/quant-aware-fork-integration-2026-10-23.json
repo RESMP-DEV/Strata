@@ -1,0 +1,76 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T20:58:00Z",
+  "agent": "Codex parent",
+  "task": "Consolidate the first quant-aware RCO/GSQ implementation tranche",
+  "source_revision": "842d37d4ef7181bd1cee66636aaec2186beb78f2",
+  "source_dirty": true,
+  "source_revision_role": "Strata main after merged PRs #22 and #23",
+  "pull_requests": [
+    {
+      "repository": "RESMP-DEV/Strata",
+      "number": 23,
+      "title": "Plan exact W4A16 and W4A4 measurements",
+      "merge_commit": "8f5e30f6343363ed425bf4f7958f45d705991633",
+      "url": "https://github.com/RESMP-DEV/Strata/pull/23",
+      "result": "Exact tensor-cost and BF16-oracle provenance planner; execution remains blocked"
+    },
+    {
+      "repository": "RESMP-DEV/Strata",
+      "number": 22,
+      "title": "Reproduce DeepSeek RCO adapter injection",
+      "merge_commit": "842d37d4ef7181bd1cee66636aaec2186beb78f2",
+      "url": "https://github.com/RESMP-DEV/Strata/pull/22",
+      "result": "Pinned, clean-tree, in-process adapter injection and restoration runner"
+    },
+    {
+      "repository": "RESMP-DEV/GSQ-fork",
+      "number": 1,
+      "title": "Add fail-closed Qwen4Exp dispatch and placement",
+      "merge_commit": "ac6b830596d050a949672857ee2c3f81149dea24",
+      "url": "https://github.com/RESMP-DEV/GSQ-fork/pull/1",
+      "result": "Config-first Qwen4Exp dispatch and accelerator/meta topology movement; optimization boundaries remain fail-closed"
+    },
+    {
+      "repository": "RESMP-DEV/RCO-fork",
+      "number": 1,
+      "title": "Plan Qwen4Exp WeightStore candidates",
+      "merge_commit": "fead23b71cde93a94ccce5471551d101dcd58590",
+      "url": "https://github.com/RESMP-DEV/RCO-fork/pull/1",
+      "result": "Dry-run per-expert candidate/WeightStore planner with exact W4 byte-cost gating"
+    }
+  ],
+  "validation": [
+    {
+      "command": "python3 -m unittest tools.test_rco_adapter_runner tools.test_quant_candidate_plan tools.test_optimizer_gate -v",
+      "exit": 0,
+      "result": "28 tests passed; one optional pinned dependency test skipped under system Python"
+    },
+    {
+      "command": "uv pinned environment; python -m unittest tools.test_rco_adapter_runner -v",
+      "exit": 0,
+      "result": "19/19 runner tests passed, including real pinned RCO import/injection/restoration"
+    },
+    {
+      "command": "GSQ fork tests with torch and transformers 5.20.2",
+      "exit": 0,
+      "result": "31/31 Qwen4Exp dispatch/topology/movement tests passed"
+    },
+    {
+      "command": "RCO fork unittest discovery and direct test script",
+      "exit": 0,
+      "result": "38/38 WeightStore planner tests passed in both invocation modes"
+    },
+    {
+      "command": "just quality on combined Strata main",
+      "exit": 0,
+      "result": "all repository checks passed"
+    }
+  ],
+  "non_claims": [
+    "No W4A16/W4A4 measurement, BF16 oracle cache generation, GPTQ candidate generation, GSQ optimization, RCO search, CUDA work, model payload, or benchmark ran.",
+    "GSQ Qwen4Exp dispatch/placement is not quantization support; its per-expert quantization, forward split, export, and perplexity paths intentionally raise.",
+    "RCO Qwen4Exp planning does not create candidate artifacts or verify their declared bytes on disk.",
+    "The DeepSeek adapter runner proves injection mechanics only, not released-checkpoint loading or pruning quality."
+  ]
+}
