@@ -1,0 +1,289 @@
+{
+  "agent": "Codex",
+  "ampere_gate": {
+    "requirement": "A full MXFP4A16 artifact plus a vLLM or transformers serving probe that records the selected kernel path and enforces no input-activation quantization.",
+    "status": "not run",
+    "target": "B550 RTX 3090 Ti, SM86, 24 GiB"
+  },
+  "dirty_scope": "New Holo4 MXFP4 W4A16 quant-aware RCO tool and test; unrelated qwen4exp partial-loader/chunked-RCO work left untouched.",
+  "experiment": {
+    "calibration_samples": 2,
+    "calibration_tokens": 128,
+    "candidate_experts": 64,
+    "candidate_rule": "lowest router-mass 64 of 256",
+    "heldout_samples": 2,
+    "heldout_tokens": 128,
+    "prune_fraction": 0.25,
+    "pruned_experts": 16,
+    "sequence_length": 64,
+    "top_k": 8
+  },
+  "findings": [
+    "At the same 16-expert removal, quantization-aware impact pruning held held-out MoE-block error to 0.07252 over the W4A16 base, versus 0.16228 for router-mass-only and 0.15253 for random on Strix.",
+    "The impact arm pruned a larger router mass (4.513) than the router-only arm (3.780), so the gain comes from measuring the quantized model rather than from avoiding heavily used experts.",
+    "At full 25 percent layer-0 sparsity (64 of 256 experts), impact pruning held held-out error to 0.22758 over W4A16, versus 0.38711 for router-only and 0.36089 for random; the impact arm again removed more router mass than the router-only arm.",
+    "The MXFP4 W4A16 MoE-block error is 0.09733 on held-out tokens; a single expert tensor has 0.120098 weight error. Quantization quality, not expert count, dominates the 16-expert sample.",
+    "The Mac repeat reproduced the ordering and the W4A16 error floor; exact impact-set and held-out values differ slightly because CPU reductions and tie ordering are not bit-identical across hosts.",
+    "The W4A16 shape is explicit: MXFP4 expert weights only, BF16 activations and all non-expert modules; no W4A4 input activation declaration was used.",
+    "The pruning curve on Strix is 0.05445, 0.07619, 0.13114, 0.13788, 0.14752, 0.17718, and 0.22758 held-out MoE-block error at 5, 7.5, 10, 12.5, 15, 20, and 25 percent expert removal respectively; 7.5 percent is the low-side candidate before the 10 percent knee."
+  ],
+  "format": "strata-holo4-mxfp4-quant-aware-rco-evidence-v1",
+  "hosts": [
+    {
+      "alias": "strix-zt",
+      "cpu": "Intel Core Ultra 9 275HX, 24 threads",
+      "elapsed_seconds": 29.219,
+      "gpu": "RTX 5070 Laptop, 8151 MiB, SM120",
+      "gpu_state": "5310 MiB owned by the resident MXFP4 embedding service on :1236; the RCO run was CPU-only and did not touch it",
+      "hostname": "strix",
+      "machine_id_sha256": "c67727027ca61b9ff4e717fe1a08db36008b88e4f5f8568b1e5fb20398e8769f",
+      "ram": "91 GiB",
+      "runtime": "torch 2.14.1+cu130, transformers 5.17.0, safetensors 0.8.0, no llmcompressor/compressed-tensors",
+      "threads": 24
+    },
+    {
+      "alias": "mac",
+      "cpu": "Apple M4 Max",
+      "elapsed_seconds": 13.028,
+      "hostname": "Mac.lan",
+      "runtime": "torch 2.13.0, transformers 5.18.0, safetensors 0.8.0"
+    }
+  ],
+  "non_claims": [
+    "Layer-0 MoE-block reconstruction only; no full-model RCO, KL, or end-to-end computer-use quality.",
+    "Fake-quantized BF16 compute only; no vLLM kernel, throughput, or SM120 tensor-core claim.",
+    "No full MXFP4A16 checkpoint was built or served.",
+    "No Ampere run was performed; the gate is stated above.",
+    "Only 128 calibration and 128 held-out tokens were used, and only 64 candidate experts were measured."
+  ],
+  "package": {
+    "bytes": 2702527008,
+    "contents": "embed_tokens, decoder layer 0, final norm; no vision tower, lm_head, or later layers",
+    "format": "omni-use/holo4-layer-package/1",
+    "layer": 0,
+    "layer_safetensors_sha256": "d2be790e73c2c9b0a84ae964e65a648fc495a93a851ebabc42c6cba28e4cf39b",
+    "prefix_layers": 1,
+    "source": "Hcompany/Holo4-35B-A3B",
+    "source_revision": "508458727831368da85d53a8055c2b0f923ed4f3",
+    "tensors": 20
+  },
+  "quantizer": {
+    "bytes_per_expert": 1671168,
+    "layer0_expert_bytes": 427819008,
+    "layout": "E2M1 values, one E8M0 power-of-two scale per 32 weights, BF16 activations",
+    "validation": "Independent MLX 0.32.4 mxfp4 matched exactly after correcting the scale exponent to the smallest power of two that keeps the block maximum within E2M1's max of 6. The check covered random 2x32 blocks and a real 1024x2048 expert tensor (max absolute difference about 7e-38); the real expert weight error is 0.120098 in both implementations."
+  },
+  "receipts": {
+    "export": "build/reports/holo4-layer0-export.json (local omni-use workspace)",
+    "mac_16_v2": "build/reports/holo4-mxfp4-rco-pilot-v2.json (local omni-use workspace)",
+    "strix_16_v2": "build/reports/holo4-mxfp4-rco-strix-pilot-v2.json (local omni-use workspace)",
+    "strix_full_v2": "build/reports/holo4-mxfp4-rco-strix-full-v2.json (local omni-use workspace)"
+  },
+  "recorded_at": "2026-10-23",
+  "recovery_recommendation": {
+    "compute_note": "Expert pruning leaves top-k=8 unchanged, so per-token routed FLOPs are unchanged. The gain is checkpoint/VRAM and expert-cache footprint, not active-expert FLOPs.",
+    "first_candidate_sparsity": 0.075,
+    "high_bracket": 0.1,
+    "low_bracket": 0.05,
+    "post_prune_target": "2 to 4 absolute points below the primary acceptance floor, with >=99 percent coordinate/tool-format validity and no app-family regression above 5 points.",
+    "post_training_target": "Return to within 1 point of the unpruned baseline and above the acceptance floor.",
+    "recovery_ladder": [
+      "QLoRA CPT on BF16 attention/GDN/shared-expert/vision modules with frozen MXFP4 experts and full-precision router adaptation",
+      "merge adapters, then GRPO with deterministic app-state reward and frozen MXFP4 expert base",
+      "evaluate pruned-no-train, CPT-only, and CPT+RL against unpruned baseline on the same held-out real-app suite"
+    ],
+    "stretch_after_recipe_works": 0.125,
+    "why": "The layer-0 curve has a knee between 5 and 10 percent: 0.05445 at 5, 0.07619 at 7.5, 0.13114 at 10. 7.5 percent is the largest point on the low side with meaningful byte savings."
+  },
+  "results": {
+    "arms_strix": {
+      "impact": {
+        "calibration_vs_w4a16": 0.03536,
+        "heldout_vs_bf16": 0.12054,
+        "heldout_vs_w4a16": 0.07252,
+        "removed": [
+          4,
+          30,
+          43,
+          55,
+          77,
+          95,
+          113,
+          133,
+          138,
+          143,
+          169,
+          182,
+          184,
+          190,
+          205,
+          253
+        ],
+        "removed_router_mass": 4.513
+      },
+      "random": {
+        "calibration_vs_w4a16": 0.08999,
+        "heldout_vs_bf16": 0.17846,
+        "heldout_vs_w4a16": 0.15253,
+        "removed": [
+          1,
+          29,
+          43,
+          62,
+          76,
+          77,
+          81,
+          111,
+          113,
+          158,
+          178,
+          184,
+          192,
+          200,
+          205,
+          222
+        ],
+        "removed_router_mass": 5.027
+      },
+      "router": {
+        "calibration_vs_w4a16": 0.08935,
+        "heldout_vs_bf16": 0.18819,
+        "heldout_vs_w4a16": 0.16228,
+        "removed": [
+          25,
+          30,
+          43,
+          55,
+          70,
+          110,
+          133,
+          144,
+          157,
+          173,
+          175,
+          179,
+          182,
+          199,
+          236,
+          253
+        ],
+        "removed_router_mass": 3.78
+      }
+    },
+    "bytes_saved_per_arm": 26738688,
+    "full_sweep_strix": {
+      "arms": {
+        "impact": {
+          "calibration_vs_w4a16": 0.08773,
+          "heldout_vs_bf16": 0.2435,
+          "heldout_vs_w4a16": 0.22758,
+          "removed_router_mass": 25.384
+        },
+        "random": {
+          "calibration_vs_w4a16": 0.39274,
+          "heldout_vs_bf16": 0.36702,
+          "heldout_vs_w4a16": 0.36089,
+          "removed_router_mass": 32.593
+        },
+        "router": {
+          "calibration_vs_w4a16": 0.22678,
+          "heldout_vs_bf16": 0.39559,
+          "heldout_vs_w4a16": 0.38711,
+          "removed_router_mass": 19.446
+        }
+      },
+      "bytes_saved": 106954752,
+      "candidate_experts": 256,
+      "elapsed_seconds": 23.931,
+      "pruned_experts": 64,
+      "total_sparsity": 0.25
+    },
+    "mac_repeat": {
+      "impact_heldout_vs_w4a16": 0.0556,
+      "random_heldout_vs_w4a16": 0.15212,
+      "router_heldout_vs_w4a16": 0.161,
+      "w4a16_heldout_vs_bf16": 0.09731605648994446
+    },
+    "pruning_curve_strix": [
+      {
+        "bytes_saved": 21725184,
+        "fraction": 0.05,
+        "impact_error_vs_bf16": 0.11108,
+        "impact_error_vs_w4a16": 0.05445,
+        "random_error_vs_w4a16": 0.1935,
+        "removed": 13,
+        "router_error_vs_w4a16": 0.14728
+      },
+      {
+        "bytes_saved": 31752192,
+        "fraction": 0.075,
+        "impact_error_vs_bf16": 0.12283269315958023,
+        "impact_error_vs_w4a16": 0.07618827372789383,
+        "random_error_vs_w4a16": 0.20459994673728943,
+        "removed": 19,
+        "router_error_vs_w4a16": 0.2149437665939331
+      },
+      {
+        "bytes_saved": 43450368,
+        "fraction": 0.1,
+        "impact_error_vs_bf16": 0.16174,
+        "impact_error_vs_w4a16": 0.13114,
+        "random_error_vs_w4a16": 0.22197,
+        "removed": 26,
+        "router_error_vs_w4a16": 0.24141
+      },
+      {
+        "bytes_saved": 53477376,
+        "fraction": 0.125,
+        "impact_error_vs_bf16": 0.16642,
+        "impact_error_vs_w4a16": 0.13788,
+        "random_error_vs_w4a16": 0.25131,
+        "removed": 32,
+        "router_error_vs_w4a16": 0.26461
+      },
+      {
+        "bytes_saved": 63504384,
+        "fraction": 0.15,
+        "impact_error_vs_bf16": 0.17391,
+        "impact_error_vs_w4a16": 0.14752,
+        "random_error_vs_w4a16": 0.26503,
+        "removed": 38,
+        "router_error_vs_w4a16": 0.27231
+      },
+      {
+        "bytes_saved": 85229568,
+        "fraction": 0.2,
+        "impact_error_vs_bf16": 0.19845,
+        "impact_error_vs_w4a16": 0.17718,
+        "random_error_vs_w4a16": 0.32587,
+        "removed": 51,
+        "router_error_vs_w4a16": 0.34634
+      },
+      {
+        "bytes_saved": 106954752,
+        "fraction": 0.25,
+        "impact_error_vs_bf16": 0.2435,
+        "impact_error_vs_w4a16": 0.22758,
+        "random_error_vs_w4a16": 0.36089,
+        "removed": 64,
+        "router_error_vs_w4a16": 0.38711
+      }
+    ],
+    "w4a16_vs_bf16_strix": {
+      "calibration_relative_error": 0.09729,
+      "expert_weight_relative_error": 0.120098,
+      "heldout_relative_error": 0.09733249247074127
+    }
+  },
+  "scope": "Layer-0 Holo4 MoE block, real BF16 weights, calibration and held-out tokens from the omni-use calibration matrix, MXFP4 E2M1/E8M0 experts with BF16 activations (W4A16), and router-aware expert removal.",
+  "source_dirty": true,
+  "source_revision": "8fd9abf5b1c0157258d82a835813ca3988a8fa6e",
+  "strix_boundary": {
+    "conclusion": "Strix cannot hold the full MXFP4 model in its 8 GB dGPU while the :1236 embedding service is resident. This run used the 91 GiB host RAM and CPU only. Full serving needs CPU offload or a larger GPU; do not stop the embedding service without its owner.",
+    "free_vram_mib_at_probe": 2399,
+    "full_artifact_bytes": 22493295451,
+    "gpu_vram_mib": 8151,
+    "resident_embedding_service_mib": 5300
+  },
+  "tool": "tools/holo4_mxfp4_quant_aware_rco.py"
+}

@@ -2775,3 +2775,43 @@ one held-out sequence with RTN candidates, so this remains layer-scope reconstru
 end-to-end quality, and the reader is a Python measurement path rather than the engine's C++
 reader. The receipt is
 [quant-aware RCO with streamed PLE](../evidence/quant-aware-rco-ple-stream-2026-10-23.json).
+
+### Holo4 MXFP4 W4A16 quant-aware RCO on Strix, 2026-10-23
+
+`tools/holo4_mxfp4_quant_aware_rco.py` extends the layer-scope RCO measurement to
+Holo4's fused-expert MoE block with the serving shape held at W4A16: MXFP4 E2M1
+expert weights with one E8M0 power-of-two scale per 32 weights, BF16 activations,
+and every non-expert module in BF16. The fake quantizer, after correcting its E8M0 exponent to the smallest power of two that keeps a block maximum within E2M1's 6, matched MLX 0.32.4's
+`mxfp4` quantize/dequantize exactly on random 2x32 blocks and a real 1024x2048 expert tensor, so the error measurement
+uses the intended number format rather than a generic int4 approximation.
+
+The real layer-0 package is exported by the `omni-use` repository: embeddings,
+decoder layer 0, and the final norm from the pinned Holo4 BF16 checkpoint, 20
+tensors and 2,702,527,008 bytes, hash `d2be790e`. Strix has only an 8 GB SM120
+GPU and 5.3 GB of it is owned by the resident embedding service, so the pilot ran
+on the 24-thread CPU with 91 GiB of host RAM. No service was stopped.
+
+On 128 calibration and 128 held-out tokens, all 256 experts were quantized to
+W4A16. Removing 16 of the 64 lowest-router-mass candidates (6.25 percent of the
+layer) held held-out MoE-block error to 0.07252 over the W4A16 base, versus
+0.16228 for router-mass-only and 0.15253 for random. Removing 64 of all 256
+experts (25 percent sparsity) gave 0.22758 for impact pruning, 0.38711 for
+router-only, and 0.36089 for random, saving 106,954,752 bytes in the layer. The
+W4A16 MoE-block error was 0.09733 against BF16, so weight quantization dominates
+this layer sample; the impact arm removed more router mass than the router-only
+arm and still produced the lowest error.
+
+The measured Strix curve has a knee between 5 and 10 percent expert removal:
+held-out MoE-block error is 0.05445 at 5 percent, 0.07619 at 7.5 percent, and
+0.13114 at 10 percent, then 0.13788, 0.14752, 0.17718, and 0.22758 at 12.5, 15,
+20, and 25 percent. The first recovery candidate is therefore 7.5 percent
+(19 of 256 experts per layer), with 5 percent as the low bracket and 10 percent
+as the stretch. Expert pruning leaves top-k 8 unchanged, so the gain is
+checkpoint and VRAM footprint, not active-expert FLOPs. The intended repair is
+QLoRA CPT on the BF16 non-expert modules and routers with the MXFP4 experts
+frozen, followed by GRPO on deterministic app-state reward.
+
+This is layer-scope reconstruction, not full-model RCO, vLLM serving, or Ampere
+kernel evidence. A full MXFP4A16 artifact and a SM86 serving probe that records
+the selected W4A16 kernel remain the promotion gates. The receipt is
+[Holo4 MXFP4 W4A16 quant-aware RCO](../evidence/holo4-mxfp4-quant-aware-rco-2026-10-23.json).
