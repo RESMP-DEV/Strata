@@ -2815,3 +2815,34 @@ This is layer-scope reconstruction, not full-model RCO, vLLM serving, or Ampere
 kernel evidence. A full MXFP4A16 artifact and a SM86 serving probe that records
 the selected W4A16 kernel remain the promotion gates. The receipt is
 [Holo4 MXFP4 W4A16 quant-aware RCO](../evidence/holo4-mxfp4-quant-aware-rco-2026-10-23.json).
+
+### Full-depth quantization-aware RCO allocation, 2026-10-23
+
+The allocation now covers all 48 layers. `tools/qwen4exp_chunked_rco.py` materializes
+three layers at a time, runs one real forward per chunk to capture each layer's inputs and
+BF16 reference, carries the boundary hidden state into the next chunk through a pre-hook,
+and keeps absolute layer indices with parameter-free placeholders so checkpoint names keep
+matching. RCO is a one-for-one expert replacement: all 288 experts per layer stay, and no
+REAP mask or expert removal is produced.
+
+The first attempt selected widths from weight-space error alone. That failed as a
+quantization-aware signal: mean Spearman correlation against sampled per-expert output
+error was -0.003 over 144 samples, and the 48-layer mean assembled error was 0.044624.
+Weighting the same error by the square root of each expert's routed token count, which is
+free to compute from the captured input, cut the mean assembled error to 0.027626.
+
+Over 13,824 experts the allocation chose 23 at 2 bits, 6,866 at 3 bits, and 6,935 at 4
+bits, for 33,973,862,400 expert bytes, 88.9 percent of all-W4. Mean assembled layer error
+was 0.027626 against 0.062173 for all-W3, 0.026193 for all-W4, and 0.18182 for all-W2.
+Every layer beat all-W3; no layer beat all-W4. Linear-attention layers averaged 0.028113
+and full-attention layers 0.026162. The sweep took 329 seconds on GPU0 while an unrelated
+Flint job held 2.7 GiB, and the Windows VM was left running because GPU1 was not needed.
+
+The own-Coder mapping is recorded as `strata-expert-width-allocation-v1`, widths aligned to
+the existing 288-expert order, with candidate GGML types per width. The current own-Coder
+packer applies one recipe width to every expert, so per-expert packing is the implementation
+step this allocation now feeds. This is still one 512-token calibration sequence, per-layer
+BF16-input reconstruction, a measured proxy for per-expert selection, and no end-to-end
+logits or served throughput. The receipts are
+[full-depth allocation](../evidence/rco-full-depth-allocation-2026-10-23.json) and
+[expert width allocation](../evidence/rco-expert-width-allocation-2026-10-23.json).

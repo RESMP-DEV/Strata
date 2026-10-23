@@ -5,6 +5,9 @@
     "layer0_assembled": 0.029261423274874687,
     "layer0_receipt": "evidence/quant-aware-rco-layer0-2026-10-23.json"
   },
+  "corrections": [
+    "The first version of this receipt labelled layer 2 as full_attention. The config's layer_types are linear_attention for 0,1,2 and full_attention for 3,7,...; layer 2 is linear attention and layer 3 is the first full-attention layer."
+  ],
   "cost_ratio_vs_all_w4": 0.8889,
   "design": {
     "engine_analog": "Strata --ple-io direct: table never resident, bounded row cache, batched in-flight reads",
@@ -68,7 +71,7 @@
     "heldout_all_w4": 0.01497617270797491,
     "heldout_assembled": 0.018454615026712418,
     "increase_vs_all_w4_fraction": 0.2323,
-    "layer_type": "full_attention",
+    "layer_type": "linear_attention",
     "raw_receipt": "build/w4a16/remote/rco-layer2-full.json",
     "raw_receipt_sha256": "d046c5dff3fb42fdced2108ab799c31b106f161fb8dd02d5259d31d42143449b",
     "reduction_vs_all_w3_fraction": 0.4734

@@ -1,0 +1,62 @@
+{
+  "corrections": [
+    "Layer types are linear_attention for indices 0,1,2 and full_attention for 3,7,11,...; the earlier layer-2 label of full_attention was wrong (corrected in the PLE-stream receipt).",
+    "This work is RCO, a one-for-one expert replacement. No REAP mask or expert removal is produced."
+  ],
+  "format": "strata-evidence-rco-full-depth-allocation-v1",
+  "host": {
+    "alias": "b550-zt",
+    "gpu": "GPU0, RTX 3090 Ti 24 GiB, shared with an unrelated Flint job using about 2.7 GiB",
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "vm": "win11-gaming stayed running; GPU1 was not needed or touched"
+  },
+  "method": {
+    "boundary_handoff": "pre-hook injection of the previous chunk's final hidden state",
+    "budget_per_expert": 2457600,
+    "calibration": "1 sequence x 512 tokens (slice of the 256x2048 calibration matrix)",
+    "candidates": "group-32 symmetric RTN at 4, 3, and 2 bits",
+    "chunk_layers": 3,
+    "output_sample": "8 experts per layer measured in output space",
+    "selection_signal": "exact per-expert weight-space quantization error multiplied by the square root of routed token count"
+  },
+  "negative_result": {
+    "resolution": "Weighting the same error by routed token count raised the measured signal and cut the mean assembled error to 0.027626.",
+    "statement": "Selecting widths by weight-space error alone did not work: mean Spearman correlation against sampled per-expert output error was -0.003 over 144 samples, and the resulting 48-layer mean assembled error was 0.044624.",
+    "weight_only_receipt": "build/w4a16/remote/rco-sweep-48x512-v2.json"
+  },
+  "non_claims": [
+    "One 512-token calibration sequence; not the 256x2048 recipe.",
+    "Per-layer reconstruction uses BF16 chunk inputs, not a fully cascaded quantized prefix.",
+    "Per-expert selection uses a measured proxy (weight error times routed load); only 8 experts per layer are checked in output space.",
+    "No end-to-end logits, served throughput, artifact packing, or engine run exists for this allocation."
+  ],
+  "recorded_at": "2026-10-23",
+  "results": {
+    "allocation": "evidence/rco-expert-width-allocation-2026-10-23.json",
+    "elapsed_seconds": 329.011,
+    "experts": 13824,
+    "fraction_of_all_w4_bytes": 0.8889,
+    "full_attention_layer_mean": 0.026162,
+    "histogram": {
+      "2": 23,
+      "3": 6866,
+      "4": 6935
+    },
+    "improvement_vs_all_w3_fraction": 0.5557,
+    "increase_vs_all_w4_fraction": 0.0547,
+    "layers": 48,
+    "layers_beating_all_w3": 48,
+    "layers_beating_all_w4": 0,
+    "linear_layer_mean": 0.028113,
+    "mean_all_w2": 0.18182,
+    "mean_all_w3": 0.062173,
+    "mean_all_w4": 0.026193,
+    "mean_assembled_relative_error": 0.027625627951541293,
+    "raw_sweep": "build/w4a16/remote/rco-sweep-48x512-v3.json",
+    "raw_sweep_sha256": "fcf807f2c5b164aa5c95bbd1e9dd097e86e2107ffe4519844afc8353ed5c54fe",
+    "total_expert_bytes": 33973862400
+  },
+  "scope": "Full 48-layer quantization-aware RCO width allocation, one-for-one expert replacement",
+  "tool": "tools/qwen4exp_chunked_rco.py"
+}

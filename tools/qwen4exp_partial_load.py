@@ -65,6 +65,7 @@ def load_partial(
     model_dir: Path,
     keep_layers: int,
     *,
+    start_layer: int = 0,
     device: str = "cpu",
     disk_ple: bool = False,
     cache_rows: int = 1 << 18,
@@ -78,6 +79,20 @@ def load_partial(
     )
     with torch.device("meta"):
         model = AutoModelForCausalLM.from_config(config)
+    if start_layer:
+
+        class _SkipLayer(torch.nn.Module):
+            """Parameter-free placeholder that preserves absolute layer indices."""
+
+            def forward(self, hidden_states: Any, *args: Any, **kwargs: Any) -> Any:
+                return hidden_states
+
+        model.model.layers = torch.nn.ModuleList(
+            [
+                layer if index >= start_layer else _SkipLayer()
+                for index, layer in enumerate(list(model.model.layers)[:keep_layers])
+            ]
+        )
 
     # Non-persistent config-derived buffers (RoPE frequencies) are meta
     # placeholders; rebuild those modules so they carry real values.
@@ -166,6 +181,7 @@ def load_partial(
         "format": LOAD_FORMAT,
         "model_dir": str(model_dir),
         "keep_layers": keep_layers,
+        "start_layer": start_layer,
         "loaded_tensors": len(loaded),
         "loaded_bytes": sum(entry["bytes"] for entry in loaded),
         "shards_read": len(by_shard),
@@ -255,6 +271,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--keep-layers", type=int, default=1)
+    parser.add_argument("--start-layer", type=int, default=0)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--disk-ple", action="store_true")
     parser.add_argument("--ple-cache-rows", type=int, default=1 << 18)
@@ -279,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
         model, receipt = load_partial(
             args.model,
             args.keep_layers,
+            start_layer=args.start_layer,
             device=args.device,
             disk_ple=args.disk_ple,
             cache_rows=args.ple_cache_rows,
