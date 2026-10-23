@@ -181,6 +181,7 @@ def quality() -> int:
                         "tools.test_deepseek_rco_plan",
                         "tools.test_deepseek_rco_materialization_plan",
                         "tools.test_optimizer_gate",
+                        "tools.test_quant_candidate_plan",
                     ],
                 ),
                 run_logged(
@@ -211,6 +212,8 @@ def quality() -> int:
                         "tools/verify_deepseek_v41_headers.py",
                         "tools/optimizer_gate.py",
                         "tools/test_optimizer_gate.py",
+                        "tools/quant_candidate_plan.py",
+                        "tools/test_quant_candidate_plan.py",
                     ],
                 ),
                 run_logged(
@@ -238,6 +241,8 @@ def quality() -> int:
                         "tools/verify_deepseek_v41_headers.py",
                         "tools/optimizer_gate.py",
                         "tools/test_optimizer_gate.py",
+                        "tools/quant_candidate_plan.py",
+                        "tools/test_quant_candidate_plan.py",
                     ],
                 ),
                 run_logged(

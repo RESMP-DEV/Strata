@@ -2602,3 +2602,15 @@ before reporting green. The gate is wired into the common quality suite. It does
 invoke an optimizer and does not claim optimizer quality. Full findings and worker
 receipts are in
 [quant-aware optimizer boundary evidence](../evidence/quant-aware-optimizer-boundaries-2026-10-23.json).
+
+### Exact W4 candidate and oracle planning, 2026-10-23
+
+`tools/quant_candidate_plan.py` turns a provenance manifest into a blocked measurement
+plan for exactly one W4A16 and one W4A4 arm. Each arm requires four-bit weights, the
+matching activation label, a hashed local JSON cost artifact, and exact per-tensor byte
+rows; nominal 4-bit arithmetic cannot masquerade as deployment cost. The input must
+also bind distinct calibration and held-out token streams and a BF16 full-log-prob or
+compact top-k reference cache to both splits. The output keeps `gpu_allowed=false` and
+defers execution to the optimizer readiness gate. No candidate, oracle, model payload,
+benchmark, or GPU ran. Full evidence is in
+[quant candidate planner evidence](../evidence/quant-candidate-oracle-planner-2026-10-23.json).
