@@ -210,6 +210,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         materialize_module,
     )
 
+    artifact_reader = None
+    if args.quantized_artifacts is not None:
+        from mlx_gptq.artifacts import ArtifactReader
+
+        artifact_reader = ArtifactReader(str(args.quantized_artifacts))
+        manifest = artifact_reader.manifest
+        if manifest.get("mode") != "mxfp4" or manifest.get("group_size") != 32:
+            raise ValueError("quantized artifacts must be MXFP4 with group size 32")
+
     if args.samples <= 0 or args.sequence_length <= 0 or args.batch_size <= 0:
         raise ValueError("samples, sequence length, and batch size must be positive")
     remove_rounds = parse_remove_rounds(args.remove_rounds)
@@ -257,6 +266,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.device,
             torch.bfloat16,
         )
+        if artifact_reader is not None:
+            pipeline.apply_precomputed(layer, physical_layer, artifact_reader)
         captured: list[Any] = []
         hook = None
         analysis_result: dict[str, Any] | None = None
@@ -326,6 +337,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "kept_per_layer": SOURCE_EXPERTS - pruned_total,
         "selection": "greedy-exact-leave-one-out-reroute",
         "objective": "relative squared routed-output change with deployed routing",
+        "activation_weights": (
+            "mxfp4-gptq-qdq" if args.quantized_artifacts is not None else "source-bf16"
+        ),
+        "quantized_artifacts": (
+            str(args.quantized_artifacts) if args.quantized_artifacts is not None else None
+        ),
+        "quantized_manifest_sha256": (
+            sha256(args.quantized_artifacts / "manifest.json")
+            if args.quantized_artifacts is not None
+            else None
+        ),
         "keep_ids": keep_rows,
         "mask_output": str(args.mask_output),
         "mask_sha256": hashlib.sha256(mask_bytes).hexdigest(),
@@ -334,6 +356,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "non_claims": [
             "This is a layer-local leave-one-out search, not a full-model Gumbel-STE search.",
             "Impact is measured with upstream layers unchanged.",
+            "QDQ reuses fixed GPTQ-MXFP4 weights; it is not joint QAT of the quantizer.",
             "No materialized checkpoint, quantization, or serving result follows.",
         ],
     }
@@ -354,6 +377,7 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--sample-offset", type=int, default=0)
     parser.add_argument("--remove-rounds", default="32,16,8,8")
+    parser.add_argument("--quantized-artifacts", type=Path)
     args = parser.parse_args()
     receipt = run(args)
     summary = {
