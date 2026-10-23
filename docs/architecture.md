@@ -2729,3 +2729,25 @@ belong in the ignore list is an open measured decision for the full run. Only la
 calibration used two sequences rather than 256, and no oracle, quality metric, serving
 test, or benchmark exists yet. The receipt is
 [W4A16 real layer 0](../evidence/w4a16-real-layer0-2026-10-23.json).
+
+### Layer-scope quantization-aware RCO measurement, 2026-10-23
+
+With the machinery proven, the first measured quantization-aware RCO pass ran on real
+layer-0 weights. `tools/qwen4exp_quant_aware_rco.py` captured the exact inputs the model
+passes to layer 0, built 4-, 3-, and 2-bit group-32 RTN candidates, measured each expert
+individually against the BF16 layer output, and selected a byte-budgeted mixed assignment
+by marginal error reduction per marginal byte.
+
+All 288 experts were measured in 27.17 seconds. The default budget of 2,457,600 bytes per
+expert, the midpoint between all-W3 and all-W4, produced 13 experts at 2 bits, 118 at 3
+bits, and 157 at 4 bits, for 707,788,800 bytes total. On one held-out sequence the
+assembled layer error was 0.02926, against 0.05580 for all-W3, 0.02382 for all-W4, and
+0.15643 for all-W2. That is a 47.6 percent reduction against all-W3 at 88.9 percent of the
+all-W4 byte cost, and it remains 22.9 percent worse than all-W4.
+
+The measurement also shows that calibration error per individual expert understates
+held-out error by roughly an order of magnitude, because calibration quantizes one expert
+at a time while the controls quantize all 288 at once. This is a layer-0 reconstruction
+result: it is not end-to-end logits, and it used one calibration and one held-out sequence
+with RTN candidates rather than GPTQ or the stock RCO optimizer. The receipt is
+[quantization-aware RCO layer 0](../evidence/quant-aware-rco-layer0-2026-10-23.json).

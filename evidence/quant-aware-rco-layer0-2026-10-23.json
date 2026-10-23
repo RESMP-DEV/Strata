@@ -1,0 +1,72 @@
+{
+  "assignment": {
+    "calibration_assembled_relative_error": 0.028128059580922127,
+    "experts": 288,
+    "histogram": {
+      "2": 13,
+      "3": 118,
+      "4": 157
+    },
+    "mean_bytes_per_expert": 2457600,
+    "total_bytes": 707788800
+  },
+  "calibration_mean_relative_error_by_bits": {
+    "2": 0.007400511418381939,
+    "3": 0.0027530136943217562,
+    "4": 0.0012333197533330854
+  },
+  "data": {
+    "calibration": "calibration/alphaheng-calibration-256x2048.npy",
+    "heldout": "calibration/alphaheng-heldout-64x2048.npy",
+    "sequence_length": 2048,
+    "sequences_used": {
+      "calibration": 1,
+      "heldout": 1
+    }
+  },
+  "elapsed_seconds": 27.17,
+  "findings": [
+    "At 88.9 percent of the all-W4 byte cost, the mixed assignment is 47.6 percent below all-W3 error and 22.9 percent above all-W4 error on one held-out sequence.",
+    "Calibration per-expert errors underestimate held-out error by roughly an order of magnitude because calibration quantizes one expert at a time while the held-out controls quantize all 288 at once.",
+    "W2 is unusable at scale here: all-W2 held-out error is 0.1564 versus 0.0238 for all-W4."
+  ],
+  "format": "strata-evidence-quant-aware-rco-layer0-v1",
+  "heldout": {
+    "all_w2_relative_error": 0.1564313918352127,
+    "all_w3_relative_error": 0.05580468103289604,
+    "all_w4_relative_error": 0.023819798603653908,
+    "assembled_bytes_vs_all_w4_fraction": 0.8889,
+    "assembled_relative_error": 0.029261423274874687,
+    "assembled_vs_all_w3_reduction_fraction": 0.4756,
+    "assembled_vs_all_w4_increase_fraction": 0.2285
+  },
+  "host": {
+    "alias": "b550-zt",
+    "gpu": "GPU0, RTX 3090 Ti 24 GiB",
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91"
+  },
+  "method": {
+    "budget_per_expert": 2457600,
+    "budget_rule": "midpoint of the all-W3 and all-W4 per-expert byte costs",
+    "candidate_byte_costs": {
+      "2": 1536000,
+      "3": 2150400,
+      "4": 2764800
+    },
+    "candidates": "group-32 symmetric round-to-nearest at 4, 3, and 2 bits",
+    "scale_dtype": "bfloat16, 2 bytes per group",
+    "selection": "start every expert at 2 bits and apply the largest error reduction per marginal byte that fits the budget"
+  },
+  "non_claims": [
+    "Layer 0 only; the other 47 layers, PLE, and end-to-end logits are not measured.",
+    "One calibration and one held-out sequence, not the recipe's 256 and 64.",
+    "Candidates are RTN, not GPTQ or the stock RCO optimizer.",
+    "No serving path, throughput, VRAM figure, or full-model artifact exists for this assignment."
+  ],
+  "raw_receipt": "build/w4a16/remote/rco-layer0-full.json",
+  "raw_receipt_sha256": "e6fec64837ee7af23a191f97bc7289b42e017352e275fa28d9b785cec2552739",
+  "recorded_at": "2026-10-23",
+  "scope": "Layer-scope quantization-aware RCO measurement on the real 288-expert own-Coder layer 0",
+  "tool": "tools/qwen4exp_quant_aware_rco.py"
+}
