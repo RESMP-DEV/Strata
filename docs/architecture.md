@@ -2604,3 +2604,8 @@ VFIO. The stronger 128×1024 pass completed in 603.232 seconds and retained
 83.53% router mass plus 81.77% top-6 frequency. This is still a router-score
 control, not a Gumbel-STE search, hard-mask KL, quantized artifact, or
 performance result.
+
+That 128×1024 control was physically materialized as a 27,710-tensor,
+60,633,554,496-byte 192-expert BF16 checkpoint on B550. A streaming load check
+read all 49 layers plus the final norm and LM head and produced finite logits.
+No quality or throughput claim follows from the load check.

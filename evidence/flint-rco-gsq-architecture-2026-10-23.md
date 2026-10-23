@@ -124,6 +124,31 @@ control, not the final Gumbel-STE RCO selection.
 Local ignored copies of both B550 runs are under
 `build/reports/flint/b550/`.
 
+### Physical 192-expert control materialization
+
+The 128×1024 mask was then materialized into:
+
+`/home/kearm/flint-192-router-control-bf16`
+
+The streaming materialization completed in 97.044 seconds:
+
+- selected tensors: 27,710;
+- omitted tensors: 9,024;
+- expert tensors: 27,072;
+- sliced routers: 47;
+- other copied tensors: 591;
+- output payload size: 60,633,554,496 bytes;
+- expert-ID-map SHA-256:
+  `5b016d1faa23e09fcaef0d98447333958e07d3571bd2c315096d67911ed8510c`.
+
+`tools/verify_pruned_flint_checkpoint.py` then streamed all 49 materialized
+layers plus final norm and LM head on GPU0. The 52.234-second check completed
+with finite final logits and top-8 last-token IDs
+`[506, 47, 12, 44, 332, 30, 39, 3779]`.
+
+This proves physical tensor shape/order/loadability. It does not establish
+generation quality or runtime performance.
+
 ## Architecture
 
 ### RCO lane
