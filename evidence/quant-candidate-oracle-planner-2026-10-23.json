@@ -1,0 +1,51 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T20:22:00Z",
+  "agent": "Codex parent",
+  "task": "Add exact W4A16/W4A4 candidate and BF16 reference-oracle provenance planning",
+  "source_revision": "f3f214952fa87c6ff8e2b4dd1b57d8243770a62d",
+  "source_dirty": true,
+  "source_revision_role": "clean main head before this planner",
+  "worker_boundary": {
+    "assigned_worker": "20261023-130524-nbz515x0",
+    "outcome": "failed before edits because all CCR backend tiers returned service_unavailable",
+    "parent_implementation": "The parent implemented the planner directly; no worker edit is being accepted."
+  },
+  "implementation": {
+    "tool": "tools/quant_candidate_plan.py",
+    "input_format": "strata-quant-candidate-manifest-v1",
+    "output_format": "strata-quant-measurement-plan-v1",
+    "requirements": [
+      "Exactly one W4A16 and one W4A4 arm",
+      "Four-bit weights and the matching 16- or 4-bit activation label",
+      "A local JSON cost artifact with exact file bytes and SHA-256",
+      "Per-tensor exact byte rows rather than nominal-bit arithmetic",
+      "Different calibration and held-out token-stream hashes",
+      "A BF16 full-log-prob or compact top-k reference cache bound to both splits"
+    ],
+    "output_gpu_allowed": false
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_quant_candidate_plan -v",
+      "exit": 0,
+      "result": "5 tests passed"
+    },
+    {
+      "command": "ruff check and format on quant_candidate_plan.py and its test",
+      "exit": 0,
+      "result": "lint and formatting passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "all repository checks passed after planner wiring"
+    }
+  ],
+  "non_claims": [
+    "No W4A16/W4A4 model, activation capture, reference cache, benchmark, optimizer, GPU, or remote host ran.",
+    "No model payload was opened; local hash verification is limited to small JSON cost manifests.",
+    "The planner does not create candidate weights or derive their bytes from nominal bits.",
+    "A BF16 oracle is an optimization reference only and is not a deployment arm."
+  ]
+}
