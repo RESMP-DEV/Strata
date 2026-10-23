@@ -1,0 +1,67 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T18:04:00Z",
+  "agent": "Codex parent",
+  "task": "Verify B550 optimizer inputs and the blocked Strata CCR service restoration",
+  "source_revision": "c1027ff1787ce9d2b9dbf77e224926f06f9a3f05",
+  "source_dirty": true,
+  "hardware": {
+    "host": "B550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "visible_nvidia_gpu_count": 1,
+    "gpu0": "NVIDIA GeForce RTX 3090 Ti, UUID GPU-e9401801-96fd-7936-9965-c104d7081308",
+    "gpu1_pci": "0000:08:00.0 plus 0000:08:00.1, both overridden to vfio-pci"
+  },
+  "verified_inputs": {
+    "qwen_source": {
+      "path": "Qwen3.8-Flash-Next-BF16",
+      "total_size": "336G",
+      "directory_entries": 143,
+      "safetensors_shards": 131,
+      "model_type": "qwen4_exp",
+      "experts_per_layer": 512,
+      "layers": 48,
+      "active_experts": 10
+    },
+    "quantized_artifact": {
+      "shards": 6,
+      "total_bytes": 70931955648,
+      "imatrix_sha256": "90173f3073edc204a8cdeb95642318b5c7a3f440843439ea69ca3e41b8187033"
+    },
+    "storage": {
+      "hard_drive_available": "18T of 22T",
+      "root_nvme_available": "884G of 3.6T",
+      "memory_available": "72Gi of 91Gi before service restoration"
+    }
+  },
+  "service_restoration": {
+    "unit": "user service strata-ccr.service",
+    "attempt": "started after confirming no NVIDIA compute process and GPU0 idle",
+    "result": "failed twice in engine startup because its configured GPU order begins with GPU1 and the process reported no CUDA-capable device",
+    "final_state": "stopped and inactive; restart loop reset",
+    "boundary": "win11-gaming is a running libvirt domain whose two hostdev functions are exactly 0000:08:00.0 and 0000:08:00.1"
+  },
+  "checks": [
+    {
+      "command": "ssh b550-zt hostname; sha256sum /etc/machine-id; nvidia-smi -L; systemctl --user is-active strata-ccr.service",
+      "exit": 0,
+      "result": "host and machine ID matched B550; one 3090 Ti visible; service inactive"
+    },
+    {
+      "command": "ssh b550-zt sudo -n driverctl list-overrides; sudo -n virsh list --all; sudo -n virsh dumpxml win11-gaming",
+      "exit": 0,
+      "result": "both GPU1 functions overridden to vfio-pci and passed to the running win11-gaming domain"
+    },
+    {
+      "command": "ssh b550-zt journalctl --user -u strata-ccr.service --since 2026-10-23T10:59:00 --no-pager",
+      "exit": 0,
+      "result": "two startup failures ended at native embedding with no CUDA-capable device; service was then stopped"
+    }
+  ],
+  "non_claims": [
+    "The Windows VM was not stopped, undefined, or modified.",
+    "No VFIO override, NVIDIA binding, BIOS setting, or persistent service configuration was changed.",
+    "No RCO or GSQ optimizer was launched.",
+    "One visible GPU does not prove the full Flash-Next RCO search is feasible; the 336G source and 48x512 expert geometry require a separately planned streaming/offload route."
+  ]
+}

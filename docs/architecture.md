@@ -2538,3 +2538,12 @@ receipts without changing artifact hashes. Host-safe tests, the 36-test Torch
 adapter suite, Ruff, whitespace, and `just quality` passed; no optimizer, payload,
 pack, model load, quality, or runtime gate ran. Details are in
 [own-Coder review-repair evidence](../evidence/qwen-own-coder-review-repairs-2026-10-23.json).
+
+The follow-up live B550 probe found the full 336G, 131-shard `qwen4_exp` source and
+the completed quantized artifact, but only GPU0 is available to NVIDIA: GPU1 and its
+audio function are intentionally bound to VFIO and owned by the running
+`win11-gaming` domain. An attempted Strata CCR restoration therefore failed before
+model load because the service expects GPU1 first; the restart loop was stopped and
+the VM boundary was preserved. This is a resource-ownership blocker, not evidence
+that GPU1 failed. Full commands and non-claims are in
+[B550 GPU1 VFIO boundary evidence](../evidence/b550-gpu1-vfio-service-boundary-2026-10-23.json).
