@@ -2640,3 +2640,15 @@ remains infrastructure only: no candidate artifact, reference cache, optimizer r
 measurement, CUDA work, or quality/runtime claim was produced. The parent-level PR and validation
 inventory is in
 [quant-aware fork integration evidence](../evidence/quant-aware-fork-integration-2026-10-23.json).
+
+### RCO measurement readiness, 2026-10-23
+
+A live readiness check refused to start the full Flash-Next quant-aware RCO measurement. B550 GPU0 was
+owned by the active Flint pipeline and GPU1 remained assigned to the Windows VM; Strix also had an
+active MXFP4 probe. More importantly, GPU availability was not the deciding blocker: the Qwen4Exp
+WeightStore candidate generator, W4A4 Flash-Next artifact, and BF16 calibration/held-out oracle caches
+are all absent. The only local W4A16 model is the Qwen3.8-27B MXFP4A16 artifact, not a Flash-Next RCO
+candidate. The earlier 13.47 tok/s W4A16 and 50.06 tok/s vendor GSQ-RCO numbers remain separate,
+non-controlled Qwen3.8-27B runtime measurements and are not promoted to RCO measurement results. No
+process was killed and no GPU measurement ran. Full inventory and commands are in
+[RCO measurement readiness evidence](../evidence/rco-measurement-readiness-2026-10-23.json).

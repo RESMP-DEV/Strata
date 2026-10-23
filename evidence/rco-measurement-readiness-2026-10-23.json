@@ -1,0 +1,104 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T21:22:00Z",
+  "agent": "Codex parent",
+  "task": "Decide whether full quant-aware RCO W4A16/W4A4 measurements can start now",
+  "source_revision": "e9a507907f16c9269185f0ecbc22ab3cf9551c0f5",
+  "source_dirty": false,
+  "decision": {
+    "start_full_measurement": false,
+    "reason": "Required model-specific candidate and oracle inputs are absent, and both owned compute GPUs have active owners.",
+    "safe_next_unit": "Implement and validate the Qwen4Exp GPTQ-side candidate generator plus compact BF16 oracle builder before another readiness check; this is not a GPU measurement."
+  },
+  "gate_check": {
+    "tool": "tools/optimizer_gate.py",
+    "all_stages_gpu_allowed": false,
+    "qwen4exp_quant_aware_requirements": 7,
+    "qwen4exp_quant_aware_gpu_allowed": false
+  },
+  "hardware": {
+    "B550": {
+      "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+      "visible_gpu": "GPU0 RTX 3090 Ti",
+      "gpu1": "bound to the running win11-gaming VFIO domain",
+      "observed_gpu0_owner": {
+        "first_process": "Flint quality evaluation, PID 428312, 6970 MiB, 58% utilization; now finished",
+        "current_process": "Flint prune-impact smoke search, PID 429941, 1986 MiB, active",
+        "boundary": "The Flint worktree and GPU pipeline belong to another active lane and were not stopped or reused."
+      },
+      "memory_available": "about 71 GiB while the current Flint process was active"
+    },
+    "Strix": {
+      "machine_id_sha256": "c98a3e8c7a63645b6547e7eb02341c4efa0cd27245be3a8c799ca8eada0778bd",
+      "gpu": "RTX 5070 Laptop, 8151 MiB visible",
+      "observed_owner": "probe-mxfp4-sm120 Python using 5300 MiB",
+      "boundary": "Not enough free VRAM for the full model; W4A4 kernel capability alone does not satisfy the RCO input gate."
+    }
+  },
+  "input_inventory": {
+    "flash_next_bf16_source": {
+      "present": true,
+      "path_role": "B550 Qwen3.8-Flash-Next-BF16 source",
+      "size": "336G",
+      "geometry": "48 layers, 512 experts, 10 active, qwen4_exp"
+    },
+    "qwen4exp_weightstore": {
+      "present": false,
+      "expected_jobs": 73728,
+      "expected_weightstore_directories": 73728,
+      "expected_artifact_files": 147456,
+      "missing_implementation": "GPTQ-side fused-3D expert unfusing/candidate writer for Qwen4Exp"
+    },
+    "w4a4_flash_next_artifact": {
+      "present": false,
+      "search_result": "Only W4A4 kernel/runtime source files and an unrelated SAM artifact matched; no Qwen/Flash-Next W4A4 model checkpoint was found"
+    },
+    "w4a16_flash_next_rco_artifact": {
+      "present": false,
+      "related_existing_artifact": "Qwen3.8-27B MXFP4A16 GPTQ compressed-tensors model, 17-18G",
+      "boundary": "Different model and container; it is not a Flash-Next RCO WeightStore candidate and cannot fill the Qwen4Exp gate"
+    },
+    "bf16_reference_oracle": {
+      "present": false,
+      "missing_splits": [
+        "calibration compact/full log-prob cache",
+        "held-out compact/full log-prob cache"
+      ],
+      "missing_implementation": "Streaming/cache builder compatible with PLE and hyper-connection topology"
+    }
+  },
+  "prior_measurement_boundary": {
+    "w4a16_27b_decode_tok_s": 13.47,
+    "vendor_gsq_rco_iq3_xxs_decode_tok_s": 50.06,
+    "evidence": "evidence/qwen27b-mxfp4-vs-imatrix-cuda-2026-10-21.json",
+    "non_claim": "These are existing non-controlled Qwen3.8-27B artifact measurements, not new Flash-Next RCO measurements and not a W4A16-versus-W4A4 comparison."
+  },
+  "checks": [
+    {
+      "command": "python3 tools/optimizer_gate.py plan --stage STAGE",
+      "exit": 0,
+      "result": "all six stages report gpu_allowed=false"
+    },
+    {
+      "command": "ssh b550-zt nvidia-smi and process inventory",
+      "exit": 0,
+      "result": "GPU0 owned by the active Flint pipeline; GPU1 owned by VFIO"
+    },
+    {
+      "command": "ssh strix-zt nvidia-smi and process inventory",
+      "exit": 0,
+      "result": "GPU0 has a 5.3-GiB MXFP4 probe owner"
+    },
+    {
+      "command": "find B550 model/scratch trees for WeightStore, W4A4, oracle, and candidate artifacts",
+      "exit": 0,
+      "result": "no Qwen4Exp RCO candidate store, W4A4 checkpoint, or BF16 oracle cache found"
+    }
+  ],
+  "non_claims": [
+    "No RCO search, GPTQ candidate generation, oracle forward, W4A16/W4A4 quality measurement, CUDA benchmark, or model payload read ran.",
+    "The existing Qwen3.8-27B W4A16 artifact and vendor GSQ-RCO runtime numbers do not satisfy this gate.",
+    "GPU availability alone would not make the measurement ready.",
+    "No process was killed and the Windows VM boundary was preserved."
+  ]
+}
