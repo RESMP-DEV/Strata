@@ -63,6 +63,30 @@ class ReapMaskTest(unittest.TestCase):
         self.assertEqual(scores[(0, 1)], 2.0)
         self.assertEqual(scores[(0, 2)], 1.0)
 
+    def test_seed_experts_are_selected_before_trace_scores(self) -> None:
+        path = self.root / "trace.bin"
+        trace(path, [(0, [1, 3], [0.2, 0.5])])
+        scores, _ = MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
+        keep, fills, selected = MODULE.choose_mask(scores, 1, 4, 2, seeds=[{2}])
+        self.assertEqual(keep, [[2, 3]])
+        self.assertEqual(fills, [[]])
+        self.assertEqual(selected, [[0.0, 0.5]])
+
+    def test_seed_and_trace_count_excludes_trace_scored_fill(self) -> None:
+        path = self.root / "trace.bin"
+        trace(path, [(0, [3], [0.4])])
+        scores, _ = MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
+        keep, fills, _ = MODULE.choose_mask(scores, 1, 4, 2, seeds=[{2}])
+        trace_supported = sum((0, expert) in scores for expert in keep[0])
+        self.assertEqual(keep, [[2, 3]])
+        self.assertEqual(fills, [[]])
+        self.assertEqual(trace_supported, 1)
+        self.assertEqual(MODULE.count_seed_and_trace_selected([{2}], scores), 0)
+
+    def test_seed_above_budget_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "seed has 3 experts, above budget 2"):
+            MODULE.choose_mask({}, 1, 4, 2, seeds=[{1, 2, 3}])
+
     def test_sparse_layers_are_filled_to_exact_budget(self) -> None:
         path = self.root / "sparse.bin"
         trace(path, [(0, [3], [0.1]), (1, [5], [0.1])])
@@ -128,6 +152,32 @@ class ReapMaskTest(unittest.TestCase):
         path.write_bytes(struct.pack("<ii", 0, 2) + struct.pack("<2i", 1, 2))
         with self.assertRaisesRegex(ValueError, "invalid routing count"):
             MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
+
+    def test_seed_allocation_treats_an_empty_type_as_pruned(self) -> None:
+        path = self.root / "allocation.txt"
+        lines = [f"blk.0.ffn_down_exps.weight[{expert}]: IQ3_S" for expert in range(256)]
+        lines.append("blk.0.ffn_down_exps.weight[256]:")
+        lines.append("blk.0.ffn_down_exps.weight[257]:   ")
+        lines.append("blk.1.ffn_down_exps.weight[0]: IQ3_S")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        seeds = MODULE.parse_seed_allocation(path, n_layers=1, n_expert=512)
+        self.assertEqual(len(seeds), 1)
+        self.assertEqual(sorted(seeds[0]), list(range(256)))
+
+    def test_seed_allocation_accepts_any_projection_and_non_256_budget(self) -> None:
+        path = self.root / "allocation.txt"
+        lines = []
+        for layer, retained in enumerate(({1, 2}, {4, 5})):
+            for expert in range(6):
+                quant = "IQ3_S" if expert in retained else ""
+                lines.append(f"blk.{layer}.ffn_gate_exps.weight[{expert}]: {quant}")
+                lines.append(f"blk.{layer}.ffn_up_exps.weight[{expert}]: {quant}")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        seeds = MODULE.parse_seed_allocation(path, n_layers=2, n_expert=6)
+        self.assertEqual(seeds, [{1, 2}, {4, 5}])
+
+        keep, _, _ = MODULE.choose_mask({}, 2, 6, 3, seeds=seeds)
+        self.assertEqual(keep, [[1, 2, 0], [4, 5, 0]])
 
 
 def subprocess_run(argv: list[str]):

@@ -2293,3 +2293,267 @@ artifact claim: no heal, custom quantization, quality gate, or trained
 prefiller has run. Full machine, model, source, workload, and raw-evidence
 hashes are in [current-main runtime evidence](../evidence/flash-next-current-main-runtime-2026-10-21.json);
 raw request rows are retained in the [durable sweep](../evidence/flash-next-current-main-runtime-sweep-2026-10-21.json).
+
+### DeepSeek-V4.1 RCO preflight and budget planner, 2026-10-22
+
+The first local DeepSeek RCO support is deliberately metadata-first. Stock RCO
+9a1e09c cannot load `deepseek_v41`: Transformers has no merged mapping, the
+expert counts live in a nested `text_config`, the checkpoint names experts
+`layers.N.ffn.experts.E.w1/w2/w3`, and the routed payloads are packed FP4 plus
+F8_E8M0 scales. A pinned read-only copy of the closed, unmerged Transformers
+PR #48721 head `62d7ebd7` now supplies the model semantics for a local adapter:
+it exposes `num_local_experts`, returns `(logits, weights, indices)` from the
+router, uses fused expert tensors, and adds an unscaled `shared_experts` output.
+
+`tools/deepseek_rco_plan.py` classifies all 96,085 names in the pinned 1017
+index against the checked-in manifest and derives exact budgets with no default
+50% target. The primary comparator to the Qwen own-Coder mask is slot fraction:
+Qwen retains 288/512, so DeepSeek retains 216/384 and removes 168 experts per
+backbone layer (43.75%). The sensitivity lanes are 172/173 retained experts from
+Qwen's 288/10 retained-per-active ratio and 160 retained experts when removing
+the same 224 slots per layer as Qwen. Matching the Qwen artifact's 32,204,390,400
+routed-expert bytes would leave only 42 DeepSeek experts per layer; that is an
+observational capacity lane, not a quality recommendation. The three DSpark
+stages stay intact initially because drafter acceptance is a separate gate.
+
+The planner uses the pinned shard-header scale shapes rather than assuming
+32x32-block scales: each routed expert occupies 18,800,640 bytes. The 216-expert
+backbone lane therefore retains 162,437,529,600 routed-expert bytes, and the
+preserved DSpark stages add 7,219,445,760 bytes.
+
+`tools/deepseek_rco_adapter.py` resolves nested V4.1 configuration counts and
+wraps the pinned model's MoE block while preserving `image_mask`, the router
+tuple, fused expert dispatch, and the additive shared expert. A tiny CPU model
+proved an all-ones survival mask bit-exactly preserves baseline logits, a zero
+mask leaves only the shared-expert path, and wrapper restoration returns the
+original forward. This is not an end-to-end stock-RCO run and makes no claim
+about the released 510GB checkpoint.
+
+The DeepSeek geometry contract also corrected its expert-stack count. The
+pinned index has 40 backbone layers and three `mtp.*` DSpark stages, each with
+128 routed experts plus one shared expert: 15,787 stacks, not the prior 16,939
+that double-counted the DSpark tail and omitted its shared stacks. The Qwen
+text-only materializer likewise now clears inherited MTP configuration when it
+omits MTP tensors. Full evidence, upstream pins, commands, and non-claims are in
+[DeepSeek RCO preflight](../evidence/deepseek-v41-rco-preflight-2026-10-22.json).
+
+### RCO review hardening, 2026-10-22
+
+PR review repaired the contracts around the first DeepSeek preflight and the
+stacked Qwen own-Coder tools without expanding their runtime claims. The
+DeepSeek planner now rounds signed exact ratios half-away-from-zero and reports
+per-layer and 40-layer routed-expert byte totals under distinct names. DSpark's
+per-token total includes its three routed experts plus its shared expert. The
+Qwen token builder rejects non-positive limits and makes tokenizer remote code
+an explicit opt-in. The own-Coder planner validates the declared source expert
+count and binds generated commands to the actual mask destinations; the
+materializer validates tokenizer files before dry-run or shard streaming,
+rejects unexpected source expert dimensions, and its round-trip test now checks
+non-identity, layer-varying source rows. The trace control's seed-and-trace
+metric no longer counts trace-scored fills as seed support. Follow-up review
+hardening added observed-type diagnostics to token export, fixed-position
+substitution for the calibration-control quantization command, survival-mask
+finite/range checks, and router-index tensor, dtype, shape, and bounds checks
+before expert lookup.
+
+A read-only trace of pinned stock RCO also fixed the next integration boundary:
+stock `search.prune.optimize` must use the DeepSeek adapter's `install_wrappers`
+through a process-local replacement, is CUDA-only because it allocates search
+state directly on `cuda:0`, and its hard-mask evaluation still assumes a
+softmax router rather than V4.1's `sqrtsoftplus` scores and correction biases.
+No stock integration search has passed yet.
+
+Parent acceptance ran all 78 modified-area system tests, the 20 pinned
+Torch/Transformers adapter tests, all seven Torch/safetensors materializer
+tests, both DeepSeek C++ contract builds and test binaries, Ruff, format,
+whitespace, and `just quality` (20/20). These checks do not run stock RCO on
+the released model or establish pruning quality. Full commands and boundaries
+are in
+[RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
+
+### Header verifier provenance and adapter guards, 2026-10-23
+
+The header-only DeepSeek verifier is now tracked at
+`tools/verify_deepseek_v41_headers.py`. A B550 rerun used script SHA-256
+`d6c932b64befa61d402574881d9444ecff8255b7d4f0e2a766494ef1f7c2115c`, read only
+each 8-byte prefix and JSON header, and matched every verification field in the
+original 48-shard receipt. The receipt now also states that each file contains
+an 8-byte little-endian header-length prefix before JSON and data; that prefix,
+not unexplained padding, accounts for the additional 384 bytes across 48
+shards. The adapter likewise now rejects an empty or malformed parameter
+iterator during device resolution and rejects a router whose forward signature
+cannot be inspected. This still does not read tensor payloads, execute the
+checkpoint, or claim loader compatibility.
+The same round also validates every reference-cache dtype, shape, finite value,
+loss-mask range, and exact batch shape before installing any wrapper, and the
+Coder planner rejects own/parent mask destinations that collide with each other
+or would overwrite either input document before either output is written.
+Older OpenCodeReview threads were repaired in the same pass: the DeepSeek
+geometry comment now separates the 40 backbone layers from the three DSpark
+stages, tokenizer output must be a mapping with array-like `input_ids`, and
+Coder byte budgets use exact rational arithmetic before decimal renderings.
+
+### Own-Coder calibrated quantization, 2026-10-23
+
+The completed 256×2048 own-data iMatrix fed a real six-shard llama.cpp
+quantization on B550. The first planner command exposed a methodology bug:
+with global type `COPY`, this llama.cpp build ignores manual tensor overrides.
+The repaired path uses a quantized `IQ3_S` default plus a complete anchored
+1,224-row recipe, restoring every non-target tensor to BF16/F32 while
+selecting 96 gate/up expert tensors as `IQ3_S`, 48 down-expert tensors as
+`IQ4_NL`, and the 95.37-GiB PLE table as `IQ4_NL`. `--keep-split` preserves
+the six-shard Strata input layout.
+
+The corrected dry run projected and the real run produced exactly
+67,635.47 MiB at 4.57 BPW, or 70,931,955,648 bytes. All 1,224 output tensor
+types matched the recipe, the six SHA-256 hashes are recorded, and both GPUs
+were idle after the 32m13s CPU run. This is a calibrated GGUF artifact, not
+GSQ or RCO optimization, and no pack, quality, or runtime claim follows. Full
+methodology, hashes, checks, and boundaries are in
+[own-Coder calibrated quantization evidence](../evidence/qwen-own-coder-calibrated-quantization-2026-10-23.json).
+
+### DeepSeek stock-RCO tiny integration, 2026-10-22
+
+The adapter then crossed the first real stock-RCO execution boundary on B550
+GPU1. With stock RCO pinned at `9a1e09c` and Transformers pinned at
+`62d7ebd7`, an in-memory one-layer, two-expert, top-1 V4.1 model supplied the
+only test substitutions: model, tokenizer, and one eight-token calibration
+tensor. Stock RCO resolved `(1,2,1)`, built the reference cache, replaced its
+process-local wrapper installer with the DeepSeek adapter, passed its gradient
+sanity check (`4/4` nonzero gradients), completed one Gumbel-STE step, and
+wrote a boolean `(1,2)` mask pruning exactly one expert. The wrapper was
+restored afterward.
+
+This advances only the structural integration. Stock final hard-mask
+evaluation still uses its softmax-router assumption rather than V4.1's
+`sqrtsoftplus` scores and correction biases, so its KL is not yet a
+deployment-faithful DeepSeek evaluation.
+
+A follow-up at `80c8932d` added an adapter-faithful
+`evaluate_with_mask`: it converts RCO's prune mask to survival semantics, zeros
+pruned routing weights without renormalizing survivors, keeps stock next-token
+and token-mask normalization, and restores wrappers. The B550 rerun left stock
+reference construction and optimization intact, replaced only wrapper
+installation and final evaluation process-locally, and reported KL
+`0.000207462` while producing the same one-expert mask. No released checkpoint
+was opened and no quality or runtime claim follows. Full machine, pins,
+substitutions, artifacts, hashes, and non-claims are in
+[stock-RCO tiny integration evidence](../evidence/deepseek-v41-rco-stock-tiny-2026-10-22.json).
+
+### DeepSeek RCO materialization planning, 2026-10-22
+
+`tools/deepseek_rco_materialization_plan.py` now turns a strict
+`strata-deepseek-rco-mask-v1` selection and the two checkpoint metadata files
+into a complete metadata-only action plan. It accepts explicit files rather
+than a checkpoint directory, validates the pinned 96,085-tensor index and 48
+shard names, preserves MTP/DSpark, expands every pruned expert to its six
+routed tensors, and marks the 120 backbone router tensors as axis-zero row
+slices rather than pass-through copies. Target headers, offsets, and file
+sizes remain explicitly `requires_streaming_header`.
+
+For the primary 216-of-384 lane against the actual pinned B550
+`config.json` and `model.safetensors.index.json`, the planner enumerates
+40,320 omitted routed tensors, 55,645 copies, and 120 router slices for
+55,765 target tensors. Its routed arithmetic remains 162,437,529,600 retained
+backbone bytes, 126,340,300,800 omitted backbone bytes, and 7,219,445,760
+preserved MTP bytes. The synthetic full-inventory suite, dependency proof,
+Ruff, and `just quality` pass; no shard was opened. Full hashes and non-claims
+are in
+[materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).
+
+### OpenCodeReview hardening, 2026-10-23
+
+OpenCodeReview persisted seven findings against `d02d9008` even though both its
+initial and resumed range runs eventually aborted without writing final JSON.
+The repairs normalize the two evidence keys, type the command manifest as an
+argv list plus shell rendering, build and validate control quantization argv
+without positional splicing, thread already-parsed masks through the manifest,
+derive Qwen layer counts from the shared constant, and make empty quantization
+tokens explicitly mean a pruned expert in both allocation parsers. The aborted
+reviewer state is recorded as unavailable-for-completion, not as an approval.
+Full session IDs, worker receipts, commands, and limits are in
+[RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
+
+A follow-up header-only pass then opened each of the 48 pinned safetensors
+files, read its 8-byte prefix and JSON header, and refused to read any tensor
+payload. All 96,085 names matched the index, every offset interval was exact
+and non-overlapping, every routed dtype/shape matched the pinned contract, and
+the 48 file sizes sum to the declared 510,286,023,000 data bytes. The 94,464
+routed tensors comprise exactly 31,488 each of `I8 [2304,2560]` and
+`F8_E8M0 [2304,160]`, plus 15,744 each of `I8 [5120,1152]` and
+`F8_E8M0 [5120,72]`. This verifies the source header geometry but still does
+not execute or materialize the model. Full shard rows and failures are in
+[header verification evidence](../evidence/deepseek-v41-rco-header-verification-2026-10-23.json).
+
+### PR review follow-up, 2026-10-23
+
+The second PR review round hardened evidence provenance and test semantics
+without expanding runtime scope. Machine identity in the stock-tiny receipt is
+now a SHA-256 digest, header evidence names its verifier script hash and the
+role of its source revision, and its filename matches its UTC timestamp. The
+Qwen materializer accounts every copied tensor in one explicit branch, token
+export errors report both observed type and value repr, and loss-mask tests now
+use a nonzero prune mask so the source column, token normalization, and scored
+column are individually observable. The DeepSeek adapter rejects empty, ragged,
+misaligned, or non-tensor reference caches before installing wrappers and uses
+each batch's exact reference entry. Metadata-only planning now proves in a
+fresh subprocess that it imports neither `torch` nor `safetensors`.
+
+Parent acceptance ran the combined 61-test system suite (30 executed and 31
+Torch-dependent adapter tests skipped), the 33-test pinned Torch adapter suite,
+the seven-test materializer suite, Ruff, formatting, whitespace, and
+`just quality`; all passed. These checks still do not execute or materialize
+the released DeepSeek checkpoint and do not establish pruning quality. Full
+findings, worker receipts, commands, and non-claims are in the
+updated [RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
+
+### Router-slice payload arithmetic, 2026-10-23
+
+A follow-up integrated the verified header geometry into the planner itself.
+Each of the 40 backbone tuples is a BF16 `[384,5120]` gate weight plus two F32
+`[384]` biases: 157,409,280 source bytes become 88,542,720 target bytes at 216
+retained rows, a 68,866,560-byte delta. The exact 216-lane target tensor payload
+is therefore 383,876,855,640 bytes, while new safetensors headers, offsets,
+padding, shard boundaries, and final file sizes remain explicitly deferred. This
+is payload arithmetic, not proof that a materializer wrote or a loader read those
+bytes. The updated receipt is in
+[materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).
+
+### Own-Coder quantization review repairs, 2026-10-23
+
+CodeRabbit's review of the complete quantization recipe found one command-generation
+bug and one recipe-integrity gap: the exact parent-byte ratio was still a
+`Fraction`, which made the generated manifest fail JSON encoding, and split-sibling
+reading trusted filenames without checking every shard's `split.no`,
+`split.count`, and `split.tensors.count` identity. The planner now serializes the
+ratio while retaining exact byte arithmetic, and the recipe generator refuses a
+mixture of split families or a combined tensor count that disagrees with shard
+metadata.
+
+The same repair round makes the malformed DeepSeek reference-cache test execute all
+five intended validation branches under the pinned Torch/Transformers environment,
+changes the header verifier to report an absent indexed shard as structured failure
+output rather than an uncaught traceback, and removes workstation paths from durable
+receipts without changing artifact hashes. Host-safe tests, the 36-test Torch
+adapter suite, Ruff, whitespace, and `just quality` passed; no optimizer, payload,
+pack, model load, quality, or runtime gate ran. Details are in
+[own-Coder review-repair evidence](../evidence/qwen-own-coder-review-repairs-2026-10-23.json).
+
+The follow-up live B550 probe found the full 336G, 131-shard `qwen4_exp` source and
+the completed quantized artifact, but only GPU0 is available to NVIDIA: GPU1 and its
+audio function are intentionally bound to VFIO and owned by the running
+`win11-gaming` domain. An attempted Strata CCR restoration therefore failed before
+model load because the service expects GPU1 first; the restart loop was stopped and
+the VM boundary was preserved. This is a resource-ownership blocker, not evidence
+that GPU1 failed. Full commands and non-claims are in
+[B550 GPU1 VFIO boundary evidence](../evidence/b550-gpu1-vfio-service-boundary-2026-10-23.json).
+
+A final OpenCodeReview sweep repaired three code findings that CodeRabbit's latest
+success did not supersede: the reference-only mixed Coder allocation now refuses to
+emit quantization arguments, REAP seed allocations accept any expert projection and
+any non-hard-coded budget, and safetensors interval validation reports every gap or
+overlap. Historical receipt hashes were also separated into tracked, pinned,
+reproduced, and superseded categories. The 98-test host-safe planning suite and the
+36-test pinned Torch adapter suite passed; no optimizer or payload was run. Details
+are in
+[OpenCodeReview repair evidence](../evidence/open-code-review-code-repairs-2026-10-23.json).

@@ -1,0 +1,344 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-22T22:14:04Z",
+  "updated_at": "2026-10-23T01:52:19Z",
+  "agent": "Codex parent with three MiniMax CCR implementation workers; parent acceptance by Codex",
+  "task": "Repair every actionable CodeRabbit finding on DeepSeek/Qwen RCO PR #20 without expanding runtime claims.",
+  "source_revision": "fed9d1983b363d03ca12e9019aae6cd968e5e399",
+  "source_dirty": true,
+  "review_repairs": {
+    "count": 13,
+    "deepseek": [
+      "round_ratio nearest now implements exact round-half-away-from-zero for signed values, including values below one half",
+      "budget serialization separates per-layer and 40-layer backbone byte totals",
+      "DSpark per-token expert total includes three routed plus one shared expert"
+    ],
+    "qwen_coder_tools": [
+      "token-builder limits reject zero and negative values at function and CLI boundaries",
+      "tokenizer trust_remote_code is explicit opt-in and defaults false",
+      "the RCO token-builder test loader registers its module in sys.modules before exec_module",
+      "the own-Coder planner test loader registers its module in sys.modules before exec_module",
+      "masks must declare the expected 512 source experts",
+      "generated search, evaluation, and materialization commands use actual mask destinations and parent control output is required",
+      "materializer validates tokenizer files before dry-run or shard streaming and copies them at completion",
+      "materializer rejects a source expert dimension other than 512 before index_select",
+      "tiny materialization round trip uses non-identity layer-varying selections and checks every selected source row"
+    ],
+    "trace_control": [
+      "seed_and_trace_selected counts only seed cells with trace support rather than all trace-supported selected cells"
+    ]
+  },
+  "second_review_round": {
+    "reviewed_head": "c852e04894ddd6a72325c35c4da3a9a25e94097e",
+    "dirty_base_revision": "932b687e7ff7e7eebcc524377c3a21e85e927fda",
+    "code_rabbit_repairs": [
+      {
+        "finding": 4354855273,
+        "repair": "replace the raw B550 machine-id in stock-tiny evidence with its SHA-256 digest"
+      },
+      {
+        "finding": 4354855280,
+        "repair": "reject empty, ragged, misaligned, or non-tensor reference caches before wrapper installation and score each calibration batch against its exact cache entry"
+      },
+      {
+        "finding": 4354855281,
+        "repair": "require both the observed Python type name and value repr in token-ids errors, including an int case"
+      },
+      {
+        "finding": 4354855285,
+        "repair": "replace the vacuous loss-mask comparison with nonzero-prune-mask tests for the unscored source column, token-mean normalization, and a changed scored column"
+      },
+      {
+        "finding": 4354855296,
+        "repair": "prove metadata-only planning imports neither torch nor safetensors in a fresh subprocess"
+      }
+    ],
+    "open_code_review_follow_up": [
+      "rename header evidence to its 2026-10-23 recorded timestamp and update the architecture link",
+      "record the source-revision role and verifier script SHA-256 in header evidence",
+      "the duplicate adapter cache-alignment finding is covered by the adapter repair",
+      "consolidate Qwen materializer total-size accumulation into explicit copied-tensor branches"
+    ],
+    "implementation_workers": [
+      {
+        "lane": "adapter cache and loss-mask regressions",
+        "receipt_id": "20261022-172243-ydgzhdx_"
+      },
+      {
+        "lane": "planner dependency, token errors, evidence sanitation, and accounting",
+        "receipt_id": "20261022-172253-_peg3mry"
+      },
+      {
+        "lane": "independent combined-diff review",
+        "receipt_id": "20261022-173118-rav8nh3l"
+      }
+    ]
+  },
+  "code_rabbit_third_round": {
+    "reviewed_head": "13d6469c3cdf470ac496e42179a1520f6e75db4d",
+    "repairs": [
+      {
+        "finding": 4355284820,
+        "repair": "reject equal, aliased, or input-overwriting own/parent RCO mask destinations before either file is written"
+      },
+      {
+        "finding": 4355284824,
+        "repair": "validate every reference dtype, shape, finite value, loss-mask range, and exact batch shape before any wrapper is installed"
+      }
+    ]
+  },
+  "open_code_review_2026_10_23": {
+    "reviewed_head": "d02d900893e86a713d80ca5c82243608afc9e427",
+    "sessions": [
+      {
+        "id": "f4ad9441-eb9e-4d76-bb8c-73dbaee45abb",
+        "status": "failed/aborted after the initial range review stopped without writing JSON"
+      },
+      {
+        "id": "cc116cf1-d9cb-4b47-8863-1597a274f99e",
+        "status": "aborted after one resume retry; persisted 7 findings before the process was terminated at 0% CPU"
+      }
+    ],
+    "classification": "completed with findings and reviewer unavailable for completion; not an approval",
+    "repairs": [
+      "rename top_nonrouted_signatures to top_non_routed_signatures",
+      "unify open_code_review_follow_up naming",
+      "type command manifests as CommandSpec with argv list plus shell string",
+      "build control quantization argv explicitly and validate its layout",
+      "thread already-parsed own and parent masks through build_manifest",
+      "derive Qwen materializer layer counts from custom_coder_plan.N_LAYERS",
+      "match empty quantization tokens explicitly in both parent and REAP seed parsers"
+    ],
+    "implementation_worker_receipt_id": "20261022-181507-9hcghczo"
+  },
+  "remote_open_code_review_2026_10_23": {
+    "reviewed_head": "d9ad4e26eedade16db632bb72a1b73055bf8b94a",
+    "threads": [
+      {
+        "finding": 4355250271,
+        "repair": "convert empty and non-iterator model parameter failures into RcoAdapterError during device resolution"
+      },
+      {
+        "finding": 4355250255,
+        "repair": "reject routers whose forward signature cannot be inspected instead of silently treating them as image-mask capable"
+      },
+      {
+        "finding": 4355250244,
+        "repair": "document and account the universal 8-byte safetensors header-length prefix in evidence and the tracked verifier"
+      },
+      {
+        "finding": 4355250230,
+        "repair": "track the verifier source, record its new SHA-256, and rerun it on B550 with all verification fields matching the original receipt"
+      },
+      {
+        "finding": 4355250250,
+        "disposition": "rejected; hardware identity and paths are deliberate evidence provenance, and the raw machine-id is already hashed"
+      }
+    ],
+    "earlier_threads": [
+      {
+        "findings": [4355019991, 4355020000],
+        "repair": "update the DeepSeek total-expert comment to state that the 40 backbone text layers and three DSpark stages are counted separately"
+      },
+      {
+        "findings": [4355020005, 4355020010],
+        "repair": "require tokenizer output to be a mapping with input_ids and require array-like tolist results before conversion"
+      },
+      {
+        "finding": 4355020022,
+        "repair": "compute Coder expert-byte budgets with exact Fraction arithmetic before the documented decimal/GiB renderings"
+      }
+    ]
+  },
+  "open_code_review_follow_up": {
+    "actionable_repairs": [
+      "token_ids errors include the observed Python type and repr",
+      "the standard-calibration quantization command replaces fixed iMatrix and output argv positions rather than globally replacing equal path strings",
+      "survival masks reject non-finite values and values outside [0,1]",
+      "router indices must be tensors with integer dtype, matching shape, and values inside [0,n_experts) before survival indexing"
+    ],
+    "rejected_or_already_fixed": [
+      "round_ratio nearest comments were outdated; signed half-away-from-zero repair was already present",
+      "parse_seed_allocation intentionally validates the pinned 256-expert parent seed allocation; choose_mask separately rejects seeds above --keep and permits 256 seeds for a larger keep budget",
+      "seed_and_trace_selected is intentionally the intersection of seed cells and trace scores, matching the CodeRabbit finding, not the union"
+    ]
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_materialize_pruned_qwen4exp tools.test_deepseek_rco_plan tools.test_deepseek_rco_adapter tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "78 tests passed; 20 optional Torch tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "20/20 tests passed with Torch and pinned Transformers"
+    },
+    {
+      "command": "/tmp/strata-rco-torch313-venv/bin/python -m unittest tools.test_materialize_pruned_qwen4exp",
+      "exit": 0,
+      "result": "7/7 tests passed with Torch 2.14.1, safetensors 0.8.0, and NumPy; no optional test skipped"
+    },
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "manifest gate plus both standalone DeepSeek C++ contract tests passed"
+    },
+    {
+      "command": "clang++ -std=c++20 -Iinclude src/deepseek/geometry_test.cpp -o build/deepseek-geometry-review && ./build/deepseek-geometry-review",
+      "exit": 0,
+      "result": "289 geometry checks passed"
+    },
+    {
+      "command": "ruff check [12 modified Python files] && ruff format --check [same files] && git diff --check",
+      "exit": 0,
+      "result": "lint, formatting, and whitespace checks passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "20/20 checks passed; ignored receipt at build/reports/quality/receipt.json"
+    },
+    {
+      "command": "python3 -m unittest tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "37 tests passed after OpenCodeReview follow-up; 19 Torch-dependent adapter tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "21/21 adapter tests passed after adding mask-range and router-index regressions"
+    },
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_adapter tools.test_deepseek_rco_materialization_plan tools.test_build_rco_tokens",
+      "exit": 0,
+      "result": "61 tests ran and the suite passed; 30 tests executed and 31 Torch-dependent adapter tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "33/33 adapter tests passed with Torch and pinned Transformers after the cache repairs"
+    },
+    {
+      "command": "python3 -m unittest tools.test_materialize_pruned_qwen4exp",
+      "exit": 0,
+      "result": "7 tests passed; 2 optional Torch-dependent tests skipped under system Python"
+    },
+    {
+      "command": "ruff check [five modified tool files] && ruff format --check [same files] && git diff --check",
+      "exit": 0,
+      "result": "modified-tool lint, formatting, and whitespace checks passed"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "repository quality gate passed on dirty head 932b687e; ignored receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "python3 -m unittest tools.test_custom_coder_plan tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "30 tests ran and the suite passed; 28 executed and 2 Torch-dependent tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_custom_coder_plan tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "30/30 tests passed with Torch and safetensors; no optional test skipped"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "20/20 repository checks passed on dirty base d02d9008; ignored receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "35/35 adapter tests passed after device-resolution and signature-inspection regressions"
+    },
+    {
+      "command": "python3 tools/verify_deepseek_v41_headers.py CHECKPOINT model.safetensors.index.json RESULT.json on B550",
+      "exit": 0,
+      "result": "48/48 headers reverified with zero payload bytes; all verification fields matched the original receipt"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "20/20 repository checks passed on dirty base d9ad4e26; ignored receipt build/reports/quality/receipt.json"
+    },
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_adapter tools.test_custom_coder_plan tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "67 tests ran and the suite passed; 33 executed and 34 Torch-dependent tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter tools.test_custom_coder_plan tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "67/67 tests passed with Torch and safetensors; no optional test skipped"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "20/20 repository checks passed after the third review round on dirty base d9ad4e26"
+    },
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_adapter tools.test_custom_coder_plan tools.test_build_rco_tokens tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "79 tests ran and the suite passed; 45 executed and 34 Torch-dependent tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter tools.test_custom_coder_plan tools.test_build_rco_tokens tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "79/79 tests passed with Torch and safetensors; no optional test skipped"
+    },
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "manifest gate plus both standalone DeepSeek C++ contract tests passed after the geometry-comment repair"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "20/20 repository checks passed after the older OpenCodeReview repairs on dirty base 13d6469c"
+    }
+  ],
+  "implementation_workers": [
+    {
+      "lane": "Qwen/Coder tooling and materializer",
+      "receipt_id": "20261022-145822-8jt7tg50"
+    },
+    {
+      "lane": "DeepSeek planner and geometry",
+      "receipt_id": "20261022-145829-l_ez3xai"
+    },
+    {
+      "lane": "trace-mask accounting",
+      "receipt_id": "20261022-145834-5g62ye3j"
+    },
+    {
+      "lane": "read-only stock-RCO contract trace",
+      "receipt_id": "20261022-150033-lb9kfl8z"
+    },
+    {
+      "lane": "OpenCodeReview tooling follow-up",
+      "receipt_id": "20261022-151643-fevv94de"
+    },
+    {
+      "lane": "OpenCodeReview adapter follow-up",
+      "receipt_id": "20261022-151653-9njf5c31"
+    }
+  ],
+  "stock_rco_contract_trace": {
+    "evidence_basis": "code reading of pinned stock RCO 9a1e09c and pinned Transformers 62d7ebd7; no integration run passed",
+    "search_boundary": "stock search.prune.optimize must have its module-global install_wrappers replaced by the DeepSeek adapter before optimization; shared_state['ste_masks'] remains the search-owned state contract",
+    "device_boundary": "stock optimize allocates alpha and costs directly on cuda:0, so an unmodified stock run requires CUDA; CPU-only stock execution fails before model work",
+    "evaluation_boundary": "stock apply_hard_pruning_mask assumes raw logits can be masked then softmaxed, but V4.1 uses sqrtsoftplus scores and correction biases, so a zero-exit stock final evaluation is not yet a DeepSeek-faithful deployment evaluation",
+    "router_init_boundary": "stock compute_router_scores treats output[0] as probabilities, so --router-init must not be used for DeepSeek under stock RCO"
+  },
+  "non_claims": [
+    "This is review hardening and contract validation only; it does not establish DeepSeek or Qwen pruning quality.",
+    "The stock-RCO contract trace was read-only; no adapter-inside-stock search or stock hard-mask evaluation passed.",
+    "No stock RCO search, released DeepSeek checkpoint execution, expert mask selection, quantization, packing, or runtime benchmark ran.",
+    "The tiny pinned Transformers model and tiny safetensors fixture are structural execution probes, not the released models.",
+    "The B550 DeepSeek NVMe copy had not started at this receipt because the own-Coder calibration job still owned GPU0; the copy watcher remained alive.",
+    "Passing these tests does not clear the PR; CodeRabbit must re-review the pushed head."
+  ]
+}

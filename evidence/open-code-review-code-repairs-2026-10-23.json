@@ -1,0 +1,55 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T18:16:00Z",
+  "agent": "Codex parent",
+  "task": "Repair the actionable OpenCodeReview findings left unresolved after CodeRabbit success",
+  "source_revision": "8a9f585e371f468baf8e0c9385793121e0fc316c",
+  "source_dirty": true,
+  "source_revision_role": "clean PR head before these repairs",
+  "code_repairs": [
+    {
+      "finding": 4356211300,
+      "repair": "Reject the reference-only parent-mix allocation instead of coercing its mixed gate/up allocation to IQ4_XS; derive both recipe types from the selected recipe."
+    },
+    {
+      "finding": 4356211306,
+      "repair": "Accept gate, up, and down seed-allocation projections; remove the hard-coded 256-expert requirement while retaining explicit seed-over-budget rejection in choose_mask."
+    },
+    {
+      "finding": 4356211310,
+      "repair": "Continue interval validation after a gap or overlap and count every malformed interval instead of stopping at the first."
+    }
+  ],
+  "provenance_repairs": [
+    "The header receipt now records the tracked d6c9... verifier hash at commit 13d6469c, the matching B550 pinned copy, the reproduction output hash, and the current repaired-script hash.",
+    "The materialization receipt now distinguishes the superseded initial plan hash from the surviving router-arithmetic plan hash and binds the recomputed config, index, and mask hashes.",
+    "The stock-RCO receipt now records Git-object verification for both source revisions and both adapter hashes."
+  ],
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_custom_coder_plan tools.test_reap_mask_from_traces tools.test_verify_deepseek_v41_headers -v",
+      "exit": 0,
+      "result": "27 tests passed"
+    },
+    {
+      "command": "python3 -m unittest tools.test_reap_mask_from_traces tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_exact_copy_recipe tools.test_materialize_pruned_qwen4exp tools.test_deepseek_rco_plan tools.test_deepseek_rco_materialization_plan tools.test_verify_deepseek_v41_headers",
+      "exit": 0,
+      "result": "98 tests passed; 2 optional Torch-dependent tests skipped"
+    },
+    {
+      "command": "uv run --quiet --with torch --with httpx --with 'huggingface-hub>=1.5,<2' --with transformers==5.20.2 --with accelerate --with datasets python -m unittest tools.test_deepseek_rco_adapter",
+      "exit": 0,
+      "result": "36 tests passed with no skips"
+    },
+    {
+      "command": "git cat-file -t for all eight cited revisions",
+      "exit": 0,
+      "result": "every revision resolved as a commit"
+    }
+  ],
+  "non_claims": [
+    "No DeepSeek or Qwen payload was opened and no optimizer, model, VM, service, pack, quality, or runtime gate ran.",
+    "Evidence-size and hardware-identity comments are procedural disagreements, not accepted claims of secret leakage; this private evidence repository requires named hardware and durable receipts.",
+    "The original e6b3... verifier buffer remains historical provenance rather than a reconstructed Git object."
+  ]
+}

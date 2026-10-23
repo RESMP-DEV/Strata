@@ -222,9 +222,13 @@ void test_derived_helpers() {
 
     check(g.routed_experts_per_token_total() == 7, "text layer computes 6 routed plus 1 shared");
     check(g.text_experts_per_layer() == 385, "text layer stores 384 routed plus 1 shared");
-    check(g.dspark_experts_per_token_total() == 3, "DSpark layer computes 3 routed experts");
-    check(g.dspark_experts_per_layer() == 128, "DSpark layer stores 128 routed experts");
-    check(g.total_expert_count() == 43 * 385 + 3 * 128, "expert count covers 43 text and 3 DSpark layers");
+    check(g.dspark_experts_per_token_total() == 4, "DSpark layer computes 3 routed plus 1 shared");
+    check(
+        g.dspark_experts_per_layer() == 129,
+        "DSpark layer stores 128 routed experts plus one shared expert");
+    check(
+        g.total_expert_count() == 40 * 385 + 3 * 129,
+        "expert count covers 40 text layers and the routed plus shared experts in 3 DSpark layers");
     check(g.total_engram_rows() == 768022850, "Engram rows total");
     check(g.engram_rows_for(1) == 384006168, "Engram rows for layer 1");
     check(g.engram_rows_for(14) == 384016682, "Engram rows for layer 14");

@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import struct
 import sys
 from collections import defaultdict
@@ -62,25 +63,39 @@ def read_trace_scores(
 
 
 def choose_mask(
-    scores: dict[tuple[int, int], float], n_layers: int, n_expert: int, keep: int
+    scores: dict[tuple[int, int], float],
+    n_layers: int,
+    n_expert: int,
+    keep: int,
+    seeds: list[set[int]] | None = None,
 ) -> tuple[list[list[int]], list[list[int]], list[list[float]]]:
     """Choose exactly `keep` experts per layer.
 
-    Primary key is descending score.  Ties prefer the lower original expert id so
-    the output is deterministic.  Layers with fewer observed experts are filled by
-    ascending id; those fill entries are returned separately rather than presented
-    as trace-supported choices.
+    Seed experts are selected first, in ascending source-id order. Remaining
+    experts use descending score, with ties preferring the lower original id.
+    Layers without enough observations are filled by ascending id; fill entries
+    are returned separately rather than presented as trace-supported choices.
     """
+    seed_rows = seeds if seeds is not None else [set() for _ in range(n_layers)]
     keep_ids: list[list[int]] = []
     fill_ids: list[list[int]] = []
     selected_scores: list[list[float]] = []
     for layer in range(n_layers):
+        seed = seed_rows[layer]
+        if len(seed) > keep:
+            raise ValueError(f"layer {layer} seed has {len(seed)} experts, above budget {keep}")
+        chosen_ids = sorted(seed)
+        used = set(chosen_ids)
+        chosen_scores = [scores.get((layer, expert), 0.0) for expert in chosen_ids]
         rows = [(pair[1], score) for pair, score in scores.items() if pair[0] == layer]
         rows.sort(key=lambda row: (-row[1], row[0]))
-        chosen = rows[:keep]
-        chosen_ids = [expert for expert, _ in chosen]
-        chosen_scores = [score for _, score in chosen]
-        used = set(chosen_ids)
+        for expert, score in rows:
+            if len(chosen_ids) == keep:
+                break
+            if expert not in used:
+                chosen_ids.append(expert)
+                chosen_scores.append(score)
+                used.add(expert)
         fills: list[int] = []
         for expert in range(n_expert):
             if len(chosen_ids) == keep:
@@ -96,6 +111,40 @@ def choose_mask(
         fill_ids.append(fills)
         selected_scores.append(chosen_scores)
     return keep_ids, fill_ids, selected_scores
+
+
+def count_seed_and_trace_selected(
+    seeds: list[set[int]] | None, scores: dict[tuple[int, int], float]
+) -> int:
+    """Count seed cells that were selected and have trace support."""
+    return sum(
+        (layer, expert) in scores for layer, experts in enumerate(seeds or []) for expert in experts
+    )
+
+
+def parse_seed_allocation(path: Path, n_layers: int, n_expert: int) -> list[set[int]]:
+    """Parse an RCO allocation text into the retained experts of every layer.
+
+    The allocation names the quantization type of every expert it kept; a
+    pruned expert is listed with an empty type, so the type token is matched
+    optionally and a line without one marks a pruned expert.
+    """
+    pattern = re.compile(r"^blk\.(\d+)\.ffn_(?:gate|up|down)_exps\.weight\[(\d+)\]:\s*(\S*)\s*$")
+    result: list[set[int]] = [set() for _ in range(n_layers)]
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = pattern.match(line)
+        if match is None:
+            continue
+        layer, expert, quant = int(match[1]), int(match[2]), match[3]
+        if not 0 <= layer < n_layers or not 0 <= expert < n_expert:
+            continue
+        # An empty quantization type marks a pruned expert, not a retained one.
+        if quant:
+            result[layer].add(expert)
+    empty_layers = [layer for layer, experts in enumerate(result) if not experts]
+    if empty_layers:
+        raise ValueError(f"{path}: seed allocation has no retained experts in {empty_layers}")
+    return result
 
 
 def write_profile(
@@ -123,6 +172,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="count activations instead of router weights",
     )
+    parser.add_argument(
+        "--seed-allocation",
+        type=Path,
+        help="RCO allocation text whose retained experts are selected before trace scores",
+    )
     return parser.parse_args()
 
 
@@ -133,9 +187,21 @@ def main() -> int:
     scores, records = read_trace_scores(
         args.traces, args.layers, args.n_expert, weighted=not args.unweighted
     )
-    keep_ids, fills, selected_scores = choose_mask(scores, args.layers, args.n_expert, args.keep)
+    seeds = (
+        parse_seed_allocation(args.seed_allocation, args.layers, args.n_expert)
+        if args.seed_allocation is not None
+        else None
+    )
+    keep_ids, fills, selected_scores = choose_mask(
+        scores, args.layers, args.n_expert, args.keep, seeds=seeds
+    )
 
-    trace_supported = sum(len(row) - len(fill) for row, fill in zip(keep_ids, fills, strict=False))
+    trace_supported = sum(
+        (layer, expert) in scores for layer, experts in enumerate(keep_ids) for expert in experts
+    )
+    seed_selected = sum(len(row) for row in (seeds or []))
+    seed_and_trace_selected = count_seed_and_trace_selected(seeds, scores)
+    filled_selected = sum(len(row) for row in fills)
     total_weight = sum(max(0.0, score) for score in scores.values())
     selected_weight = sum(
         max(0.0, scores.get((layer, expert), 0.0))
@@ -153,7 +219,10 @@ def main() -> int:
         "trace_records": records,
         "distinct_observed_pairs": len(scores),
         "trace_supported_selected": trace_supported,
-        "filled_selected": args.layers * args.keep - trace_supported,
+        "filled_selected": filled_selected,
+        "unobserved_selected": args.layers * args.keep - trace_supported,
+        "seed_selected": seed_selected,
+        "seed_and_trace_selected": seed_and_trace_selected,
         "positive_trace_weight_covered": selected_weight / total_weight if total_weight else 0.0,
         "keep_ids": keep_ids,
         "fill_ids": fills,
