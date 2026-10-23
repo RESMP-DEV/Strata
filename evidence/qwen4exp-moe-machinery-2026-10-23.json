@@ -1,0 +1,81 @@
+{
+  "corrections_to_prior_findings": [
+    {
+      "claim": "Qwen4ExpTextExperts is not recognized as a fused-expert module by llmcompressor",
+      "evidence": "isinstance(instance, FusedExpertsProtocol) is True for a constructed module; the earlier false result came from probing an uninitialized instance created with __new__",
+      "status": "refuted"
+    },
+    {
+      "claim": "transformers 5.17.0 does not support qwen4_exp",
+      "evidence": "transformers 5.17.0 ships transformers/models/qwen4_exp and exposes Qwen4ExpForCausalLM at the top level",
+      "status": "refuted"
+    },
+    {
+      "claim": "llmcompressor 0.14.0 can repack compressed MoE experts into the fused native layout",
+      "evidence": "llmcompressor 0.14.0 and 0.14.0.1 only fuse weight_* qparams and cannot carry weight_packed; the compressed-expert repack exists only on upstream main",
+      "status": "refuted"
+    }
+  ],
+  "environment": {
+    "compressed_tensors": "0.19.0",
+    "environment_path": "/home/kearm/envs/qwen38-mxfp4/.venv",
+    "llmcompressor": "0.14.0",
+    "note": "llmcompressor 0.14.x pins transformers<=5.17.0, so this environment is already the newest compatible pairing",
+    "python": "3.12.14",
+    "torch": "2.14.0+cu130",
+    "transformers": "5.17.0"
+  },
+  "format": "strata-evidence-qwen4exp-moe-machinery-v1",
+  "fused_layout_workaround": {
+    "non_claims": [
+      "The comparison proves layout equivalence of the quantized tensors only.",
+      "It does not prove that an inference engine can load or serve the fused artifact.",
+      "compressed-tensors 0.19.0 cannot decompress 3D fused packed tensors directly; verification therefore slices per expert."
+    ],
+    "ple_tensors_preserved": 15,
+    "reason": "upstream main implements the compressed-expert repack but no released llmcompressor version carries it",
+    "semantics": "gate and up are concatenated along the out-feature axis and stacked over experts, matching llmcompressor main src/llmcompressor/modeling/moe/pack_helpers.py",
+    "tool": "tools/qwen4exp_moe_repack.py",
+    "verification": {
+      "comparison": "MXFP4 decompression of both layouts through compressed-tensors, exact equality",
+      "experts_compared": 16,
+      "result": "pass",
+      "tensors_compared": 32
+    },
+    "verifier": "tools/verify_fused_moe_artifact.py"
+  },
+  "host": {
+    "alias": "b550-zt",
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91"
+  },
+  "non_claims": [
+    "Every probe weight was randomly initialized; no checkpoint, corpus, or quality metric was involved.",
+    "No Flash-Next checkpoint was loaded and no GPU-hour of real quantization was spent.",
+    "A passing probe does not prove that a 231 GiB checkpoint fits in host RAM."
+  ],
+  "probe_results": {
+    "cpu_full_attention": {
+      "expected_expert_linear_modules": 48,
+      "expert_linear_modules": 48,
+      "linearized_stacks": 2,
+      "max_abs_logit_delta_vs_fused": 0.0,
+      "protocol_recognized": true,
+      "quantize_elapsed_seconds": 2.418,
+      "quantize_output_tensors": 177,
+      "remote_receipt": "/home/kearm/strata-scratch/own-coder-run/w4a16/probe/probe-quant-cpu.json",
+      "repack_max_abs_logit_delta_vs_fused": 0.0
+    },
+    "gpu_linear_attention_with_ple": {
+      "max_abs_logit_delta_vs_fused": 0.0,
+      "protocol_recognized": true,
+      "quantize_elapsed_seconds": 4.217,
+      "quantize_output_tensors": 192,
+      "remote_receipt": "/home/kearm/strata-scratch/own-coder-run/w4a16/probe/probe-ple-gpu.json",
+      "repack_max_abs_abs_logit_delta_vs_fused": 0.0
+    },
+    "tool": "tools/qwen4exp_moe_probe.py"
+  },
+  "recorded_at": "2026-10-23",
+  "scope": "Whether llmcompressor 0.14.0 can linearize, quantize, and repack Qwen4Exp MoE experts"
+}

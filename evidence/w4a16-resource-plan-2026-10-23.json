@@ -1,0 +1,103 @@
+{
+  "blockers": [
+    {
+      "id": "host-ram",
+      "required_change": "a layer-streaming runner that materializes one decoder layer at a time from the safetensors index",
+      "statement": "A 231.09 GiB checkpoint cannot be loaded into 91 GiB of RAM, so the stock llmcompressor sequential pipeline cannot run on this host as written."
+    },
+    {
+      "consequence": "a W4A16 artifact that keeps PLE in BF16 is about 133 GiB and cannot be served from 48 GiB of VRAM on this host",
+      "id": "ple-bulk",
+      "required_decision": "either quantize the PLE table as well or serve it CPU-resident with an on-demand gather path",
+      "statement": "PLE is 95.43 GiB of BF16 n-gram embedding and is not a Linear target, so it stays BF16 in a W4A16 artifact."
+    },
+    {
+      "id": "fused-loader",
+      "required_change": "an inference-path decision: vLLM fused MoE loader, or a custom CPU gather path for PLE",
+      "statement": "compressed-tensors 0.19.0 cannot decompress 3D fused packed expert tensors, so a transformers-side dequantized load of the fused artifact is not proven."
+    }
+  ],
+  "format": "strata-evidence-w4a16-resource-plan-v1",
+  "gpu_observations": [
+    {
+      "observed_at": "2026-10-23T21:31:29Z",
+      "state": "GPU0 held an unrelated 6.97 GiB process; no work was started"
+    },
+    {
+      "observed_at": "2026-10-23T22:12:00Z",
+      "state": "GPU0 released (1 MiB used, no compute processes); the tiny GPU probe ran on it in seconds"
+    }
+  ],
+  "host": {
+    "alias": "b550-zt",
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "vram_gib": 24
+      },
+      {
+        "index": 1,
+        "name": "NVIDIA GeForce RTX 3090 Ti",
+        "state": "assigned to the win11-gaming VFIO VM"
+      }
+    ],
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "ram_gib_available": 72,
+    "ram_gib_total": 91,
+    "storage": {
+      "resmp_24tb_free_gib": 18000,
+      "root_nvme_free_gib": 769
+    },
+    "swap_gib": 7
+  },
+  "non_claims": [
+    "No full-model quantization, oracle cache, quality measurement, or benchmark ran.",
+    "This receipt plans the run; it does not report an artifact.",
+    "Storage and GPU observations are point-in-time and must be rechecked before a run."
+  ],
+  "planned_w4a16_weight_bytes": {
+    "cost_artifact": "evidence/w4a16-cost-model-2026-10-23.json",
+    "expert_modules": 48,
+    "packed": 35779276800,
+    "scales": 2236204800,
+    "tensor_count": 820,
+    "total": 38015481600,
+    "total_gib": 35.4
+  },
+  "recorded_at": "2026-10-23",
+  "scope": "Resource envelope for producing and serving the 288-expert own-Coder W4A16 artifact",
+  "source_checkpoint": {
+    "architecture": "Qwen4ExpForCausalLM",
+    "breakdown_gib": {
+      "attention": 4.48,
+      "embed_tokens": 1.18,
+      "experts": 126.56,
+      "lm_head": 1.18,
+      "other": 1.82,
+      "ple": 95.43,
+      "shared_expert": 0.44
+    },
+    "hidden_size": 2560,
+    "moe_intermediate_size": 640,
+    "num_experts": 288,
+    "num_experts_per_tok": 10,
+    "num_hidden_layers": 48,
+    "path": "/home/kearm/strata-scratch/own-coder-run/pruned-bf16-288",
+    "ple_geometry": {
+      "heads_per_ngram": 8,
+      "ngram_size": 3,
+      "ngram_vocab_size_base": 20000000,
+      "note": "the n-gram table is a 20M x 2560 lookup table stored in 128 shards and is not a Linear target",
+      "ple_embed_dim": 2560,
+      "ple_layer_ids": [
+        2
+      ],
+      "shards": 128,
+      "split_ngram_parts": 128
+    },
+    "safetensors_shards": 131,
+    "total_gib": 231.09
+  }
+}

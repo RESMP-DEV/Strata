@@ -1,0 +1,79 @@
+{
+  "converter": {
+    "behavior": "byte-for-byte copy of the recorded raw int32 stream into a C-order int32 .npy",
+    "numpy_required": false,
+    "tool": "tools/calibration_npy.py"
+  },
+  "format": "strata-evidence-w4a16-calibration-inputs-v1",
+  "host": {
+    "alias": "b550-zt",
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91"
+  },
+  "non_claims": [
+    "No tokenizer ran and no token was regenerated, reordered, or resampled.",
+    "No model forward, calibration, quantization, or measurement ran.",
+    "The matrices are inputs; they carry no quality claim."
+  ],
+  "recorded_at": "2026-10-23",
+  "scope": "Exact W4A16 calibration and held-out token matrices for the 288-expert own-Coder model",
+  "splits": [
+    {
+      "dataset": "alphaheng-claude-code-v2-calibration",
+      "matrix": {
+        "bytes": 2097280,
+        "dtype": "int32",
+        "path": "build/w4a16/calibration/alphaheng-calibration-256x2048.npy",
+        "sha256": "d64f081ad90aaaf9d629eb3d99bfbb7df8f577df8d2ac860e4861ade9a35c32a",
+        "shape": [
+          256,
+          2048
+        ]
+      },
+      "source_raw": {
+        "path": "/Users/kearm/Strata/.worktrees/own-coder/build/own-coder/alphaheng-calibration-256x2048.i32",
+        "sha256": "aee9f0a2ee350987ca2c19b042ea4c59b8a7343168e93976ceb7ac2a8bdc172f",
+        "tokens": 524288
+      },
+      "source_receipt_sha256": "a60e82a0119848635e42dc90c8a892a5756a744165f93fcd649dea40271260c5",
+      "split": "calibration",
+      "token_ids": {
+        "max": 248046,
+        "min": 0
+      },
+      "tokenizer": "/Users/kearm/models/Qwen3.8-Flash-Next-BF16"
+    },
+    {
+      "dataset": "alphaheng-claude-code-v2-validation",
+      "matrix": {
+        "bytes": 524416,
+        "dtype": "int32",
+        "path": "build/w4a16/calibration/alphaheng-heldout-64x2048.npy",
+        "sha256": "76129194e90120e44f9be7a945a904d641d4c53083293e7836b0202d0dfacad7",
+        "shape": [
+          64,
+          2048
+        ]
+      },
+      "source_raw": {
+        "path": "/Users/kearm/Strata/.worktrees/own-coder/build/own-coder/alphaheng-heldout-64x2048.i32",
+        "sha256": "fc52b233bb09651d46fb167b19359c7d9d2326bdcb41973e04a3a148054f1581",
+        "tokens": 131072
+      },
+      "source_receipt_sha256": "fba8112bc9515a0f193fa8eb3f5a0b7434cc438c634fbf7c85fbc518c773620d",
+      "split": "heldout",
+      "token_ids": {
+        "max": 248046,
+        "min": 0
+      },
+      "tokenizer": "/Users/kearm/models/Qwen3.8-Flash-Next-BF16"
+    }
+  ],
+  "verification": {
+    "command": "/home/kearm/envs/qwen38-mxfp4/.venv/bin/python (numpy.load mmap + torch.load parity)",
+    "numpy_loadable": true,
+    "remote_path": "/home/kearm/strata-scratch/own-coder-run/w4a16/calibration",
+    "splits_distinct": true,
+    "torch_source_parity": true
+  }
+}

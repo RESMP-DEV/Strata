@@ -2652,3 +2652,54 @@ candidate. The earlier 13.47 tok/s W4A16 and 50.06 tok/s vendor GSQ-RCO numbers 
 non-controlled Qwen3.8-27B runtime measurements and are not promoted to RCO measurement results. No
 process was killed and no GPU measurement ran. Full inventory and commands are in
 [RCO measurement readiness evidence](../evidence/rco-measurement-readiness-2026-10-23.json).
+
+### W4A16 own-Coder lane: machinery, exact cost, and the remaining resource wall, 2026-10-23
+
+The DeepSeek lane stays parked. This entry records the W4A16 work for the 288-expert
+own-Coder Flash-Next model: what is now proven, what the exact deployment cost is, and
+which blockers remain before a full run can start.
+
+`tools/quant_candidate_plan.py` now accepts an explicit `candidate_mode` of
+`w4a16-only`. A manifest that declares it must carry exactly one W4A16 arm, and the
+emitted plan states that a single-arm plan is a deployable artifact lane and not RCO
+multi-candidate optimization. The default two-arm W4A16 plus W4A4 contract is unchanged,
+and both modes still report `gpu_allowed=false`.
+
+`tools/calibration_npy.py` converts the recorded raw int32 token streams into the exact
+`256x2048` and `64x2048` int32 matrices the W4A16 recipe loads, without a tokenizer and
+without numpy on the control host. On B550 the matrices load with `numpy.load` and match
+the original torch tensors element for element, and the two split hashes differ.
+
+The Qwen4Exp MoE path was probed live and two earlier blockers were refuted.
+llmcompressor 0.14.0 with transformers 5.17.0 recognizes `Qwen4ExpTextExperts` as a
+fused-expert module; the earlier negative result came from probing an uninitialized
+instance. Transformers 5.17.0 does ship `qwen4_exp`. Linearization, GPTQ MXFP4A16, and
+repack all run on a tiny random model on CPU and on GPU with the real layer types,
+including PLE and linear attention, with fused, linearized, and repacked logits identical
+to the fused reference.
+
+No released llmcompressor carries the compressed-expert repack: 0.14.0 and 0.14.0.1 fuse
+only `weight_*` qparams and cannot carry `weight_packed`, while upstream `main` implements
+it in `src/llmcompressor/modeling/moe/pack_helpers.py`. `tools/qwen4exp_moe_repack.py`
+therefore performs that fusion at the file level, so it never needs the whole model in
+RAM, and `tools/verify_fused_moe_artifact.py` proves the result by decompressing both
+layouts through compressed-tensors and comparing them exactly. compressed-tensors 0.19.0
+cannot decompress 3D fused packed tensors directly, so the verifier slices per expert.
+
+`tools/w4a16_cost_model.py` derives the exact MXFP4A16 deployment bytes from the real
+module geometry on the meta device: 820 quantized tensors, 48 fused expert stacks, and
+38,015,481,600 bytes, which is 35.4 GiB, of which 36,097,228,800 bytes are the routed
+experts.
+
+Three blockers remain, and none of them is GPU availability. The checkpoint is 231.09 GiB
+while the host has 91 GiB of RAM, so the stock llmcompressor sequential pipeline cannot run
+here and a layer-streaming runner is required. PLE is 95.43 GiB of BF16 n-gram embedding
+and is not a Linear target, so a W4A16 artifact that keeps PLE in BF16 is about 133 GiB
+and cannot be served from 48 GiB of VRAM, which forces an explicit decision to quantize
+PLE or to gather it on the CPU. Finally, the fused expert layout is proven equivalent but
+not yet proven loadable by an inference engine. No full-model quantization, oracle cache,
+quality measurement, or benchmark ran. The receipts are
+[W4A16 calibration inputs](../evidence/w4a16-calibration-inputs-2026-10-23.json),
+[Qwen4Exp MoE machinery](../evidence/qwen4exp-moe-machinery-2026-10-23.json),
+[W4A16 cost model](../evidence/w4a16-cost-model-2026-10-23.json), and
+[W4A16 resource plan](../evidence/w4a16-resource-plan-2026-10-23.json).
