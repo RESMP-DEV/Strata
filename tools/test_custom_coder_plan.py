@@ -139,9 +139,13 @@ class CustomCoderPlanTest(unittest.TestCase):
         self.assertEqual(manifest["selected_budget"]["kept_experts"], 13_824)
         self.assertIn("--per-layer-budget", manifest["commands"]["search_own_mask"]["argv"])
         quantize = manifest["commands"]["quantize_experts"]["argv"]
-        self.assertIn("ffn_gate_exps=IQ3_S", quantize)
-        self.assertIn("ffn_down_exps=IQ4_NL", quantize)
-        self.assertIn("COPY", quantize)
+        self.assertNotIn("--tensor-type", quantize)
+        self.assertIn("--tensor-type-file", quantize)
+        self.assertIn("--keep-split", quantize)
+        self.assertIn("IQ3_S", quantize)
+        recipe_command = manifest["commands"]["build_quantization_recipe"]["argv"]
+        self.assertIn("--ple-type", recipe_command)
+        self.assertEqual(recipe_command[recipe_command.index("--ple-type") + 1], "IQ4_NL")
         imatrix_value_index = quantize.index(str(self.root / "work" / "own-288-imatrix.gguf"))
         quantized_output_index = quantize.index(
             str(self.root / "work" / "flash-next-own-288-iq3s-iq4nl.gguf")
@@ -235,17 +239,22 @@ class CustomCoderPlanTest(unittest.TestCase):
         imatrix_path = self.root / "imatrix.gguf"
         input_gguf = self.root / "in.gguf"
         output_gguf = self.root / "out.gguf"
+        recipe = self.root / "recipe.txt"
         argv = MODULE.quantize_arguments(
-            quantizer, imatrix_path, input_gguf, output_gguf, "IQ3_S", 32
+            quantizer, imatrix_path, input_gguf, output_gguf, recipe, "IQ3_S", 32
         )
-        MODULE.validate_quantize_layout(argv, imatrix_path, input_gguf, output_gguf, 32)
+        MODULE.validate_quantize_layout(
+            argv, imatrix_path, input_gguf, output_gguf, recipe, "IQ3_S", 32
+        )
         self.assertEqual(argv[0], str(quantizer))
         self.assertEqual(argv[argv.index("--imatrix") + 1], str(imatrix_path))
-        self.assertEqual(argv[-2:], ["COPY", "32"])
+        self.assertEqual(argv[-2:], ["IQ3_S", "32"])
         broken = list(argv)
         broken[-2] = "ADD"
-        with self.assertRaisesRegex(ValueError, "must end with COPY"):
-            MODULE.validate_quantize_layout(broken, imatrix_path, input_gguf, output_gguf, 32)
+        with self.assertRaisesRegex(ValueError, "must end with IQ3_S"):
+            MODULE.validate_quantize_layout(
+                broken, imatrix_path, input_gguf, output_gguf, recipe, "IQ3_S", 32
+            )
 
     def test_control_quantize_differs_only_in_imatrix_and_output(self) -> None:
         args = self.make_args()

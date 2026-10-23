@@ -2393,6 +2393,25 @@ geometry comment now separates the 40 backbone layers from the three DSpark
 stages, tokenizer output must be a mapping with array-like `input_ids`, and
 Coder byte budgets use exact rational arithmetic before decimal renderings.
 
+### Own-Coder calibrated quantization, 2026-10-23
+
+The completed 256×2048 own-data iMatrix fed a real six-shard llama.cpp
+quantization on B550. The first planner command exposed a methodology bug:
+with global type `COPY`, this llama.cpp build ignores manual tensor overrides.
+The repaired path uses a quantized `IQ3_S` default plus a complete anchored
+1,224-row recipe, restoring every non-target tensor to BF16/F32 while
+selecting 96 gate/up expert tensors as `IQ3_S`, 48 down-expert tensors as
+`IQ4_NL`, and the 95.37-GiB PLE table as `IQ4_NL`. `--keep-split` preserves
+the six-shard Strata input layout.
+
+The corrected dry run projected and the real run produced exactly
+67,635.47 MiB at 4.57 BPW, or 70,931,955,648 bytes. All 1,224 output tensor
+types matched the recipe, the six SHA-256 hashes are recorded, and both GPUs
+were idle after the 32m13s CPU run. This is a calibrated GGUF artifact, not
+GSQ or RCO optimization, and no pack, quality, or runtime claim follows. Full
+methodology, hashes, checks, and boundaries are in
+[own-Coder calibrated quantization evidence](../evidence/qwen-own-coder-calibrated-quantization-2026-10-23.json).
+
 ### DeepSeek stock-RCO tiny integration, 2026-10-22
 
 The adapter then crossed the first real stock-RCO execution boundary on B550

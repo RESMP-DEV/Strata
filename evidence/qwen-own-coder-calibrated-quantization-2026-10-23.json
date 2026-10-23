@@ -1,0 +1,105 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T17:41:00Z",
+  "agent": "Codex parent",
+  "task": "Quantize the deterministic 288-expert own-Coder GGUF with the completed 256x2048 iMatrix",
+  "source_revision": "e2830fe51f964cc190708cd04aa26cd4579bcd7c",
+  "source_dirty": true,
+  "source_revision_role": "clean PR head before the planner repair; the quantization-methodology repair is part of this change",
+  "hardware": {
+    "host": "B550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "execution": "CPU quantization with 32 requested threads on NVMe-backed scratch; both GPUs were idle afterward"
+  },
+  "inputs": {
+    "bf16_split": {
+      "pattern": "/home/kearm/strata-scratch/own-coder-run/flash-next-own-288-bf16-0000N-of-00006.gguf",
+      "shards": 6,
+      "total_bytes": 248223368224
+    },
+    "imatrix": {
+      "path": "/home/kearm/strata-scratch/own-coder-run/alphaheng-288-imatrix-full-0-255-2048.gguf",
+      "sha256": "90173f3073edc204a8cdeb95642318b5c7a3f440843439ea69ca3e41b8187033",
+      "chunk_count": 256,
+      "chunk_size": 2048,
+      "tensor_entries": 902
+    },
+    "quantizer_sha256": "05f3352224658dc7d36a342a51c5d4ac9d401fc8ce31f2a5a9e85f8aac52af20",
+    "tensor_recipe": {
+      "path": "/home/kearm/strata-scratch/own-coder-run/own-288-iq3s-iq4nl.tensor-types",
+      "sha256": "710cf689c48ca7ea05e5bb5f287ea2f366906f1957dbb0fa744969907a4ccbda",
+      "rows": 1224,
+      "gate_up_iq3_s": 96,
+      "down_iq4_nl": 48,
+      "ple_iq4_nl": 1,
+      "source_type_preserved": 1079
+    }
+  },
+  "methodology": {
+    "bug_found": "A global COPY default does not apply llama.cpp manual tensor overrides in this build, so the earlier planner command would have remained BF16.",
+    "repair": "Use a quantized IQ3_S default, --keep-split, and a complete anchored per-tensor recipe that restores every non-target tensor to BF16/F32 while selecting the intended expert and PLE tensors.",
+    "command": "llama-quantize --imatrix alphaheng-288-imatrix-full-0-255-2048.gguf --tensor-type-file own-288-iq3s-iq4nl.tensor-types --keep-split flash-next-own-288-bf16-00001-of-00006.gguf flash-next-own-288-iq3s-iq4nl.gguf IQ3_S 32",
+    "dry_run_exit": 0,
+    "dry_run_projected_mib": 67635.47,
+    "run_exit": 0,
+    "run_seconds": 1933.476
+  },
+  "output": {
+    "pattern": "/home/kearm/strata-scratch/own-coder-run/flash-next-own-288-iq3s-iq4nl-0000N-of-00006.gguf",
+    "shards": 6,
+    "total_bytes": 70931955648,
+    "reported_quant_size_mib": 67635.47,
+    "metadata": {
+      "tensor_count": 1224,
+      "expert_count": 288,
+      "expert_used_count": 10,
+      "split_count": 6
+    },
+    "type_counts": {
+      "BF16": 691,
+      "F32": 388,
+      "IQ3_S": 96,
+      "IQ4_NL": 49
+    },
+    "recipe_match_count": 1224,
+    "recipe_mismatch_count": 0,
+    "sha256": {
+      "00001-of-00006": "d684af9b19571f0dd15961b63bc477b4bc246318e2b0b6f483a697caa379e296",
+      "00002-of-00006": "a0a2c11f4319c85c8f293549ce8f97af544b4ab1c3ee1c764173ccc955d22f1c",
+      "00003-of-00006": "6ea4a7c68cdb8dee8e7426b92b4a6bb0c555777176507dfade4b80a8c1e58d83",
+      "00004-of-00006": "490e63637841402c277044f28841d2bd1fb3b682be55743f5463a79ea87f0597",
+      "00005-of-00006": "b9a9cb2c924845e86bde8273daade9df924dd1f415fcc7b333970858961be6dc",
+      "00006-of-00006": "71cb1b1b8c36a57bc6ccee125dd0e1070fa37f630784c5c667d365529425ef0d"
+    },
+    "manifest": "/home/kearm/strata-scratch/own-coder-run/own-288-iq3s-iq4nl.SHA256SUMS",
+    "run_log_sha256": "68c35477b3ddd12a4984969fbad3c489f5bdf66219a43513ffdc4630f401fb04"
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_reap_mask_from_traces tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_exact_copy_recipe tools.test_materialize_pruned_qwen4exp tools.test_deepseek_rco_plan tools.test_deepseek_rco_materialization_plan",
+      "exit": 0,
+      "result": "94 tests ran and passed; 2 optional Torch-dependent tests skipped"
+    },
+    {
+      "command": "ruff check and format --check on the maintained planner/recipe/quality files",
+      "exit": 0,
+      "result": "lint and formatting passed"
+    },
+    {
+      "command": "just quality with repository cache workarounds",
+      "exit": 0,
+      "result": "20/20 repository checks passed on the dirty methodology-repair candidate"
+    },
+    {
+      "command": "real six-shard recipe/output metadata comparison",
+      "exit": 0,
+      "result": "all 1,224 output tensor types matched their anchored recipe rows"
+    }
+  ],
+  "non_claims": [
+    "This is not GSQ Gumbel-Softmax optimization or RCO expert-search optimization.",
+    "No Strata pack, model load, perplexity, held-out KL, quality benchmark, or runtime benchmark ran.",
+    "The PLE table had no matching iMatrix entry and was quantized IQ4_NL without an activation-importance override.",
+    "No claim is made that IQ3_S/IQ4_NL is quality-optimal."
+  ]
+}

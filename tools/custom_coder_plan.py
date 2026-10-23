@@ -19,6 +19,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any, TypedDict
 
+ROOT = Path(__file__).resolve().parents[1]
 N_LAYERS = 48
 N_EXPERTS = 512
 EXPERT_PARAMETERS = 2 * 640 * 2560 + 640 * 2560
@@ -188,30 +189,28 @@ def quantize_arguments(
     imatrix_path: Path,
     input_gguf: Path,
     output_gguf: Path,
+    tensor_type_file: Path,
     gate_up_type: str,
     threads: int,
 ) -> list[str]:
     """Build one `llama-quantize` argv.
 
     The own-mask arm and the standard-calibration control arm differ only in
-    the imatrix file and the output file, so both are built from this one
-    function instead of splicing a shared argv by position.
+    the imatrix file and the output file. A complete per-tensor recipe is
+    mandatory: llama.cpp ignores manual overrides when the global type is COPY
+    because COPY is not a quantized default. The quantized default plus recipe
+    restores every non-target tensor to its source type.
     """
     return [
         str(quantizer),
         "--imatrix",
         str(imatrix_path),
-        "--tensor-type",
-        f"ffn_gate_exps={gate_up_type}",
-        "--tensor-type",
-        f"ffn_up_exps={gate_up_type}",
-        "--tensor-type",
-        "ffn_down_exps=IQ4_NL",
-        "--tensor-type",
-        "per_layer_token_embd=IQ4_NL",
+        "--tensor-type-file",
+        str(tensor_type_file),
+        "--keep-split",
         str(input_gguf),
         str(output_gguf),
-        "COPY",
+        gate_up_type,
         str(threads),
     ]
 
@@ -221,22 +220,35 @@ def validate_quantize_layout(
     imatrix_path: Path,
     input_gguf: Path,
     output_gguf: Path,
+    tensor_type_file: Path,
+    default_type: str,
     threads: int,
 ) -> None:
     """Fail loudly when a `llama-quantize` argv no longer has the expected layout.
 
     The manifest records these argv lists verbatim, so a layout drift that
     swapped an input for an output would still look plausible in the receipt.
+    A complete recipe and quantized default are load-bearing: llama.cpp only
+    applies manual tensor overrides when the default type is quantized.
     """
-    if argv[-2:] != ["COPY", str(threads)]:
-        raise ValueError(f"llama-quantize argv must end with COPY and the thread count: {argv}")
+    if argv[-2:] != [default_type, str(threads)]:
+        raise ValueError(
+            f"llama-quantize argv must end with {default_type} and the thread count: {argv}"
+        )
     if argv.count("--imatrix") != 1:
         raise ValueError(f"llama-quantize argv must carry exactly one --imatrix flag: {argv}")
     imatrix_index = argv.index("--imatrix")
     if imatrix_index + 1 >= len(argv) or argv[imatrix_index + 1] != str(imatrix_path):
         raise ValueError(f"llama-quantize argv must name the requested imatrix: {argv}")
-    if argv.count("--tensor-type") != 4:
-        raise ValueError(f"llama-quantize argv must carry four --tensor-type flags: {argv}")
+    if argv.count("--tensor-type") != 0:
+        raise ValueError(f"llama-quantize argv must not use scattered --tensor-type flags: {argv}")
+    if argv.count("--tensor-type-file") != 1:
+        raise ValueError(f"llama-quantize argv must carry one --tensor-type-file flag: {argv}")
+    recipe_index = argv.index("--tensor-type-file") + 1
+    if recipe_index >= len(argv) or argv[recipe_index] != str(tensor_type_file):
+        raise ValueError(f"llama-quantize argv must name the complete recipe: {tensor_type_file}")
+    if "--keep-split" not in argv:
+        raise ValueError("llama-quantize argv must preserve the source split layout")
     if str(input_gguf) not in argv:
         raise ValueError(f"llama-quantize argv must name the requested input file: {argv}")
     if str(output_gguf) not in argv:
@@ -292,6 +304,7 @@ def build_manifest(
     bf16_gguf = work / f"flash-next-own-{keep}-bf16.gguf"
     imatrix = work / f"own-{keep}-imatrix.gguf"
     control_imatrix = work / "standard-ptq-imatrix.gguf"
+    tensor_type_recipe = work / f"own-{keep}-{args.recipe}-tensor-types.txt"
     quantized = work / f"flash-next-own-{keep}-{args.recipe}.gguf"
     control_quantized = work / f"flash-next-own-{keep}-{args.recipe}-standard-cal.gguf"
     rco = args.rco_root
@@ -304,6 +317,7 @@ def build_manifest(
         imatrix,
         bf16_gguf,
         quantized,
+        tensor_type_recipe,
         gate_up_type,
         args.threads,
     )
@@ -312,12 +326,27 @@ def build_manifest(
         control_imatrix,
         bf16_gguf,
         control_quantized,
+        tensor_type_recipe,
         gate_up_type,
         args.threads,
     )
-    validate_quantize_layout(quantize_argv, imatrix, bf16_gguf, quantized, args.threads)
     validate_quantize_layout(
-        control_quantize_argv, control_imatrix, bf16_gguf, control_quantized, args.threads
+        quantize_argv,
+        imatrix,
+        bf16_gguf,
+        quantized,
+        tensor_type_recipe,
+        gate_up_type,
+        args.threads,
+    )
+    validate_quantize_layout(
+        control_quantize_argv,
+        control_imatrix,
+        bf16_gguf,
+        control_quantized,
+        tensor_type_recipe,
+        gate_up_type,
+        args.threads,
     )
     return {
         "format": "strata-custom-coder-plan-v1",
@@ -444,6 +473,22 @@ def build_manifest(
                     "10",
                     "--save-frequency",
                     "50",
+                ]
+            ),
+            "build_quantization_recipe": command(
+                [
+                    python,
+                    str(ROOT / "tools" / "exact_copy_recipe.py"),
+                    "--model",
+                    str(bf16_gguf),
+                    "--output",
+                    str(tensor_type_recipe),
+                    "--gate-up-type",
+                    gate_up_type,
+                    "--down-type",
+                    "IQ4_NL",
+                    "--ple-type",
+                    "IQ4_NL",
                 ]
             ),
             "quantize_experts": command(quantize_argv),
