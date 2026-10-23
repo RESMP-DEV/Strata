@@ -1,0 +1,106 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T18:38:00Z",
+  "agent": "Codex parent",
+  "task": "Check upstream RCO/GSQ changes and establish RESMP-DEV fork links",
+  "source_revision": "e529265713e14cc08a969c73167ae959c89c01ce",
+  "source_dirty": true,
+  "upstream": {
+    "RCO": {
+      "pinned": "9a1e09c07d468109cbe60a1b87d5036034a79d10",
+      "upstream_main": "9a1e09c07d468109cbe60a1b87d5036034a79d10",
+      "default_branch_changes": "none",
+      "open_pull_requests": 0,
+      "open_issues": 0
+    },
+    "GSQ": {
+      "pinned": "03fc16484c369e3127225615d5e03e8d3a6043e3",
+      "upstream_main": "03fc16484c369e3127225615d5e03e8d3a6043e3",
+      "default_branch_changes": "none",
+      "relevant_unmerged_work": [
+        {
+          "type": "pull_request",
+          "number": 7,
+          "head": "ba6bc3ebba168c3d46503d3ab55f509d4b4f50b8",
+          "title": "Reduce peak backward memory in GumbelSoftmaxFunction",
+          "status": "open from an external fork; not present on upstream main",
+          "boundary": "The one-file patch claims bit-identical in-place gradient arithmetic. It was inspected read-only and not applied or benchmarked."
+        },
+        {
+          "type": "branch",
+          "name": "new_calib_data",
+          "head": "08c97635fd3addc9c40d9b6110344184989a400f",
+          "status": "five commits beyond the common merge-base, not merged to main",
+          "boundary": "Adds custom reasoning/JSONL and mixed calibration support plus contiguous pinned-memory batch changes; no Qwen4Exp/Flash-Next wrapper or release GGUF exporter."
+        },
+        {
+          "type": "branch",
+          "name": "sharded-mlp-forward",
+          "head": "078ccb94fd6a7f8250092f8cfc6e7a4c009fa2b0",
+          "status": "one commit beyond the common merge-base, not merged to main",
+          "boundary": "Adds dense Qwen3.5 MLP tensor-sharded training. It is not a Qwen4Exp/Flash-Next MoE wrapper and does not address PLE or Strata GGUF export."
+        }
+      ],
+      "release_reproduction_boundary": "Upstream issue #9 states that the public GSQ/RCO repositories omit release-specific BF16-to-GGUF/IQuant candidate generation, the serialized byte-cost model, the RCO command/config, mixed GGUF assembly/export, and any llama.cpp fork or auxiliary release pipeline."
+    }
+  },
+  "forks": {
+    "RCO-fork": {
+      "url": "https://github.com/RESMP-DEV/RCO-fork",
+      "parent": "IST-DASLab/RCO",
+      "main": "9a1e09c07d468109cbe60a1b87d5036034a79d10",
+      "visibility": "public because it is a fork of a public upstream repository",
+      "actions_enabled": false
+    },
+    "GSQ-fork": {
+      "url": "https://github.com/RESMP-DEV/GSQ-fork",
+      "parent": "IST-DASLab/GSQ",
+      "main": "03fc16484c369e3127225615d5e03e8d3a6043e3",
+      "branches_present": [
+        "main",
+        "feature/aln-binary-fixed-ternary",
+        "fix/qwen",
+        "gsvq-iquant-qwen3-sweep-results",
+        "new_calib_data",
+        "sharded-mlp-forward"
+      ],
+      "visibility": "public because it is a fork of a public upstream repository",
+      "actions_enabled": false
+    },
+    "existing_private_snapshots": "RESMP-DEV/RCO and RESMP-DEV/GSQ remain untouched standalone private mirrors at the pinned main revisions."
+  },
+  "local_remote_policy": {
+    "root": "~/.local/share/strata-tools/{RCO,GSQ}",
+    "upstream_origin_fetch_url": "IST-DASLab upstream",
+    "upstream_origin_push_url": "NO_PUSH_UPSTREAM_IS_FETCH_ONLY",
+    "owned_remote": "resmp -> RESMP-DEV/{RCO,GSQ}-fork"
+  },
+  "checks": [
+    {
+      "command": "git fetch --prune origin in both local tool trees",
+      "exit": 0,
+      "result": "upstream main heads remain identical to the pinned revisions"
+    },
+    {
+      "command": "gh repo view and GitHub branches API for RESMP-DEV/RCO-fork and RESMP-DEV/GSQ-fork",
+      "exit": 0,
+      "result": "both repositories are true forks with the expected parent, pinned heads, and all GSQ branches"
+    },
+    {
+      "command": "PUT /repos/RESMP-DEV/{RCO,GSQ}-fork/actions/permissions enabled=false",
+      "exit": 0,
+      "result": "Actions disabled on both new forks"
+    },
+    {
+      "command": "git remote set-url --push origin NO_PUSH_UPSTREAM_IS_FETCH_ONLY; git remote add resmp RESMP-DEV fork; git fetch resmp",
+      "exit": 0,
+      "result": "owned fork refs fetched locally and upstream push disabled"
+    }
+  ],
+  "non_claims": [
+    "No RCO search, GSQ optimization, model load, quantization, or benchmark ran.",
+    "GSQ PR #7 and the two relevant unmerged GSQ branches were not applied or validated.",
+    "No upstream PR, issue comment, review, or push was made.",
+    "Creating true public forks does not change the existing private standalone snapshots or their evidence references."
+  ]
+}

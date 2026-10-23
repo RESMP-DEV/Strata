@@ -2557,3 +2557,20 @@ reproduced, and superseded categories. The 98-test host-safe planning suite and 
 36-test pinned Torch adapter suite passed; no optimizer or payload was run. Details
 are in
 [OpenCodeReview repair evidence](../evidence/open-code-review-code-repairs-2026-10-23.json).
+
+### GSQ/RCO upstream and fork topology, 2026-10-23
+
+Both pinned upstream default branches are unchanged: RCO remains at `9a1e09c` and GSQ
+at `03fc164`. GSQ has one open external PR reducing Gumbel-backward peak memory and two
+unmerged branches for custom reasoning/JSONL calibration and dense Qwen3.5 MLP tensor
+sharding; none adds the Flash-Next/Qwen4Exp wrapper or release GGUF exporter. Upstream
+issue #9 confirms that the public release pipeline omits candidate generation, byte-cost
+serialization, RCO configuration, and mixed GGUF assembly, so the existing vendor
+GSQ-RCO GGUF method cannot be reproduced exactly from public main alone.
+
+The private standalone snapshots remain at `RESMP-DEV/RCO` and `RESMP-DEV/GSQ`. True
+fork links now also exist at public `RESMP-DEV/RCO-fork` and `RESMP-DEV/GSQ-fork`,
+with Actions disabled and all current upstream branches present. Local tool-tree
+upstream remotes are fetch-only, while the owned fork remotes are named `resmp`. No
+optimizer ran and no upstream patch was applied. Full evidence is in
+[GSQ/RCO upstream fork evidence](../evidence/gsq-rco-upstream-forks-2026-10-23.json).
