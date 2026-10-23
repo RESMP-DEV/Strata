@@ -259,6 +259,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         captured: list[Any] = []
         hook = None
+        analysis_result: dict[str, Any] | None = None
         if physical_layer not in dense_layers:
 
             def capture(_module, args_tuple, sink=captured):
@@ -277,6 +278,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     model.config.num_experts,
                 )
                 keep_rows.append(result["keep_ids"])
+            analysis_result = result
         finally:
             if hook is not None:
                 hook.remove()
@@ -290,6 +292,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if row["kind"] == "routed":
             row["logical_layer"] = len(layer_receipts)
             row["keep_count"] = len(keep_rows[-1])
+            if analysis_result is not None:
+                row["rounds"] = analysis_result["rounds"]
+                row["reference_energy"] = analysis_result["reference_energy"]
             layer_receipts.append(row)
         print(json.dumps(row, sort_keys=True), flush=True)
 
