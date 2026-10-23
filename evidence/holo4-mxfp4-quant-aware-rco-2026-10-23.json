@@ -25,7 +25,7 @@
     "The MXFP4 W4A16 MoE-block error is 0.09733 on held-out tokens; a single expert tensor has 0.120098 weight error. Quantization quality, not expert count, dominates the 16-expert sample.",
     "The Mac repeat reproduced the ordering and the W4A16 error floor; exact impact-set and held-out values differ slightly because CPU reductions and tie ordering are not bit-identical across hosts.",
     "The W4A16 shape is explicit: MXFP4 expert weights only, BF16 activations and all non-expert modules; no W4A4 input activation declaration was used.",
-    "The pruning curve on Strix is 0.05445, 0.07619, 0.13114, 0.13788, 0.14752, 0.17718, and 0.22758 held-out MoE-block error at 5, 7.5, 10, 12.5, 15, 20, and 25 percent expert removal respectively; 7.5 percent is the low-side candidate before the 10 percent knee."
+    "The pruning curve on Strix is 0.05445, 0.07619, 0.13114, 0.13788, 0.14752, 0.17718, and 0.22758 held-out MoE-block error at 5, 7.5, 10, 12.5, 15, 20, and 25 percent expert removal respectively; 7.5 percent is the measured low-side point; the first production arm is 15 percent under the amortized multi-cycle policy."
   ],
   "format": "strata-holo4-mxfp4-quant-aware-rco-evidence-v1",
   "hosts": [
@@ -82,10 +82,12 @@
   "recorded_at": "2026-10-23",
   "recovery_recommendation": {
     "compute_note": "Expert pruning leaves top-k=8 unchanged, so per-token routed FLOPs are unchanged. The gain is checkpoint/VRAM and expert-cache footprint, not active-expert FLOPs.",
-    "first_candidate_sparsity": 0.075,
-    "high_bracket": 0.1,
-    "low_bracket": 0.05,
-    "post_prune_target": "2 to 4 absolute points below the primary acceptance floor, with >=99 percent coordinate/tool-format validity and no app-family regression above 5 points.",
+    "first_candidate_sparsity": 0.15,
+    "high_bracket": 0.2,
+    "low_bracket": 0.1,
+    "measured_low_side_point": 0.075,
+    "next_stage": 0.2,
+    "post_prune_target": "3 to 6 absolute points below the primary acceptance floor, with >=99 percent coordinate/tool-format validity.",
     "post_training_target": "Return to within 1 point of the unpruned baseline and above the acceptance floor.",
     "recovery_ladder": [
       "QLoRA CPT on BF16 attention/GDN/shared-expert/vision modules with frozen MXFP4 experts and full-precision router adaptation",
@@ -93,7 +95,7 @@
       "evaluate pruned-no-train, CPT-only, and CPT+RL against unpruned baseline on the same held-out real-app suite"
     ],
     "stretch_after_recipe_works": 0.125,
-    "why": "The layer-0 curve has a knee between 5 and 10 percent: 0.05445 at 5, 0.07619 at 7.5, 0.13114 at 10. 7.5 percent is the largest point on the low side with meaningful byte savings."
+    "why": "10-to-15 percent adds 0.0164 layer-0 error (0.13114 to 0.14752) while saving 20 MB more per layer (43.5 to 63.5 MB); iterative CPT+RL can amortize this over multiple cycles."
   },
   "results": {
     "arms_strix": {

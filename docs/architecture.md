@@ -2804,9 +2804,10 @@ arm and still produced the lowest error.
 The measured Strix curve has a knee between 5 and 10 percent expert removal:
 held-out MoE-block error is 0.05445 at 5 percent, 0.07619 at 7.5 percent, and
 0.13114 at 10 percent, then 0.13788, 0.14752, 0.17718, and 0.22758 at 12.5, 15,
-20, and 25 percent. The first recovery candidate is therefore 7.5 percent
-(19 of 256 experts per layer), with 5 percent as the low bracket and 10 percent
-as the stretch. Expert pruning leaves top-k 8 unchanged, so the gain is
+20, and 25 percent. The measured low-side point is 7.5 percent (19 of 256
+experts per layer). Under the amortized multi-cycle training direction, the
+first production recovery arm is 15 percent (38 of 256), with 10 percent as the
+rollback and 20 percent as the next stage after a successful cycle. Expert pruning leaves top-k 8 unchanged, so the gain is
 checkpoint and VRAM footprint, not active-expert FLOPs. The intended repair is
 QLoRA CPT on the BF16 non-expert modules and routers with the MXFP4 experts
 frozen, followed by GRPO on deterministic app-state reward.
