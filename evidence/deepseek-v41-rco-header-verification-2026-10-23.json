@@ -375,7 +375,7 @@
     ],
     "shards": 48,
     "tensors": 96085,
-    "top_nonrouted_signatures": [
+    "top_non_routed_signatures": [
       {
         "count": 80,
         "dtype": "F32",

@@ -152,12 +152,13 @@ def materialize(
         if classified is not None:
             kind, layer = classified
             if not 0 <= layer < custom_coder_plan.N_LAYERS:
-                raise ValueError(f"layer outside [0,48): {name}")
+                raise ValueError(f"layer outside [0,{custom_coder_plan.N_LAYERS}): {name}")
             expected[kind] += 1
             selected_names.append(name)
         elif source_name_allowed(name):
             selected_names.append(name)
-    if expected != Counter({"gate_up": 48, "down": 48, "router": 48}):
+    layer_count = custom_coder_plan.N_LAYERS
+    if expected != Counter({"gate_up": layer_count, "down": layer_count, "router": layer_count}):
         raise ValueError(f"unexpected source expert tensor counts: {dict(expected)}")
 
     plan = {

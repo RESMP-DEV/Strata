@@ -2420,6 +2420,19 @@ Ruff, and `just quality` pass; no shard was opened. Full hashes and non-claims
 are in
 [materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).
 
+### OpenCodeReview hardening, 2026-10-23
+
+OpenCodeReview persisted seven findings against `d02d9008` even though both its
+initial and resumed range runs eventually aborted without writing final JSON.
+The repairs normalize the two evidence keys, type the command manifest as an
+argv list plus shell rendering, build and validate control quantization argv
+without positional splicing, thread already-parsed masks through the manifest,
+derive Qwen layer counts from the shared constant, and make empty quantization
+tokens explicitly mean a pruned expert in both allocation parsers. The aborted
+reviewer state is recorded as unavailable-for-completion, not as an approval.
+Full session IDs, worker receipts, commands, and limits are in
+[RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
+
 A follow-up header-only pass then opened each of the 48 pinned safetensors
 files, read its 8-byte prefix and JSON header, and refused to read any tensor
 payload. All 96,085 names matched the index, every offset interval was exact

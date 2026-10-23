@@ -153,6 +153,17 @@ class ReapMaskTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid routing count"):
             MODULE.read_trace_scores([path], n_layers=1, n_expert=4, weighted=True)
 
+    def test_seed_allocation_treats_an_empty_type_as_pruned(self) -> None:
+        path = self.root / "allocation.txt"
+        lines = [f"blk.0.ffn_down_exps.weight[{expert}]: IQ3_S" for expert in range(256)]
+        lines.append("blk.0.ffn_down_exps.weight[256]:")
+        lines.append("blk.0.ffn_down_exps.weight[257]:   ")
+        lines.append("blk.1.ffn_down_exps.weight[0]: IQ3_S")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        seeds = MODULE.parse_seed_allocation(path, n_layers=1, n_expert=512)
+        self.assertEqual(len(seeds), 1)
+        self.assertEqual(sorted(seeds[0]), list(range(256)))
+
 
 def subprocess_run(argv: list[str]):
     import subprocess

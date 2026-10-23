@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location(
@@ -97,6 +98,45 @@ class MaterializePrunedQwen4ExpTest(unittest.TestCase):
         self.assertEqual(result["selected_tensors"], 146)
         self.assertEqual(result["omitted_tensors"], 2)
         self.assertEqual(result["tokenizer_files"], ["tokenizer.json"])
+
+    def test_expert_tensor_counts_follow_the_shared_layer_count(self) -> None:
+        layers = 2
+        source = self.root / "source-two-layers"
+        source.mkdir()
+        weight_map = {
+            "model.language_model.norm.weight": "model.safetensors",
+            "lm_head.weight": "model.safetensors",
+            "model.visual.weight": "model.safetensors",
+            "mtp.weight": "model.safetensors",
+        }
+        for layer in range(layers):
+            for name in expert_names(layer):
+                weight_map[name] = "model.safetensors"
+        (source / "config.json").write_text(
+            json.dumps({"text_config": {"num_experts": 512}}), encoding="utf-8"
+        )
+        (source / "model.safetensors").write_bytes(b"")
+        (source / "model.safetensors.index.json").write_text(
+            json.dumps({"weight_map": weight_map}), encoding="utf-8"
+        )
+        (source / "tokenizer.json").write_text("{}", encoding="utf-8")
+        mask = self.root / "mask-two-layers.json"
+        mask.write_text(
+            json.dumps(
+                {
+                    "format": "strata-reap-mask-v1",
+                    "n_expert": MODULE.custom_coder_plan.N_EXPERTS,
+                    "keep_per_layer": 288,
+                    "keep_ids": [list(range(288)) for _ in range(layers)],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(MODULE.custom_coder_plan, "N_LAYERS", layers):
+            result = MODULE.materialize(source, mask, self.root / "out", dry_run=True)
+        self.assertEqual(result["keep_per_layer"], 288)
+        self.assertEqual(result["selected_tensors"], 2 + 3 * layers)
+        self.assertEqual(result["omitted_tensors"], 2)
 
     def test_dry_run_rejects_a_checkpoint_without_tokenizer_files(self) -> None:
         source, mask = self.source(288, tokenizer=False)

@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from typing import get_type_hints
 
 TOOLS = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("custom_coder_plan", TOOLS / "custom_coder_plan.py")
@@ -57,6 +58,31 @@ class CustomCoderPlanTest(unittest.TestCase):
                     lines.append(f"blk.{layer}.ffn_{kind}_exps.weight[{expert}]: {quant}")
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return path
+
+    def make_args(self) -> Namespace:
+        return Namespace(
+            mask=self.write_mask(288),
+            parent_allocation=self.write_parent(),
+            model=self.root / "model",
+            rco_root=self.root / "RCO",
+            llama_convert=self.root / "convert.py",
+            llama_imatrix=self.root / "llama-imatrix",
+            llama_quantize=self.root / "llama-quantize",
+            calibration_raw_tokens=self.root / "cal.i32",
+            control_raw_tokens=self.root / "control.i32",
+            calibration_tokens=self.root / "cal.pt",
+            evaluation_tokens=self.root / "eval.pt",
+            work_root=self.root / "work",
+            rco_mask_out=self.root / "actual-own-mask.pt",
+            parent_rco_mask_out=self.root / "actual-parent-mask.pt",
+            recipe="iq3s-iq4nl",
+            sequence_length=2048,
+            calibration_chunks=256,
+            batch_size=1,
+            threads=32,
+            python="python3",
+            split_max_size="40G",
+        )
 
     def test_parent_and_own_masks_are_validated_and_compared(self) -> None:
         own_path = self.write_mask(288)
@@ -106,31 +132,7 @@ class CustomCoderPlanTest(unittest.TestCase):
         )
 
     def test_manifest_contains_bounded_execution_plan(self) -> None:
-        mask = self.write_mask(288)
-        parent = self.write_parent()
-        args = Namespace(
-            mask=mask,
-            parent_allocation=parent,
-            model=self.root / "model",
-            rco_root=self.root / "RCO",
-            llama_convert=self.root / "convert.py",
-            llama_imatrix=self.root / "llama-imatrix",
-            llama_quantize=self.root / "llama-quantize",
-            calibration_raw_tokens=self.root / "cal.i32",
-            control_raw_tokens=self.root / "control.i32",
-            calibration_tokens=self.root / "cal.pt",
-            evaluation_tokens=self.root / "eval.pt",
-            work_root=self.root / "work",
-            rco_mask_out=self.root / "actual-own-mask.pt",
-            parent_rco_mask_out=self.root / "actual-parent-mask.pt",
-            recipe="iq3s-iq4nl",
-            sequence_length=2048,
-            calibration_chunks=256,
-            batch_size=1,
-            threads=32,
-            python="python3",
-            split_max_size="40G",
-        )
+        args = self.make_args()
         manifest = MODULE.build_manifest(args, 288)
         self.assertEqual(manifest["format"], "strata-custom-coder-plan-v1")
         self.assertEqual(manifest["selected_budget"]["kept_experts"], 13_824)
@@ -198,6 +200,68 @@ class CustomCoderPlanTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "--parent-rco-mask-out is required"):
             MODULE.rco_mask_paths(args)
+
+    def test_command_annotation_matches_the_returned_shape(self) -> None:
+        hints = get_type_hints(MODULE.command)
+        self.assertEqual(hints["return"], MODULE.CommandSpec)
+        result = MODULE.command(["llama-quantize", "--imatrix", "a b.gguf"])
+        self.assertEqual(result["argv"], ["llama-quantize", "--imatrix", "a b.gguf"])
+        self.assertEqual(result["shell"], "llama-quantize --imatrix 'a b.gguf'")
+
+    def test_quantize_argv_builder_and_layout_guard(self) -> None:
+        quantizer = self.root / "llama-quantize"
+        imatrix_path = self.root / "imatrix.gguf"
+        input_gguf = self.root / "in.gguf"
+        output_gguf = self.root / "out.gguf"
+        argv = MODULE.quantize_arguments(
+            quantizer, imatrix_path, input_gguf, output_gguf, "IQ3_S", 32
+        )
+        MODULE.validate_quantize_layout(argv, imatrix_path, input_gguf, output_gguf, 32)
+        self.assertEqual(argv[0], str(quantizer))
+        self.assertEqual(argv[argv.index("--imatrix") + 1], str(imatrix_path))
+        self.assertEqual(argv[-2:], ["COPY", "32"])
+        broken = list(argv)
+        broken[-2] = "ADD"
+        with self.assertRaisesRegex(ValueError, "must end with COPY"):
+            MODULE.validate_quantize_layout(broken, imatrix_path, input_gguf, output_gguf, 32)
+
+    def test_control_quantize_differs_only_in_imatrix_and_output(self) -> None:
+        args = self.make_args()
+        commands = MODULE.build_manifest(args, 288)["commands"]
+        own = commands["quantize_experts"]["argv"]
+        control = commands["quantize_standard_calibration_control"]["argv"]
+        imatrix_index = own.index(str(args.work_root / "own-288-imatrix.gguf"))
+        output_index = own.index(str(args.work_root / "flash-next-own-288-iq3s-iq4nl.gguf"))
+        differing = {
+            index
+            for index, (left, right) in enumerate(zip(own, control, strict=True))
+            if left != right
+        }
+        self.assertEqual(differing, {imatrix_index, output_index})
+        self.assertEqual(control[imatrix_index], str(args.work_root / "standard-ptq-imatrix.gguf"))
+        self.assertEqual(
+            control[output_index],
+            str(args.work_root / "flash-next-own-288-iq3s-iq4nl-standard-cal.gguf"),
+        )
+
+    def test_manifest_accepts_already_parsed_masks(self) -> None:
+        args = self.make_args()
+        direct = MODULE.build_manifest(args, 288)
+        keep, own = MODULE.load_own_mask(args.mask)
+        parent = MODULE.parse_parent_allocation(args.parent_allocation)
+        threaded = MODULE.build_manifest(args, keep, own=own, parent=parent)
+        self.assertEqual(threaded, direct)
+        self.assertEqual(threaded["mask_sha256"], MODULE.sha256(args.mask))
+        self.assertEqual(
+            threaded["parent_allocation_sha256"], MODULE.sha256(args.parent_allocation)
+        )
+
+    def test_manifest_rejects_parsed_masks_that_do_not_match_the_budget(self) -> None:
+        args = self.make_args()
+        parent = MODULE.parse_parent_allocation(args.parent_allocation)
+        short_own = [set(range(256)) for _ in range(MODULE.N_LAYERS)]
+        with self.assertRaisesRegex(ValueError, "does not keep 288 experts"):
+            MODULE.build_manifest(args, 288, own=short_own, parent=parent)
 
 
 if __name__ == "__main__":

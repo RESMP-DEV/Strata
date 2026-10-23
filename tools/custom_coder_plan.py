@@ -16,7 +16,7 @@ import re
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 N_LAYERS = 48
 N_EXPERTS = 512
@@ -58,6 +58,13 @@ class Comparison:
     max_layer_intersection: int
 
 
+class CommandSpec(TypedDict):
+    """A recorded command: the exact argv plus a shell-safe rendering."""
+
+    argv: list[str]
+    shell: str
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -91,13 +98,14 @@ def load_own_mask(path: Path) -> tuple[int, list[set[int]]]:
 
 
 def parse_parent_allocation(path: Path) -> list[set[int]]:
-    pattern = re.compile(r"^blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight\[(\d+)\]:\s*(\S+)\s*$")
+    pattern = re.compile(r"^blk\.(\d+)\.ffn_(gate|up|down)_exps\.weight\[(\d+)\]:\s*(\S*)\s*$")
     observed: dict[tuple[int, int, str], str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         match = pattern.match(line)
         if match is None:
             continue
         layer, kind, expert, quant = int(match[1]), match[2], int(match[3]), match[4]
+        # An empty quantization type marks a pruned tensor, not a retained one.
         if quant:
             observed[(layer, expert, kind)] = quant
     result: list[set[int]] = []
@@ -167,8 +175,68 @@ def write_rco_prune_mask(path: Path, own: list[set[int]]) -> None:
     torch.save(torch.tensor(rows, dtype=torch.bool), path)
 
 
-def command(command_arguments: list[str]) -> dict[str, str]:
+def command(command_arguments: list[str]) -> CommandSpec:
     return {"argv": command_arguments, "shell": shlex.join(command_arguments)}
+
+
+def quantize_arguments(
+    quantizer: Path,
+    imatrix_path: Path,
+    input_gguf: Path,
+    output_gguf: Path,
+    gate_up_type: str,
+    threads: int,
+) -> list[str]:
+    """Build one `llama-quantize` argv.
+
+    The own-mask arm and the standard-calibration control arm differ only in
+    the imatrix file and the output file, so both are built from this one
+    function instead of splicing a shared argv by position.
+    """
+    return [
+        str(quantizer),
+        "--imatrix",
+        str(imatrix_path),
+        "--tensor-type",
+        f"ffn_gate_exps={gate_up_type}",
+        "--tensor-type",
+        f"ffn_up_exps={gate_up_type}",
+        "--tensor-type",
+        "ffn_down_exps=IQ4_NL",
+        "--tensor-type",
+        "per_layer_token_embd=IQ4_NL",
+        str(input_gguf),
+        str(output_gguf),
+        "COPY",
+        str(threads),
+    ]
+
+
+def validate_quantize_layout(
+    argv: list[str],
+    imatrix_path: Path,
+    input_gguf: Path,
+    output_gguf: Path,
+    threads: int,
+) -> None:
+    """Fail loudly when a `llama-quantize` argv no longer has the expected layout.
+
+    The manifest records these argv lists verbatim, so a layout drift that
+    swapped an input for an output would still look plausible in the receipt.
+    """
+    if argv[-2:] != ["COPY", str(threads)]:
+        raise ValueError(f"llama-quantize argv must end with COPY and the thread count: {argv}")
+    if argv.count("--imatrix") != 1:
+        raise ValueError(f"llama-quantize argv must carry exactly one --imatrix flag: {argv}")
+    imatrix_index = argv.index("--imatrix")
+    if imatrix_index + 1 >= len(argv) or argv[imatrix_index + 1] != str(imatrix_path):
+        raise ValueError(f"llama-quantize argv must name the requested imatrix: {argv}")
+    if argv.count("--tensor-type") != 4:
+        raise ValueError(f"llama-quantize argv must carry four --tensor-type flags: {argv}")
+    if str(input_gguf) not in argv:
+        raise ValueError(f"llama-quantize argv must name the requested input file: {argv}")
+    if str(output_gguf) not in argv:
+        raise ValueError(f"llama-quantize argv must name the requested output file: {argv}")
 
 
 def rco_mask_paths(args: argparse.Namespace) -> tuple[Path, Path]:
@@ -181,9 +249,28 @@ def rco_mask_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     return own, parent
 
 
-def build_manifest(args: argparse.Namespace, keep: int) -> dict[str, Any]:
-    _, own = load_own_mask(args.mask)
-    parent = parse_parent_allocation(args.parent_allocation)
+def build_manifest(
+    args: argparse.Namespace,
+    keep: int,
+    *,
+    own: list[set[int]] | None = None,
+    parent: list[set[int]] | None = None,
+) -> dict[str, Any]:
+    """Build the manifest for the requested recipe.
+
+    `own` and `parent` are the already-parsed masks.  When they are omitted the
+    files named by `args.mask` and `args.parent_allocation` are parsed here, so
+    direct callers keep working.  Supplied rows must have been parsed from
+    those exact paths, because the recorded digests are computed over them.
+    """
+    if own is None:
+        _, own = load_own_mask(args.mask)
+    if parent is None:
+        parent = parse_parent_allocation(args.parent_allocation)
+    if len(own) != N_LAYERS or len(parent) != N_LAYERS:
+        raise ValueError(f"parsed masks must hold {N_LAYERS} layers each")
+    if any(len(row) != keep for row in own):
+        raise ValueError(f"parsed own mask does not keep {keep} experts per layer")
     comparison = compare_masks(own, parent)
     work = args.work_root
     own_prune_mask, parent_prune_mask = rco_mask_paths(args)
@@ -197,28 +284,27 @@ def build_manifest(args: argparse.Namespace, keep: int) -> dict[str, Any]:
     python = args.python
     recipe = RECIPES[args.recipe]
 
-    quantize_arguments = [
-        str(args.llama_quantize),
-        "--imatrix",
-        str(imatrix),
-        "--tensor-type",
-        "ffn_gate_exps=IQ3_S" if recipe["gate_up"] == "IQ3_S" else "ffn_gate_exps=IQ4_XS",
-        "--tensor-type",
-        "ffn_up_exps=IQ3_S" if recipe["gate_up"] == "IQ3_S" else "ffn_up_exps=IQ4_XS",
-        "--tensor-type",
-        "ffn_down_exps=IQ4_NL",
-        "--tensor-type",
-        "per_layer_token_embd=IQ4_NL",
-        str(bf16_gguf),
-        str(quantized),
-        "COPY",
-        str(args.threads),
-    ]
-    # Fixed argv positions are llama-quantize(0), --imatrix(1), imatrix(2),
-    # input(11), output(12), COPY(13), threads(14).
-    control_quantize_arguments = list(quantize_arguments)
-    control_quantize_arguments[2] = str(control_imatrix)
-    control_quantize_arguments[12] = str(control_quantized)
+    gate_up_type = "IQ3_S" if recipe["gate_up"] == "IQ3_S" else "IQ4_XS"
+    quantize_argv = quantize_arguments(
+        args.llama_quantize,
+        imatrix,
+        bf16_gguf,
+        quantized,
+        gate_up_type,
+        args.threads,
+    )
+    control_quantize_argv = quantize_arguments(
+        args.llama_quantize,
+        control_imatrix,
+        bf16_gguf,
+        control_quantized,
+        gate_up_type,
+        args.threads,
+    )
+    validate_quantize_layout(quantize_argv, imatrix, bf16_gguf, quantized, args.threads)
+    validate_quantize_layout(
+        control_quantize_argv, control_imatrix, bf16_gguf, control_quantized, args.threads
+    )
     return {
         "format": "strata-custom-coder-plan-v1",
         "mask": str(args.mask),
@@ -346,8 +432,8 @@ def build_manifest(args: argparse.Namespace, keep: int) -> dict[str, Any]:
                     "50",
                 ]
             ),
-            "quantize_experts": command(quantize_arguments),
-            "quantize_standard_calibration_control": command(control_quantize_arguments),
+            "quantize_experts": command(quantize_argv),
+            "quantize_standard_calibration_control": command(control_quantize_argv),
         },
         "acceptance": {
             "heldout_rco_kl": (
@@ -421,9 +507,10 @@ def main() -> int:
     args = parse_args()
     keep, own = load_own_mask(args.mask)
     own_prune_mask, parent_prune_mask = rco_mask_paths(args)
+    parent = parse_parent_allocation(args.parent_allocation)
     write_rco_prune_mask(own_prune_mask, own)
-    write_rco_prune_mask(parent_prune_mask, parse_parent_allocation(args.parent_allocation))
-    manifest = build_manifest(args, keep)
+    write_rco_prune_mask(parent_prune_mask, parent)
+    manifest = build_manifest(args, keep, own=own, parent=parent)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     args.out.write_text(payload, encoding="utf-8")

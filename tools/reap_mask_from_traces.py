@@ -123,13 +123,20 @@ def count_seed_and_trace_selected(
 
 
 def parse_seed_allocation(path: Path, n_layers: int, n_expert: int) -> list[set[int]]:
-    pattern = re.compile(r"^blk\.(\d+)\.ffn_down_exps\.weight\[(\d+)\]:\s*(\S+)\s*$")
+    """Parse an RCO allocation text into the retained experts of every layer.
+
+    The allocation names the quantization type of every expert it kept; a
+    pruned expert is listed with an empty type, so the type token is matched
+    optionally and a line without one marks a pruned expert.
+    """
+    pattern = re.compile(r"^blk\.(\d+)\.ffn_down_exps\.weight\[(\d+)\]:\s*(\S*)\s*$")
     result: list[set[int]] = [set() for _ in range(n_layers)]
     for line in path.read_text(encoding="utf-8").splitlines():
         match = pattern.match(line)
         if match is None:
             continue
         layer, expert, quant = int(match[1]), int(match[2]), match[3]
+        # An empty quantization type marks a pruned expert, not a retained one.
         if quant and 0 <= layer < n_layers and 0 <= expert < n_expert:
             result[layer].add(expert)
     if not all(len(row) == 256 for row in result):
