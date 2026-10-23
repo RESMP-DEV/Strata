@@ -1,7 +1,7 @@
 {
   "schema": "strata-work-evidence-v1",
   "recorded_at": "2026-10-22T22:14:04Z",
-  "updated_at": "2026-10-23T01:46:59Z",
+  "updated_at": "2026-10-23T01:52:19Z",
   "agent": "Codex parent with three MiniMax CCR implementation workers; parent acceptance by Codex",
   "task": "Repair every actionable CodeRabbit finding on DeepSeek/Qwen RCO PR #20 without expanding runtime claims.",
   "source_revision": "fed9d1983b363d03ca12e9019aae6cd968e5e399",
@@ -75,7 +75,7 @@
     ]
   },
   "code_rabbit_third_round": {
-    "reviewed_head": "d9ad4e26eedade16db632bb72a1b73055bf8b94a",
+    "reviewed_head": "13d6469c3cdf470ac496e42179a1520f6e75db4d",
     "repairs": [
       {
         "finding": 4355284820,
@@ -133,6 +133,20 @@
       {
         "finding": 4355250250,
         "disposition": "rejected; hardware identity and paths are deliberate evidence provenance, and the raw machine-id is already hashed"
+      }
+    ],
+    "earlier_threads": [
+      {
+        "findings": [4355019991, 4355020000],
+        "repair": "update the DeepSeek total-expert comment to state that the 40 backbone text layers and three DSpark stages are counted separately"
+      },
+      {
+        "findings": [4355020005, 4355020010],
+        "repair": "require tokenizer output to be a mapping with input_ids and require array-like tolist results before conversion"
+      },
+      {
+        "finding": 4355020022,
+        "repair": "compute Coder expert-byte budgets with exact Fraction arithmetic before the documented decimal/GiB renderings"
       }
     ]
   },
@@ -264,6 +278,26 @@
       "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
       "exit": 0,
       "result": "20/20 repository checks passed after the third review round on dirty base d9ad4e26"
+    },
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_adapter tools.test_custom_coder_plan tools.test_build_rco_tokens tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "79 tests ran and the suite passed; 45 executed and 34 Torch-dependent tests skipped under system Python"
+    },
+    {
+      "command": "/private/tmp/dsrco-venv/bin/python -m unittest tools.test_deepseek_rco_adapter tools.test_custom_coder_plan tools.test_build_rco_tokens tools.test_materialize_pruned_qwen4exp tools.test_reap_mask_from_traces",
+      "exit": 0,
+      "result": "79/79 tests passed with Torch and safetensors; no optional test skipped"
+    },
+    {
+      "command": "python3 scripts/check_deepseek_contracts.py",
+      "exit": 0,
+      "result": "manifest gate plus both standalone DeepSeek C++ contract tests passed after the geometry-comment repair"
+    },
+    {
+      "command": "CCACHE_TEMPDIR=$PWD/build/ccache-tmp CCACHE_DIR=$PWD/build/ccache-dir FETCHCONTENT_SOURCE_DIR_STRATA_LLAMACPP=/Users/kearm/Strata/build/plugin-check/_deps/strata_llamacpp-src just quality",
+      "exit": 0,
+      "result": "20/20 repository checks passed after the older OpenCodeReview repairs on dirty base 13d6469c"
     }
   ],
   "implementation_workers": [

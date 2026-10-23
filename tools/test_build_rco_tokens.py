@@ -192,6 +192,38 @@ class BuildRcoTokensTest(unittest.TestCase):
             MODULE.token_ids(7)
         self.assertIn("got int: 7", str(context.exception))
 
+    def test_non_sequence_tolist_results_report_the_observed_value(self) -> None:
+        class ScalarToList:
+            def tolist(self):
+                return 7
+
+        with self.assertRaisesRegex(ValueError, "got int: 7"):
+            MODULE.token_ids(ScalarToList())
+
+    def test_tokenizer_output_must_be_a_mapping_with_input_ids(self) -> None:
+        class ListTokenizer(FakeTokenizer):
+            def __call__(self, text: str, add_special_tokens: bool = False) -> list[int]:
+                return [0]
+
+        class MissingKeyTokenizer(FakeTokenizer):
+            def __call__(self, text: str, add_special_tokens: bool = False) -> dict[str, Any]:
+                return {"tokens": [0]}
+
+        path = self.write_rows("rows.jsonl", [{"text": "a"}])
+        for tokenizer in (ListTokenizer(), MissingKeyTokenizer()):
+            with self.subTest(tokenizer=type(tokenizer).__name__):
+                self.assertRaisesRegex(
+                    ValueError,
+                    "mapping with 'input_ids'",
+                    MODULE.build_sequences,
+                    [path],
+                    tokenizer,
+                    sequence_length=2,
+                    max_records=None,
+                    max_sequences=None,
+                    field="text",
+                )
+
     def test_non_object_jsonl_is_rejected(self) -> None:
         path = self.root / "bad.jsonl"
         path.write_text("[1]\n", encoding="utf-8")

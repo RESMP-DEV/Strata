@@ -125,6 +125,7 @@ class CustomCoderPlanTest(unittest.TestCase):
         self.assertEqual(result["removed_experts"], 10_752)
         self.assertAlmostEqual(result["bpw"], 3.7916666666666665)
         self.assertEqual(result["expert_bytes"], 32_204_390_400)
+        self.assertEqual(MODULE.budget(288, "parent-mix")["expert_bytes"], 28_289_185_874)
         self.assertAlmostEqual(result["expert_gib"], 29.99267578125)
         self.assertAlmostEqual(
             result["relative_to_parent_expert_bytes"],

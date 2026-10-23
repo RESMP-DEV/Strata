@@ -13,7 +13,7 @@ import hashlib
 import json
 import struct
 import time
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -83,7 +83,13 @@ def token_ids(value: Any) -> list[int]:
     if isinstance(value, (list, tuple)):
         return [int(item) for item in value]
     if hasattr(value, "tolist"):
-        return [int(item) for item in value.tolist()]
+        result = value.tolist()
+        if not isinstance(result, (list, tuple)):
+            raise ValueError(
+                "tokenizer .tolist() did not return a list/tuple; "
+                f"got {type(result).__name__}: {result!r}"
+            )
+        return [int(item) for item in result]
     raise ValueError(f"tokenizer did not return token IDs; got {type(value).__name__}: {value!r}")
 
 
@@ -142,9 +148,15 @@ def build_sequences(
             records_read -= 1
             row_counts[path] -= 1
             break
-        values = token_ids(
-            tokenizer(choose_text(record, field), add_special_tokens=False)["input_ids"]
-        )
+        tokenizer_result = tokenizer(choose_text(record, field), add_special_tokens=False)
+        if not isinstance(tokenizer_result, Mapping) or "input_ids" not in tokenizer_result:
+            observed = (
+                f"mapping keys {sorted(tokenizer_result)!r}"
+                if isinstance(tokenizer_result, Mapping)
+                else type(tokenizer_result).__name__
+            )
+            raise ValueError(f"tokenizer did not return a mapping with 'input_ids'; got {observed}")
+        values = token_ids(tokenizer_result["input_ids"])
         if any(value < 0 or value >= vocabulary for value in values):
             observed = max(values, default=0)
             raise ValueError(f"token id outside [0, {vocabulary}): {observed}")

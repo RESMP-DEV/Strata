@@ -2388,6 +2388,10 @@ The same round also validates every reference-cache dtype, shape, finite value,
 loss-mask range, and exact batch shape before installing any wrapper, and the
 Coder planner rejects own/parent mask destinations that collide with each other
 or would overwrite either input document before either output is written.
+Older OpenCodeReview threads were repaired in the same pass: the DeepSeek
+geometry comment now separates the 40 backbone layers from the three DSpark
+stages, tokenizer output must be a mapping with array-like `input_ids`, and
+Coder byte budgets use exact rational arithmetic before decimal renderings.
 
 ### DeepSeek stock-RCO tiny integration, 2026-10-22
 

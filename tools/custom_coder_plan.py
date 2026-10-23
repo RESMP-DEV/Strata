@@ -15,6 +15,7 @@ import json
 import re
 import shlex
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -149,8 +150,11 @@ def compare_masks(own: list[set[int]], parent: list[set[int]]) -> Comparison:
 
 def budget(keep: int, recipe_name: str) -> dict[str, Any]:
     recipe = RECIPES[recipe_name]
-    bits = N_LAYERS * keep * EXPERT_PARAMETERS * float(recipe["bpw"])
-    parent_bits = N_LAYERS * 256 * EXPERT_PARAMETERS * RECIPES["parent-mix"]["bpw"]
+    bits = Fraction(N_LAYERS * keep * EXPERT_PARAMETERS) * Fraction(str(recipe["bpw"]))
+    parent_bits = Fraction(N_LAYERS * 256 * EXPERT_PARAMETERS) * Fraction(
+        str(RECIPES["parent-mix"]["bpw"])
+    )
+    expert_bytes = bits / 8
     return {
         "recipe": recipe_name,
         "gate_up": recipe["gate_up"],
@@ -158,9 +162,9 @@ def budget(keep: int, recipe_name: str) -> dict[str, Any]:
         "bpw": recipe["bpw"],
         "kept_experts": N_LAYERS * keep,
         "removed_experts": N_LAYERS * (N_EXPERTS - keep),
-        "expert_bytes": int(round(bits / 8)),
-        "expert_gb_decimal": bits / 8 / 1_000_000_000,
-        "expert_gib": bits / 8 / 2**30,
+        "expert_bytes": round(expert_bytes),
+        "expert_gb_decimal": float(expert_bytes / 1_000_000_000),
+        "expert_gib": float(expert_bytes / 2**30),
         "relative_to_parent_expert_bytes": bits / parent_bits,
     }
 

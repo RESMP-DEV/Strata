@@ -285,8 +285,8 @@ struct Geometry {
         // the three stages in total_expert_count().
         return dspark_routed_experts + shared_experts;
     }
-    /// Every expert tensor across the model: backbone and text and DSpark tail layers plus
-    /// the DSpark layers.
+    /// Every expert tensor across the model: backbone text layers plus the
+    /// DSpark stages.  The tail is counted only as DSpark layers here.
     std::size_t total_expert_count() const noexcept {
         return text_layers * text_experts_per_layer() +
                dspark_layers * dspark_experts_per_layer();
