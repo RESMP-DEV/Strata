@@ -25,12 +25,16 @@ SCOPE = (
     "DeepSeek manifest and host C++ contract tests, "
     "custom Coder token and variant-planning contracts, "
     "the DeepSeek-V4.1-Flash RCO budget planner's own unit tests, "
+    "the optimizer-stage readiness gate's manifest, SHA-256, and host-command checks "
+    "on synthetic fixtures, "
     "script tests, maintained-script Ruff lint/format, shell warning lint, and Git "
     "whitespace on this host. It does not compile CUDA, HIP, or SYCL, run the full "
     "setup matrix, start the "
     "server, download a model, move any KV byte to a cold tier, or measure performance. "
     "The RCO planner tests exercise index classification and integer budget arithmetic "
-    "on synthetic fixtures; they do not load, convert, or run DeepSeek-V4.1-Flash."
+    "on synthetic fixtures; they do not load, convert, or run DeepSeek-V4.1-Flash. "
+    "The optimizer gate does not invoke an optimizer or GPU and does not establish "
+    "optimizer quality."
 )
 
 
@@ -176,6 +180,7 @@ def quality() -> int:
                         "tools.test_materialize_pruned_qwen4exp",
                         "tools.test_deepseek_rco_plan",
                         "tools.test_deepseek_rco_materialization_plan",
+                        "tools.test_optimizer_gate",
                     ],
                 ),
                 run_logged(
@@ -204,6 +209,8 @@ def quality() -> int:
                         "tools/deepseek_rco_materialization_plan.py",
                         "tools/test_deepseek_rco_materialization_plan.py",
                         "tools/verify_deepseek_v41_headers.py",
+                        "tools/optimizer_gate.py",
+                        "tools/test_optimizer_gate.py",
                     ],
                 ),
                 run_logged(
@@ -229,6 +236,8 @@ def quality() -> int:
                         "tools/deepseek_rco_materialization_plan.py",
                         "tools/test_deepseek_rco_materialization_plan.py",
                         "tools/verify_deepseek_v41_headers.py",
+                        "tools/optimizer_gate.py",
+                        "tools/test_optimizer_gate.py",
                     ],
                 ),
                 run_logged(

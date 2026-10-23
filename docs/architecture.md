@@ -2574,3 +2574,31 @@ with Actions disabled and all current upstream branches present. Local tool-tree
 upstream remotes are fetch-only, while the owned fork remotes are named `resmp`. No
 optimizer ran and no upstream patch was applied. Full evidence is in
 [GSQ/RCO upstream fork evidence](../evidence/gsq-rco-upstream-forks-2026-10-23.json).
+
+### Quant-aware optimizer boundaries and GPU gate, 2026-10-23
+
+RCO does have a separate quantization-aware search: `rco_search_quant.py` interpolates
+pre-quantized WeightStore candidates, optimizes a budget-constrained assignment by
+projected Gumbel-softmax, and scores CE/KL. That makes it conceptually closer to the
+served low-bit artifact than an iMatrix-only PTQ decision, but it still needs a cached
+high-bit reference as the teacher and cannot run usefully until every deployable
+candidate, exact byte-cost model, exporter, and resource plan exists. Nominal bit labels
+are not sufficient for Strata's mixed GGUF/IQuant layout.
+
+Qwen4Exp already fits stock RCO's pruning wrapper and fused-expert materializer, subject
+to a streaming adapter runner. GSQ is the opposite boundary: its name dispatch would
+select the wrong Qwen3-MoE wrapper, and a real Qwen4Exp wrapper must cover
+`model.language_model` movement, per-expert 3D quantization, PLE/ngram shards,
+hyper-connection width, hybrid attention, non-target preservation, and a target output
+contract. DeepSeek reuses the token builder, topology adapter, tensor classifier, and
+header geometry, but still needs adapter injection, faithful router statistics, a
+streaming materializer, calibration identity, and wrappers/exporters.
+
+`tools/optimizer_gate.py` now defines six fail-closed stages for Qwen4Exp and DeepSeek
+RCO pruning, RCO quant-aware assignment, and GSQ. Planning always reports
+`gpu_allowed=false`; a ready manifest must name every required artifact, SHA-256, and
+verification argv, and the gate hashes each file and runs each host verification command
+before reporting green. The gate is wired into the common quality suite. It does not
+invoke an optimizer and does not claim optimizer quality. Full findings and worker
+receipts are in
+[quant-aware optimizer boundary evidence](../evidence/quant-aware-optimizer-boundaries-2026-10-23.json).

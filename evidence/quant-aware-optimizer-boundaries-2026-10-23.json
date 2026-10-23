@@ -1,0 +1,129 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T19:09:00Z",
+  "updated_at": "2026-10-23T19:21:00Z",
+  "agent": "Codex parent with MiniMax read-only workers",
+  "task": "Map quant-aware RCO/GSQ model support and add a fail-closed GPU gate shared with DeepSeek",
+  "source_revision": "f384039268190508f161e3191f0ac8e935469318",
+  "source_dirty": true,
+  "source_revision_role": "clean main head before the optimizer gate change",
+  "method_boundary": {
+    "rco_quant_aware": {
+      "available": true,
+      "entrypoint": "rco_search_quant.py",
+      "mechanism": "Projected Gumbel-softmax over pre-quantized candidate weights in an RCO WeightStore, with a budget-constrained assignment and CE/KL evaluation",
+      "teacher_boundary": "A high-bit or cached reference is still required as the optimization oracle; never serving BF16 does not remove that reference requirement",
+      "missing_for_target": [
+        "Every deployable Qwen4Exp candidate tensor and bitwidth in WeightStore format",
+        "Exact candidate byte costs rather than nominal bit labels",
+        "Candidate generation aligned with the target GGUF/IQuant formats",
+        "Assignment export and tensor-level inversion or parity proof",
+        "A streaming resource plan for the 48x512 model"
+      ]
+    },
+    "rco_qwen4exp_pruning": {
+      "structural_support": "Stock RCO already understands the Qwen4Exp router triple and can physically remove fused 3D experts",
+      "verified_by": "Tiny CPU and Modal L4 parity receipts already tracked in evidence",
+      "missing": "A reproducible streaming adapter runner and pinned full-model calibration/held-out resource plan"
+    },
+    "gsq_qwen4exp": {
+      "stock_support": "absent and actively misrouted to Qwen3Moe by name-based dispatch",
+      "required_wrapper": [
+        "model.language_model layer movement",
+        "fused 3D per-expert quantization with per-expert group scales",
+        "layer-1 PLE and 128 ngram shards",
+        "hc_count-width hyper-connection streams",
+        "linear/full attention selection",
+        "explicit preserve/omit contract for shared expert, router, PLE, and hyper-connection tensors",
+        "compressed-tensors/Humming or GGUF export compatibility"
+      ]
+    },
+    "deepseek_reuse": {
+      "reuse_as_is": [
+        "build_rco_tokens.py token/.i32 contract",
+        "DeepSeek V4.1 topology adapter semantics",
+        "96,085-tensor budget classifier and verified header geometry"
+      ],
+      "pattern_reuse": [
+        "Qwen fused-expert streaming materializer",
+        "exact-copy recipe and command-manifest validation"
+      ],
+      "missing": [
+        "reproducible adapter-injection runner",
+        "V4.1-faithful router statistics",
+        "streaming omit/copy/slice materialization executor",
+        "pinned DeepSeek calibration identity",
+        "DeepSeek GSQ wrapper and target-format exporter"
+      ]
+    }
+  },
+  "gate": {
+    "tool": "tools/optimizer_gate.py",
+    "format": "strata-optimizer-gate-v1",
+    "default_gpu_allowed": false,
+    "stages": {
+      "qwen4exp.rco-prune": 5,
+      "qwen4exp.rco-quant-aware": 7,
+      "qwen4exp.gsq": 10,
+      "deepseek-v41.rco-prune": 5,
+      "deepseek-v41.rco-quant-aware": 7,
+      "deepseek-v41.gsq": 6
+    },
+    "ready_manifest_contract": "Exact requirement set plus a manifest-directory artifact, matching SHA-256, and host verification argv for every acceptance item",
+    "green_result": "Every evidence file is hashed and every verification command exits zero before gpu_allowed becomes true",
+    "non_claim": "A green gate proves those evidence bytes and host checks only; it does not prove optimizer quality or runtime fitness."
+  },
+  "workers": [
+    {
+      "lane": "GSQ Qwen4Exp audit",
+      "receipt": "20261023-115452-kg25icrj",
+      "outcome": "completed",
+      "contribution": "Dispatch, PLE, hyper-connection, fused-expert, output-format, branch, and DeepSeek-reuse inventory"
+    },
+    {
+      "lane": "shared DeepSeek machinery audit",
+      "receipt": "20261023-115501-vngf29h2",
+      "outcome": "completed",
+      "contribution": "Reusable/model-specific component matrix and no-GPU implementation order"
+    },
+    {
+      "lane": "RCO quant-aware audit",
+      "receipt": "20261023-115446-d26io0mq",
+      "outcome": "failed after provider service_unavailable",
+      "contribution": "Partial source inspection only; parent completed the RCO mapping directly"
+    }
+  ],
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_optimizer_gate tools.test_custom_coder_plan tools.test_deepseek_rco_plan tools.test_deepseek_rco_materialization_plan tools.test_build_rco_tokens tools.test_reap_mask_from_traces tools.test_materialize_pruned_qwen4exp -v",
+      "exit": 0,
+      "result": "98 tests passed; 2 optional Torch/safetensors materializer tests skipped"
+    },
+    {
+      "command": "ruff check and format on optimizer_gate, its test, and scripts/strata.py",
+      "exit": 0,
+      "result": "lint and formatting passed"
+    },
+    {
+      "command": "python3 tools/optimizer_gate.py plan --stage qwen4exp.rco-quant-aware",
+      "exit": 0,
+      "result": "stage plans with gpu_allowed=false and seven named requirements"
+    },
+    {
+      "command": "python3 tools/optimizer_gate.py check --ready /dev/null",
+      "exit": 1,
+      "result": "malformed/missing ready manifest correctly refused with gpu_allowed=false"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "all repository checks passed with the new optimizer-gate test and lint wiring"
+    }
+  ],
+  "non_claims": [
+    "No RCO search, GSQ optimization, model forward, candidate generation, payload read, pack build, or GPU command ran.",
+    "The B550 GPU1 VFIO boundary and Windows VM ownership remain unchanged.",
+    "No Qwen4Exp or DeepSeek wrapper was implemented in the external GSQ/RCO forks during this host-safe governance pass.",
+    "The gate executes only the host verification commands named by a ready manifest; it does not execute an optimizer or claim those commands cover every possible input defect."
+  ]
+}
