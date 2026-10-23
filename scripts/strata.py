@@ -25,6 +25,7 @@ SCOPE = (
     "DeepSeek manifest and host C++ contract tests, "
     "custom Coder token and variant-planning contracts, "
     "the DeepSeek-V4.1-Flash RCO budget planner's own unit tests, "
+    "Flint RCO/GSQ metadata planning and tiny adapter contracts, "
     "script tests, maintained-script Ruff lint/format, shell warning lint, and Git "
     "whitespace on this host. It does not compile CUDA, HIP, or SYCL, run the full "
     "setup matrix, start the "
@@ -176,6 +177,10 @@ def quality() -> int:
                         "tools.test_materialize_pruned_qwen4exp",
                         "tools.test_deepseek_rco_plan",
                         "tools.test_deepseek_rco_materialization_plan",
+                        "tools.test_flint_compression_plan",
+                        "tools.test_flint_rco_adapter",
+                        "tools.test_materialize_pruned_flint",
+                        "tools.test_validate_flint_rco",
                     ],
                 ),
                 run_logged(
@@ -204,6 +209,14 @@ def quality() -> int:
                         "tools/deepseek_rco_materialization_plan.py",
                         "tools/test_deepseek_rco_materialization_plan.py",
                         "tools/verify_deepseek_v41_headers.py",
+                        "tools/flint_compression_plan.py",
+                        "tools/test_flint_compression_plan.py",
+                        "tools/flint_rco_adapter.py",
+                        "tools/test_flint_rco_adapter.py",
+                        "tools/materialize_pruned_flint.py",
+                        "tools/test_materialize_pruned_flint.py",
+                        "tools/validate_flint_rco.py",
+                        "tools/test_validate_flint_rco.py",
                     ],
                 ),
                 run_logged(
@@ -229,6 +242,14 @@ def quality() -> int:
                         "tools/deepseek_rco_materialization_plan.py",
                         "tools/test_deepseek_rco_materialization_plan.py",
                         "tools/verify_deepseek_v41_headers.py",
+                        "tools/flint_compression_plan.py",
+                        "tools/test_flint_compression_plan.py",
+                        "tools/flint_rco_adapter.py",
+                        "tools/test_flint_rco_adapter.py",
+                        "tools/materialize_pruned_flint.py",
+                        "tools/test_materialize_pruned_flint.py",
+                        "tools/validate_flint_rco.py",
+                        "tools/test_validate_flint_rco.py",
                     ],
                 ),
                 run_logged(

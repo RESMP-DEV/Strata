@@ -2574,3 +2574,24 @@ with Actions disabled and all current upstream branches present. Local tool-tree
 upstream remotes are fetch-only, while the owned fork remotes are named `resmp`. No
 optimizer ran and no upstream patch was applied. Full evidence is in
 [GSQ/RCO upstream fork evidence](../evidence/gsq-rco-upstream-forks-2026-10-23.json).
+
+### Flint RCO/GSQ first implementation, 2026-10-23
+
+The Flint compression lane now has an exact metadata planner, a stock-RCO
+topology adapter, and a streaming pruned-checkpoint materializer. The planner
+validates all 36,734 BF16 index tensors and the 47 routed layers; the primary
+lane retains 192 of 256 experts per layer, removes 3,008 expert slots, and saves
+18.92 GB of BF16 or 5.03 GB of MXFP4 routed-expert bytes before sharding. The
+adapter preserves sigmoid top-6 routing, additive shared experts, STE
+non-renormalization, and deployed hard-mask survivor renormalization. A tiny
+stock-RCO CPU probe passed reference caching, Gumbel budget selection,
+full-model KL, nonzero alpha gradients, and physical keep-row emission.
+
+GSQ remains a separate replacement optimizer, not a stage after RCO. It still
+lacks a Flint wrapper and MXFP4 quantizer/exporter. Current vLLM Metal source
+has suitable paged GQA/sliding-window/sink kernels, but Flint still needs config
+recognition, the owned MLX-LM fork, no-RoPE attention contracts, and a
+`softmax_offset` alias. No full source-model mask search, payload
+materialization, calibration, GSQ run, or Metal server run is claimed. Full
+architecture and commands are in
+[Flint RCO/GSQ architecture](../evidence/flint-rco-gsq-architecture-2026-10-23.md).
