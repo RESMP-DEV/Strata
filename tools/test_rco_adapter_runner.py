@@ -221,6 +221,9 @@ class FakeStockTreeTest(unittest.TestCase):
         original_revision = RUNNER.git_revision
         self.addCleanup(lambda: setattr(RUNNER, "git_revision", original_revision))
         RUNNER.git_revision = lambda _root: RUNNER.PINNED_RCO_REVISION
+        original_clean = RUNNER.git_is_clean
+        self.addCleanup(lambda: setattr(RUNNER, "git_is_clean", original_clean))
+        RUNNER.git_is_clean = lambda _root: True
 
         self.observation_path = self.temp / "observation.json"
         os.environ["STRATA_FAKE_RCO_OBSERVATION"] = str(self.observation_path)
@@ -243,6 +246,11 @@ class FakeStockTreeTest(unittest.TestCase):
     def test_an_unpinned_tree_is_refused_before_import(self) -> None:
         RUNNER.git_revision = lambda _root: "0" * 40
         with self.assertRaisesRegex(RUNNER.RunnerError, "expected 9a1e09c"):
+            RUNNER.run_stock(self.root, "deepseek", [])
+
+    def test_a_dirty_tracked_tree_is_refused_before_import(self) -> None:
+        RUNNER.git_is_clean = lambda _root: False
+        with self.assertRaisesRegex(RUNNER.RunnerError, "tracked uncommitted changes"):
             RUNNER.run_stock(self.root, "deepseek", [])
 
     def _restore_path(self) -> None:
@@ -328,6 +336,18 @@ class FakeStockTreeTest(unittest.TestCase):
         report = RUNNER.run_stock(self.root, RUNNER.MODE_DEEPSEEK, ["--exit-code", "3"])
         self.assertEqual(report["exit_code"], 3)
 
+    def test_a_system_exit_message_is_preserved_on_stderr(self) -> None:
+        class Entry:
+            @staticmethod
+            def main(_argv: list[str]) -> int:
+                raise SystemExit("stock parser failed")
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            exit_code = RUNNER._call_stock_entry(Entry(), [])
+        self.assertEqual(exit_code, 1)
+        self.assertIn("stock parser failed", stderr.getvalue())
+
     def test_the_pinned_tree_is_left_byte_identical(self) -> None:
         before = self.tree_files()
         RUNNER.run_stock(self.root, RUNNER.MODE_DEEPSEEK, ["--model", "fake-model"])
@@ -335,6 +355,8 @@ class FakeStockTreeTest(unittest.TestCase):
         self.assertFalse(list(self.root.rglob("__pycache__")))
 
     def test_the_run_writes_no_bytecode_into_the_pinned_tree(self) -> None:
+        self.addCleanup(setattr, sys, "dont_write_bytecode", sys.dont_write_bytecode)
+        sys.dont_write_bytecode = False
         self.assertFalse(sys.dont_write_bytecode)
         RUNNER.run_stock(self.root, RUNNER.MODE_DEEPSEEK, ["--model", "fake-model"])
         self.assertFalse(list(self.root.rglob("__pycache__")))

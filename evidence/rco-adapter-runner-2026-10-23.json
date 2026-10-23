@@ -15,6 +15,7 @@
     },
     "safety": [
       "Refuses an RCO tree that is not exactly revision 9a1e09c07d468109cbe60a1b87d5036034a79d10.",
+      "Refuses tracked dirty state and records RCO tree-clean provenance.",
       "Disables bytecode writes while importing the pinned tree.",
       "Restores module attributes, sys.path, and sys.modules on normal exit, exception, or SystemExit.",
       "Records entry/prune hashes and verifies the tree is byte-identical after a run."
@@ -24,12 +25,12 @@
     {
       "command": "python3 -m unittest tools.test_rco_adapter_runner -v",
       "exit": 0,
-      "result": "17 tests passed; one optional pinned-dependency test skipped"
+      "result": "19 tests passed; one optional pinned-dependency test skipped"
     },
     {
       "command": "uv run with torch, numpy, tqdm, datasets, transformers 5.20.2, and accelerate; python -m unittest tools.test_rco_adapter_runner -v",
       "exit": 0,
-      "result": "17/17 tests passed, including real pinned-tree adapter injection and restoration"
+      "result": "19/19 tests passed, including real pinned-tree adapter injection and restoration"
     },
     {
       "command": "ruff check and format on the runner and test",

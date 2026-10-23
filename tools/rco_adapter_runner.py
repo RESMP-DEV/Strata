@@ -138,6 +138,24 @@ def git_revision(root: Path) -> str | None:
     return completed.stdout.strip() or None
 
 
+def git_is_clean(root: Path) -> bool | None:
+    """Whether tracked files match HEAD; ``None`` when Git cannot say."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return not completed.stdout.strip()
+
+
 def qualify(obj: Any) -> str:
     """Qualified ``module.name`` of a function, for the manifest."""
     module = getattr(obj, "__module__", None)
@@ -315,6 +333,9 @@ def build_manifest(root: Path, mode: str, stock_argv: list[str]) -> dict[str, An
             f"RCO tree {root} is at {revision or 'an unreadable revision'}, "
             f"expected {PINNED_RCO_REVISION}"
         )
+    tree_clean = git_is_clean(root)
+    if tree_clean is not True:
+        raise RunnerError(f"RCO tree {root} has tracked uncommitted changes or an unreadable state")
     functions = [
         {
             "name": name,
@@ -332,6 +353,7 @@ def build_manifest(root: Path, mode: str, stock_argv: list[str]) -> dict[str, An
         "rco_revision": revision,
         "rco_revision_pinned": PINNED_RCO_REVISION,
         "rco_revision_matches_pinned": ((revision == PINNED_RCO_REVISION) if revision else None),
+        "rco_tree_clean": tree_clean,
         "stock_entry": str(entry),
         "stock_entry_present": entry.is_file(),
         "stock_entry_sha256": file_digest(entry),
@@ -364,6 +386,9 @@ def run_stock(root: Path, mode: str, stock_argv: list[str]) -> dict[str, Any]:
             f"RCO tree {root} is at {revision or 'an unreadable revision'}, "
             f"expected {PINNED_RCO_REVISION}"
         )
+    tree_clean = git_is_clean(root)
+    if tree_clean is not True:
+        raise RunnerError(f"RCO tree {root} has tracked uncommitted changes or an unreadable state")
 
     before = {
         "stock_entry_sha256": file_digest(entry),
@@ -432,6 +457,7 @@ def run_stock(root: Path, mode: str, stock_argv: list[str]) -> dict[str, Any]:
         "rco_revision": revision,
         "rco_revision_pinned": PINNED_RCO_REVISION,
         "rco_revision_matches_pinned": ((revision == PINNED_RCO_REVISION) if revision else None),
+        "rco_tree_clean": tree_clean,
         "stock_entry": str(entry),
         "stock_entry_present": True,
         "stock_entry_sha256": before["stock_entry_sha256"],
@@ -462,6 +488,7 @@ def _call_stock_entry(entry_module: ModuleType, stock_argv: list[str]) -> int:
             return 0
         if isinstance(code, int):
             return code
+        print(code, file=sys.stderr)
         return 1
 
 
@@ -505,6 +532,7 @@ def failure_report(
     """The manifest recorded when a run could not start or could not finish."""
     root = args.rco_root.expanduser().resolve()
     revision = git_revision(root)
+    tree_clean = git_is_clean(root)
     return {
         "format": FORMAT,
         "mode": args.mode,
@@ -514,6 +542,7 @@ def failure_report(
         "rco_revision": revision,
         "rco_revision_pinned": PINNED_RCO_REVISION,
         "rco_revision_matches_pinned": ((revision == PINNED_RCO_REVISION) if revision else None),
+        "rco_tree_clean": tree_clean,
         "injection": _injection_block(args.mode, [], None, None, {}),
         "stock_argv": list(stock_argv),
         "python": sys.executable,
