@@ -2452,3 +2452,15 @@ the seven-test materializer suite, Ruff, formatting, whitespace, and
 the released DeepSeek checkpoint and do not establish pruning quality. Full
 findings, worker receipts, commands, and non-claims are in the
 updated [RCO review-repair evidence](../evidence/deepseek-v41-rco-review-repairs-2026-10-22.json).
+
+### Router-slice payload arithmetic, 2026-10-23
+
+A follow-up integrated the verified header geometry into the planner itself.
+Each of the 40 backbone tuples is a BF16 `[384,5120]` gate weight plus two F32
+`[384]` biases: 157,409,280 source bytes become 88,542,720 target bytes at 216
+retained rows, a 68,866,560-byte delta. The exact 216-lane target tensor payload
+is therefore 383,876,855,640 bytes, while new safetensors headers, offsets,
+padding, shard boundaries, and final file sizes remain explicitly deferred. This
+is payload arithmetic, not proof that a materializer wrote or a loader read those
+bytes. The updated receipt is in
+[materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).

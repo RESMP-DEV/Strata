@@ -187,6 +187,7 @@ class MetadataOnlyPlanningTest(MaterializationTest):
                 "shared_pass_through": 258,
                 "dense_total": 1_363,
                 "dense_gate_slice": 120,
+                "dense_gate_slice_tuples": 40,
                 "dense_pass_through": 1_243,
             },
         )
@@ -236,6 +237,78 @@ class MetadataOnlyPlanningTest(MaterializationTest):
         self.assertEqual(
             sum(name.startswith("mtp.") and ".experts." in name for name in copied), 2_304
         )
+
+
+class RouterSliceArithmeticTest(MaterializationTest):
+    """Exact backbone router-slice and target-payload arithmetic."""
+
+    LAYERS = 40
+    HIDDEN = 5120
+    WEIGHT_DTYPE_BYTES = 2
+    BIAS_DTYPE_BYTES = 4
+    BIASES_PER_TUPLE = 2
+    SOURCE_ROWS = 384
+
+    def gate_payload(self, rows: int) -> int:
+        """Return the expected payload bytes of every backbone gate tuple."""
+        return self.LAYERS * (
+            rows * self.HIDDEN * self.WEIGHT_DTYPE_BYTES
+            + self.BIASES_PER_TUPLE * rows * self.BIAS_DTYPE_BYTES
+        )
+
+    def test_primary_lane_exact_router_and_target_payload_bytes(self) -> None:
+        accounting = self.plan()["byte_accounting"]
+        self.assertEqual(accounting["backbone_gate_source_payload_bytes"], 157_409_280)
+        self.assertEqual(accounting["backbone_gate_target_payload_bytes"], 88_542_720)
+        self.assertEqual(accounting["router_slice_delta_bytes"], 68_866_560)
+        self.assertEqual(accounting["target_payload_bytes"], 383_876_855_640)
+
+    def test_primary_lane_formula_relationship(self) -> None:
+        accounting = self.plan()["byte_accounting"]
+        source = self.gate_payload(self.SOURCE_ROWS)
+        target = self.gate_payload(216)
+        self.assertEqual(source, 157_409_280)
+        self.assertEqual(target, 88_542_720)
+        self.assertEqual(accounting["backbone_gate_source_payload_bytes"], source)
+        self.assertEqual(accounting["backbone_gate_target_payload_bytes"], target)
+        self.assertEqual(accounting["router_slice_delta_bytes"], source - target)
+        omitted = self.LAYERS * (self.SOURCE_ROWS - 216) * MODULE.base.expert_bytes()
+        self.assertEqual(accounting["omitted_backbone_routed_bytes"], omitted)
+        self.assertEqual(
+            accounting["target_payload_bytes"],
+            MODULE.DECLARED_INDEX_TOTAL_SIZE_BYTES - omitted - (source - target),
+        )
+
+    def test_formula_generalizes_to_the_mask_retained_count(self) -> None:
+        source = self.gate_payload(self.SOURCE_ROWS)
+        for retained in (6, 128, 216, 384):
+            with self.subTest(retained=retained):
+                plan = self.plan(mask_path=self.write_mask(build_mask(list(range(retained)))))
+                accounting = plan["byte_accounting"]
+                target = self.gate_payload(retained)
+                omitted = self.LAYERS * (self.SOURCE_ROWS - retained) * MODULE.base.expert_bytes()
+                self.assertEqual(accounting["backbone_gate_target_payload_bytes"], target)
+                self.assertEqual(accounting["router_slice_delta_bytes"], source - target)
+                self.assertEqual(accounting["omitted_backbone_routed_bytes"], omitted)
+                self.assertEqual(
+                    accounting["target_payload_bytes"],
+                    MODULE.DECLARED_INDEX_TOTAL_SIZE_BYTES - omitted - (source - target),
+                )
+                self.assertEqual(plan["selection"]["router_gate_weight_rows_target"], retained)
+
+    def test_target_layout_stays_deferred(self) -> None:
+        accounting = self.plan()["byte_accounting"]
+        deferred = {key for key, value in accounting.items() if value == MODULE.HEADER_DEFERRED}
+        self.assertEqual(
+            deferred,
+            {
+                "target_header_bytes",
+                "target_offsets",
+                "target_shard_boundaries",
+                "target_shard_file_bytes",
+            },
+        )
+        self.assertIn("new safetensors headers", accounting["target_payload_bytes_excludes"])
 
 
 class InputValidationTest(MaterializationTest):
@@ -409,14 +482,16 @@ class ActionAndCliTest(MaterializationTest):
         plan = self.plan()
         bytes_document = plan["byte_accounting"]
         deferred = {
-            "router_slice_delta_bytes",
-            "target_payload_bytes",
             "target_header_bytes",
+            "target_offsets",
+            "target_shard_boundaries",
             "target_shard_file_bytes",
         }
         self.assertEqual(
             {key for key in deferred if bytes_document[key] == MODULE.HEADER_DEFERRED}, deferred
         )
+        self.assertIsInstance(bytes_document["router_slice_delta_bytes"], int)
+        self.assertIsInstance(bytes_document["target_payload_bytes"], int)
         self.assertEqual(
             bytes_document["download_manifest_minus_index_bytes"],
             25_022_295,

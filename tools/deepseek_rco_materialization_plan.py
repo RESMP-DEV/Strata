@@ -28,7 +28,9 @@ MASK_FORMAT = "strata-deepseek-rco-mask-v1"
 SCOPE = (
     "Metadata-only planning contract; no shard opened. Selects and groups tensor "
     "actions from explicit JSON inputs, computes exact pinned routed-expert bytes, "
-    "and defers all target offsets and file sizes to streaming-header execution."
+    "exact backbone router-slice bytes, and the exact target tensor payload before "
+    "new safetensors headers, and defers target headers, offsets, shard boundaries, "
+    "and file sizes to streaming-header execution."
 )
 
 PINNED_REPO = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
@@ -38,6 +40,21 @@ DECLARED_MANIFEST_TOTAL_SIZE_BYTES = 510_311_045_295
 SHARD_PATTERN = re.compile(r"^model-\d{5}-of-00048\.safetensors$")
 BACKBONE_GATE_RE = re.compile(r"^layers\.(?P<layer>\d+)\.ffn\.gate\.(?P<part>weight|bias|bias_vl)$")
 GATE_PARTS = ("weight", "bias", "bias_vl")
+#: Verified 1017 shard-header geometry of one backbone router (gate) tuple.
+#:
+#: Every backbone layer carries exactly one gate tuple: a BF16 [384, 5120] weight
+#: plus two F32 [384] biases (``ffn.gate.bias`` and ``ffn.gate.bias_vl``). The
+#: 48-shard header verification receipt
+#: ``evidence/deepseek-v41-rco-header-verification-2026-10-23.json`` counted 80
+#: F32 [384] gate tensors with zero dtype or shape failures, and its
+#: ``total_data_bytes`` equals the pinned index total, so the index total is
+#: tensor payload bytes without headers. Row slicing rewrites only the first
+#: extent of each shape.
+BACKBONE_GATE_GEOMETRY: dict[str, dict[str, Any]] = {
+    "weight": {"dtype": "BF16", "dtype_bytes": 2, "shape": (384, 5120)},
+    "bias": {"dtype": "F32", "dtype_bytes": 4, "shape": (384,)},
+}
+BACKBONE_GATE_BIAS_COUNT = 2
 CONFIG_INVARIANTS = {
     "backbone_layers": (40, "num_hidden_layers"),
     "backbone_routed_experts": (384, "n_routed_experts"),
@@ -283,6 +300,31 @@ def backbone_gate_names() -> set[str]:
     }
 
 
+def backbone_gate_part_bytes(part: str, rows: int) -> int:
+    """Return the exact payload bytes of one backbone gate part at ``rows``."""
+    spec = BACKBONE_GATE_GEOMETRY.get(part)
+    if spec is None:
+        raise base.PlanError(f"unknown backbone gate part {part!r}")
+    trailing = 1
+    for extent in spec["shape"][1:]:
+        trailing *= extent
+    return rows * trailing * spec["dtype_bytes"]
+
+
+def backbone_gate_tuple_bytes(rows: int) -> int:
+    """Return the exact payload bytes of one backbone layer's gate tuple."""
+    weight = backbone_gate_part_bytes("weight", rows)
+    bias = backbone_gate_part_bytes("bias", rows)
+    return weight + BACKBONE_GATE_BIAS_COUNT * bias
+
+
+def backbone_gate_payload_bytes(rows: int) -> int:
+    """Return the exact payload bytes of every backbone gate tuple at ``rows``."""
+    if not 0 <= rows <= base.BACKBONE_ROUTED_EXPERTS:
+        raise base.PlanError(f"backbone gate row count {rows} is outside [0, 384]")
+    return base.BACKBONE_LAYERS * backbone_gate_tuple_bytes(rows)
+
+
 def build_actions(
     classes: list[base.TensorClass], selection: dict[str, Any]
 ) -> dict[str, list[str]]:
@@ -381,6 +423,10 @@ def build_plan(
     mtp_bytes = base.MTP_LAYERS * base.MTP_ROUTED_EXPERTS * bytes_per_expert
     manifest_delta = DECLARED_MANIFEST_TOTAL_SIZE_BYTES - DECLARED_INDEX_TOTAL_SIZE_BYTES
     target_count = len(actions["copy"]) + len(actions["slice_rows"])
+    source_gate_bytes = backbone_gate_payload_bytes(base.BACKBONE_ROUTED_EXPERTS)
+    target_gate_bytes = backbone_gate_payload_bytes(retained)
+    router_delta_bytes = source_gate_bytes - target_gate_bytes
+    target_payload_bytes = DECLARED_INDEX_TOTAL_SIZE_BYTES - omitted_bytes - router_delta_bytes
 
     return {
         "format": PLAN_FORMAT,
@@ -410,6 +456,8 @@ def build_plan(
             "router_policy": "slice_axis_zero",
             "keep_per_backbone_layer": retained,
             "prune_per_backbone_layer": pruned,
+            "router_gate_weight_rows_source": base.BACKBONE_ROUTED_EXPERTS,
+            "router_gate_weight_rows_target": retained,
             "omit": actions["omit"],
             "copy": actions["copy"],
             "slice_rows": [
@@ -429,6 +477,7 @@ def build_plan(
             "shared_pass_through": counts["shared_expert"],
             "dense_total": counts["dense"],
             "dense_gate_slice": len(actions["slice_rows"]),
+            "dense_gate_slice_tuples": base.BACKBONE_LAYERS,
             "dense_pass_through": counts["dense"] - len(actions["slice_rows"]),
         },
         "byte_accounting": {
@@ -449,9 +498,23 @@ def build_plan(
             "declared_download_manifest_total_size_bytes": (DECLARED_MANIFEST_TOTAL_SIZE_BYTES),
             "download_manifest_minus_index_bytes": manifest_delta,
             "download_manifest_minus_index_status": "noted and unexplained; not reconciled",
-            "router_slice_delta_bytes": HEADER_DEFERRED,
-            "target_payload_bytes": HEADER_DEFERRED,
+            "backbone_gate_source_payload_bytes": source_gate_bytes,
+            "backbone_gate_target_payload_bytes": target_gate_bytes,
+            "backbone_gate_bytes_per_retained_row": (
+                backbone_gate_payload_bytes(1) - backbone_gate_payload_bytes(0)
+            ),
+            "router_slice_delta_bytes": router_delta_bytes,
+            "target_payload_bytes": target_payload_bytes,
+            "target_payload_bytes_basis": (
+                "declared index total minus omitted routed-expert bytes minus the "
+                "backbone router slice delta; tensor payload bytes only"
+            ),
+            "target_payload_bytes_excludes": (
+                "new safetensors headers, offsets, padding, shard boundaries, and shard file sizes"
+            ),
             "target_header_bytes": HEADER_DEFERRED,
+            "target_offsets": HEADER_DEFERRED,
+            "target_shard_boundaries": HEADER_DEFERRED,
             "target_shard_file_bytes": HEADER_DEFERRED,
         },
         "mtp": {
@@ -481,7 +544,14 @@ def build_plan(
             "or executed.",
             "The pinned routed byte counts are not proof that source shard headers "
             "match those shapes.",
-            "No target safetensors header, offset, padding, or final file size is proven.",
+            "The backbone router byte counts use the pinned 1017 shard-header geometry "
+            "recorded in the header verification receipt; this planner reads no shard "
+            "header.",
+            "The exact target payload byte count is tensor payload bytes only; it "
+            "excludes new safetensors headers, offsets, padding, shard boundaries, and "
+            "shard file sizes.",
+            "No target safetensors header, offset, padding, shard boundary, or final "
+            "file size is proven.",
             "No quality, perplexity, KL, accuracy, memory-fit, throughput, or "
             "loader-compatibility claim is made.",
             "This is not a Strata backend load claim.",
