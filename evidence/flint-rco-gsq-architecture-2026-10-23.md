@@ -587,3 +587,12 @@ This is one 4-token prompt and 64 generated tokens, so the 2.2% decode
 difference is not a throughput claim. The 4.196 GB peak-memory reduction and
 the 2.5196 GB parameter reduction are direct measurements and agree in scale.
 The artifact has not been uploaded.
+
+### Publication attempt
+
+A private Hugging Face candidate repository was opened for the physical 224
+MXFP4 artifact. The 18 GB upload reached roughly 1.02 GB at about 4.6 MB/s,
+then was aborted because it would leave an incomplete private model repo for
+about an hour. The temporary private repository was deleted. No 224 artifact
+is published locally or remotely. The validated files remain at
+`/Users/kearm/models/RecursiveSI-Flint-40B-A2.5B-MLX-GPTQ-MXFP4-224`.
