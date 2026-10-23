@@ -2609,3 +2609,38 @@ That 128×1024 control was physically materialized as a 27,710-tensor,
 60,633,554,496-byte 192-expert BF16 checkpoint on B550. A streaming load check
 read all 49 layers plus the final norm and LM head and produced finite logits.
 No quality or throughput claim follows from the load check.
+
+### Flint expert-pruning measurement gate, 2026-10-23
+
+A tracked paired evaluator now streams both BF16 arms layer by layer on B550
+GPU0, computes per-token NLL, perplexity, and top-1, and bootstraps the paired
+NLL delta by held-out window. The gate uses calibration rows 128–143 at
+sequence length 1024, disjoint from the 128 rows used by the earlier
+router-control selection.
+
+The first measured arm was the 128×1024 router-score mask. It lowered NLL from
+2.99009 to 2.21606 nats/token on this domain but agreed on only 79.74% of
+next-token choices, so the pre-registered 95% agreement gate rejected it. A new
+layer-local search then measured the exact routed-output change for each expert
+on the real 256-expert source, using the deployed sigmoid top-6 re-selection
+semantics. The 8×1024 search completed in 167.874 seconds and produced a
+192-expert mask overlapping the router-control mask by only 145.55 retained
+experts per layer on average. After materialization, this mask lowered NLL to
+2.30621 and raised top-1 accuracy to 0.63654, but its 81.05% next-token
+agreement still failed the pre-registered 95% gate.
+
+No quantization or serving claim follows. Both masks are rejected for MXFP4
+promotion under the pre-registered gate, despite better perplexity on this
+calibration domain. The domain-only result demonstrates why a single corpus
+perplexity is insufficient: it cannot distinguish genuine model improvement
+from behavior replacement. The gate therefore stays closed until either a
+mask reaches the agreement threshold or the user explicitly relaxes it after
+seeing the tradeoff. The leave-one-out mask is the strongest candidate to
+carry forward because it is measured from real activations, not router heuristics.
+
+The companion MLX-LM entropy lane also advanced. Commit
+`de15a0e` in `RESMP-DEV/mlx-lm` repairs an exact prompt-cache-hit continuation
+that previously emptied all token segments and killed the generation thread;
+the dedicated regression test fails before the fix and passes afterward, and
+the full server suite passes 42 tests. The Flint top-logprob Shannon-entropy
+controller therefore no longer carries that serving blocker.

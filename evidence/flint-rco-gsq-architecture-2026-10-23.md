@@ -250,3 +250,152 @@ Focused Ruff and format checks passed for every new tool and test.
 - The synthetic mask used for the materializer dry run is not a quality mask.
 - The expected footprint saving is not a throughput prediction.
 - vLLM Metal kernel capability does not establish Flint integration readiness.
+
+### Pre-registered 192-expert BF16 gate
+
+Before reading the 16-window held-out result, we fix the acceptance gate for
+promoting any 192-of-256 physical BF16 mask to the MXFP4 calibration stage:
+
+- paired NLL delta (candidate minus source) is at most `0.05` nats/token;
+- the 95% window-bootstrap upper bound for that delta is at most `0.08`
+  nats/token;
+- next-token top-1 agreement with the source is at least `0.95`;
+- top-1 accuracy loss is at most `0.5` percentage points.
+
+The gate uses 16 held-out calibration windows (`offset=128`, sequence length
+1024) disjoint from the 128 windows used to select the current router-control
+mask. It is an engineering gate, not a broad benchmark suite. The gate is
+pre-registered here before the quality report is read.
+
+### Router-control 192-expert gate result
+
+The gate ran on B550 at Strata revision `1b47e1f9` with
+`tools/evaluate_flint_quality.py`, 16 held-out windows (offset 128, sequence
+length 1024), batch size 4, and 4096 bootstrap resamples at seed 173.
+
+| metric | 256-expert BF16 source | physical 192-expert BF16 |
+| --- | --- | --- |
+| mean NLL (nats/token) | 2.9900943347887323 | 2.2160611408282422 |
+| perplexity | 19.887558491706013 | 9.17113581665058 |
+| top-1 accuracy | 0.5821533203125 | 0.6331787109375 |
+
+Paired comparison:
+
+- NLL delta (candidate minus source): `-0.7740331939604903` nats/token, which
+  is `-1.1166938504102446` bits/token;
+- window-bootstrap 95% CI:
+  `[-1.3991392528709548, -0.21051020239917395]` nats/token;
+- next-token top-1 agreement: `0.79736328125`;
+- both correct 8296 tokens, candidate only 2078, source only 1242;
+- arm times: source 162.575 s, candidate 77.664 s, total 241.186 s.
+
+Receipt SHA-256: `66166ce5f7df9511c2649b01b604c87733ceecf231e4ffe3c0f74a9309d96362`.
+Raw metric arrays SHA-256:
+`008f346057e4a188738173e362ca2d4c00ec5d181452ccee7f13d0c609771fcb`.
+
+Gate outcome: the two NLL criteria pass, and top-1 accuracy does not drop. The
+agreement criterion fails because `0.79736328125` is below the pre-registered
+`0.95`. The router-control mask is therefore rejected for promotion to the
+MXFP4 calibration stage. Lower NLL on this corpus alongside 20% next-token
+disagreement is not evidence of a better model.
+
+A first run of the same gate at revision `f78cad51` was discarded. Its batch
+rows were concatenated along the token axis, so the aggregate NLL and top-1
+numbers were valid but the 16 per-window bootstrap samples were regrouped.
+Revision `1b47e1f9` fixes the row assembly and adds a regression test.
+
+### Quantization lane order for Flint
+
+The Flint compression lane keeps the methods in this order, and no step is
+skipped by another step's result:
+
+1. mask selection on the 256-expert BF16 source;
+2. materialization of a physical 192-expert BF16 checkpoint;
+3. quality gate of that BF16 checkpoint against the 256-expert source;
+4. GPTQ-MXFP4 recalibration of the promoted checkpoint with the RoPE-repaired
+   eager skeleton;
+5. MLX MXFP4 packing with the expert-ID map and mask provenance carried as
+   sidecars;
+6. artifact validation, then paired BF16 and MXFP4 evaluation.
+
+GSQ does not sit in that chain. GSQ is a Gumbel-Softmax scalar quantizer that
+would replace step 4, not follow it, and the pinned GSQ tree still lacks a
+Flash-Next/Qwen4Exp wrapper, so it cannot serve Flint today. The proven
+GPTQ-MXFP4 path stays as the only live quantizer. The user is satisfied with
+that path, so GSQ is only revisited if a measured comparison shows an
+advantage.
+
+Full-model Gumbel-STE RCO is not running on this host. Stock RCO needs the
+whole 74.11 GiB source resident plus the retained autograd graph, and B550
+exposes only one 24 GiB GPU because the second RTX 3090 Ti is bound to a
+VFIO guest. The honest options are a new streaming STE driver with
+reverse-streaming backward (12 to 15 hours for the stock 200-step default,
+1.5 to 2 hours for 50 steps with 2 Gumbel samples) or the layer-local exact
+leave-one-out search that now runs on the real source in 167.874 seconds. We
+take the layer-local search first because it produces a real, auditable mask
+from real activations, and every one of its masks must still pass the
+pre-registered full-model gate before any quantization work starts.
+
+### Layer-local leave-one-out search result
+
+`tools/flint_prune_impact_search.py` then measured each expert on the real
+256-expert BF16 source. It captured the actual post-attention MoE input, evaluated
+the real routed expert outputs for the current top-6 plus the next-best expert,
+and computed the exact squared routed-output change when that expert was removed
+and the router promoted the replacement under the deployed sigmoid score
+normalization.
+
+The full search ran on 8×1024 real calibration tokens with greedy rounds
+32/16/8/8 and completed in 167.874 seconds. It emitted a materializer-compatible
+192-expert mask with SHA-256
+`7f3389f70afa160611c70df2dc517d2221246dda5f9e2989400306a574d984c6`.
+Its overlap with the previous router-control mask is only 138–152 retained
+experts per layer (mean 145.55), so the two methods disagree materially; no
+layer is identical. This is not a proxy score. It is a real layer-local
+measurement on the real 256-expert source, though still not a full-model
+Gumbel-STE search.
+
+Materialization into
+`/home/kearm/flint-192-prune-impact-bf16` took 342.45 seconds and produced:
+- 27,710 selected tensors;
+- 9,024 omitted tensors;
+- 27,072 expert tensors;
+- 47 sliced routers;
+- 591 other tensors;
+- payload size 60,633,554,496 bytes;
+- expert-ID-map SHA-256
+  `5fa2e62bf56e8fc1a610cacf3ea6bd37a661ca9bc24e17fc8265ff57a3f3cf72`.
+
+Materialization receipt SHA-256:
+`53b83de178d14026425faec25b801d74867fb3996818f01372143bec2ca30a6f`.
+
+### Leave-one-out mask gate result
+
+The same 16-window held-out gate at revision `94c2996b` produced:
+
+| metric | 256-expert BF16 source | physical 192-expert BF16 |
+| --- | --- | --- |
+| mean NLL (nats/token) | 2.9900943347887323 | 2.3062101731753035 |
+| perplexity | 19.887558491706013 | 10.036316587312733 |
+| top-1 accuracy | 0.5821533203125 | 0.63653564453125 |
+
+Paired comparison:
+
+- NLL delta (candidate minus source): `-0.683884161613429` nats/token, which
+  is `-0.9866362885022004` bits/token;
+- window-bootstrap 95% CI:
+  `[-1.2309787191000137, -0.1749546560468955]` nats/token;
+- next-token top-1 agreement: `0.81048583984375`;
+- both correct 8431 tokens, candidate only 1998, source only 1107;
+- arm times: source 161.023 s, candidate 123.343 s, total 286.406 s.
+
+Receipt SHA-256: `a3e688d849d426898df0187223d2d3ed0297526c47112d9c8bb27a020723de03`.
+Raw metric arrays SHA-256:
+`83eb3a0254098ffad2be1a72df330f4f24396d52a4a694284b0e95d6a6ab8ed4`.
+
+Gate outcome: NLL passes and top-1 accuracy rises, but the pre-registered
+agreement criterion still fails (`0.8105` is below `0.95`). The leave-one-out
+mask is therefore not promoted to MXFP4 calibration under the pre-registered
+gate. This is the strongest measured mask so far, and it is the one to carry
+forward if the user relaxes the agreement threshold; it is not yet a finished
+quantized artifact.
