@@ -1,0 +1,84 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-22T23:32:27Z",
+  "agent": "Codex parent with MiniMax CCR contract and implementation workers",
+  "task": "Plan DeepSeek RCO physical expert removal from checkpoint metadata without opening shards.",
+  "source_revision": "003a870508905390cbcd46115f491124ab3e5714",
+  "source_dirty": false,
+  "implementation": {
+    "planner": "tools/deepseek_rco_materialization_plan.py",
+    "tests": "tools/test_deepseek_rco_materialization_plan.py",
+    "quality_wiring": "scripts/strata.py runs the new tests and Ruff checks in just quality",
+    "mask_format": "strata-deepseek-rco-mask-v1",
+    "plan_format": "strata-deepseek-rco-materialization-plan-v1"
+  },
+  "workers": [
+    {
+      "lane": "read-only contract derivation",
+      "receipt_id": "20261022-155839-_bwkn4rr"
+    },
+    {
+      "lane": "implementation and tests",
+      "receipt_id": "20261022-161005-rgaw7cjk"
+    }
+  ],
+  "actual_metadata": {
+    "source": "B550 pinned 1017 hard-drive checkpoint; only config.json and model.safetensors.index.json were copied",
+    "config_sha256": "8be45ce0476004a3f529fd896115a4a2e800a129ad2d3ec05b16050f52e21879",
+    "index_sha256": "74b0686a3d2891980d5e303251b075a3bccae2c2ff650747db2620a649b98fa8",
+    "mask_sha256": "05f657fd4efe7a62710b22c2ac8fdfda2725075949fce4cdb16acf2dd172d207",
+    "plan_sha256": "e1d0a806de3d05868ba310ed1d61a59acbe95efa67f6357e40c195141bc838f0",
+    "shards_opened": 0
+  },
+  "primary_216_of_384_result": {
+    "source_tensors": 96085,
+    "omitted_routed_tensors": 40320,
+    "copied_tensors": 55645,
+    "backbone_router_row_slices": 120,
+    "target_tensors": 55765,
+    "retained_backbone_routed_tensors": 51840,
+    "preserved_mtp_routed_tensors": 2304,
+    "shared_pass_through_tensors": 258,
+    "dense_pass_through_tensors": 1243,
+    "source_shards": 48,
+    "retained_backbone_routed_bytes": 162437529600,
+    "omitted_backbone_routed_bytes": 126340300800,
+    "preserved_mtp_routed_bytes": 7219445760
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_deepseek_rco_materialization_plan tools.test_deepseek_rco_plan",
+      "exit": 0,
+      "result": "44 tests passed, including the full synthetic 96085-tensor inventory"
+    },
+    {
+      "command": "dedicated unittest process comparing torch/safetensors module sets before and after both planner suites",
+      "exit": 0,
+      "result": "both suites passed and forbidden_modules_loaded=[]"
+    },
+    {
+      "command": "python3 tools/deepseek_rco_materialization_plan.py --config actual-1017/config.json --index actual-1017/model.safetensors.index.json --manifest data/deepseek_v41_manifest.json --mask actual-1017/mask-216.json --out actual-1017/plan-216.json",
+      "exit": 0,
+      "result": "pinned B550 metadata classified strictly and reproduced all primary-lane action and byte counts with 0 shard opens"
+    },
+    {
+      "command": "ruff check and format --check on the planner, tests, and quality wiring",
+      "exit": 0,
+      "result": "all checks passed"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "20/20 checks passed after adding the new suite to compression-tools and both Ruff lists"
+    }
+  ],
+  "non_claims": [
+    "No checkpoint shard was opened, hashed, copied, converted, quantized, packed, or executed.",
+    "The safetensors index has no per-tensor offsets, dtypes, or shapes; this is a planning artifact, not an executor.",
+    "Target safetensors headers, offsets, payload sizes, shard file sizes, and loader compatibility remain unproven.",
+    "The pinned routed byte arithmetic is based on previously observed shard-header geometry and is not reverified against shard payloads by this planner.",
+    "The 216-of-384 uniform mask is a deterministic planning input, not an RCO quality result.",
+    "MTP/DSpark routed experts and their gates are preserved by design; their acceptance remains untested.",
+    "No Strata backend load, quality, memory-fit, or throughput claim is made."
+  ]
+}

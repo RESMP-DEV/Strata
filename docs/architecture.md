@@ -2398,3 +2398,24 @@ installation and final evaluation process-locally, and reported KL
 was opened and no quality or runtime claim follows. Full machine, pins,
 substitutions, artifacts, hashes, and non-claims are in
 [stock-RCO tiny integration evidence](../evidence/deepseek-v41-rco-stock-tiny-2026-10-22.json).
+
+### DeepSeek RCO materialization planning, 2026-10-22
+
+`tools/deepseek_rco_materialization_plan.py` now turns a strict
+`strata-deepseek-rco-mask-v1` selection and the two checkpoint metadata files
+into a complete metadata-only action plan. It accepts explicit files rather
+than a checkpoint directory, validates the pinned 96,085-tensor index and 48
+shard names, preserves MTP/DSpark, expands every pruned expert to its six
+routed tensors, and marks the 120 backbone router tensors as axis-zero row
+slices rather than pass-through copies. Target headers, offsets, and file
+sizes remain explicitly `requires_streaming_header`.
+
+For the primary 216-of-384 lane against the actual pinned B550
+`config.json` and `model.safetensors.index.json`, the planner enumerates
+40,320 omitted routed tensors, 55,645 copies, and 120 router slices for
+55,765 target tensors. Its routed arithmetic remains 162,437,529,600 retained
+backbone bytes, 126,340,300,800 omitted backbone bytes, and 7,219,445,760
+preserved MTP bytes. The synthetic full-inventory suite, dependency proof,
+Ruff, and `just quality` pass; no shard was opened. Full hashes and non-claims
+are in
+[materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).
