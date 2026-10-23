@@ -1,0 +1,128 @@
+{
+  "base_model": "RecursiveSI/flint",
+  "base_revision": "2a247be0c0aec895ccb0ac7ca92229ec6df37288",
+  "expert_id_map_sha256": "d731ae02d470bdfa9e9b17984e7cb500d426da6862bfbc048167176f145bb949",
+  "experts": {
+    "kept": 224,
+    "pruned": 32,
+    "source": 256,
+    "top_k": 6
+  },
+  "files": [
+    {
+      "bytes": 11356,
+      "path": "LICENSE",
+      "sha256": "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+    },
+    {
+      "bytes": 4304,
+      "path": "README.md",
+      "sha256": "acd76bda32141b524b5fa12df6e0f8a3f33611c57a3d2e7032e3f1ff1bede511"
+    },
+    {
+      "bytes": 2328,
+      "path": "chat_template.jinja",
+      "sha256": "7940f4ffa3275c36caa4a582f845aaad79da11018b3961e8fbcad6ae29733466"
+    },
+    {
+      "bytes": 2653,
+      "path": "config.json",
+      "sha256": "8c1b5157e17326b2013f2ab3f6cf0b0c53b9ace05df567cc3363df51fbb8fac2"
+    },
+    {
+      "bytes": 267833,
+      "path": "expert-id-map.json",
+      "sha256": "d731ae02d470bdfa9e9b17984e7cb500d426da6862bfbc048167176f145bb949"
+    },
+    {
+      "bytes": 202,
+      "path": "generation_config.json",
+      "sha256": "a499c71895e008abd572558a5ad5904feaed92cf2a3b6e2cb0e9cabf03b96ed3"
+    },
+    {
+      "bytes": 1573,
+      "path": "materialization.receipt.json",
+      "sha256": "e127cc8c683015de32a8fda24b749caabd8d7ce55ba83de82e638b7cd71723e5"
+    },
+    {
+      "bytes": 4697304218,
+      "path": "model-00001-of-00005.safetensors",
+      "sha256": "2444ab051839d28d8bf05cc06ba8df0174213744dbd3e5cb9076389956a146cd"
+    },
+    {
+      "bytes": 4663684044,
+      "path": "model-00002-of-00005.safetensors",
+      "sha256": "57c696cbe0eef7b8fb9faa0ba9d138ecad85974524ad70566fc6fad38ebed127"
+    },
+    {
+      "bytes": 4663684030,
+      "path": "model-00003-of-00005.safetensors",
+      "sha256": "1226ed35ebf3d9b0fae0b3fc00871721f495458d2a490c1c7fca059c4a9260fe"
+    },
+    {
+      "bytes": 4663684004,
+      "path": "model-00004-of-00005.safetensors",
+      "sha256": "eba1a8df0992ea5816c55b1fdaa0bef863ac746a865aa70aa31a207e35a29183"
+    },
+    {
+      "bytes": 867907213,
+      "path": "model-00005-of-00005.safetensors",
+      "sha256": "b99819eefc10449f5e0732e376891c6374e01a532a81cb7dce9ceb0d14c0cec3"
+    },
+    {
+      "bytes": 114656,
+      "path": "model.safetensors.index.json",
+      "sha256": "fe82f371b81967f774d89fc3794953f63cfab2280efeab88748293b90258ea29"
+    },
+    {
+      "bytes": 111964,
+      "path": "pruning-mask.json",
+      "sha256": "b34167c369b0ac419b21fc406dbd57540f7962b44ca5e3088d666f62ac20619b"
+    },
+    {
+      "bytes": 10879508,
+      "path": "tokenizer.json",
+      "sha256": "752cbc36d07b82cfceac213502efc25ea43413af349f1d3c1376674cacdd43b4"
+    },
+    {
+      "bytes": 3750,
+      "path": "tokenizer_config.json",
+      "sha256": "481e970de4c297762a0de67406375c952ee84be3d5190fd3b33125dff737b990"
+    }
+  ],
+  "format": {
+    "bits": 4,
+    "group_size": 32,
+    "library": "mlx",
+    "mode": "mxfp4"
+  },
+  "license": "Apache-2.0",
+  "mask_sha256": "b34167c369b0ac419b21fc406dbd57540f7962b44ca5e3088d666f62ac20619b",
+  "materialization_receipt_sha256": "e127cc8c683015de32a8fda24b749caabd8d7ce55ba83de82e638b7cd71723e5",
+  "model": "RecursiveSI-Flint-40B-A2.5B-MLX-GPTQ-MXFP4-224",
+  "non_claims": [
+    "No task-level agentic benchmark was run.",
+    "The GPTQ calibration predates the RoPE layout repair.",
+    "The artifact is not uploaded."
+  ],
+  "parameter_bytes": 19556113984,
+  "physical_eval_receipt_sha256": "4529d46dac9f4bdba4709cb849c48149da4d2ffe09df45933928cd65cc0449ed",
+  "quality": {
+    "corpus": "agentic-coding 32 windows x 1024",
+    "full_256_ppl": 6.207109417615344,
+    "nll_delta": -0.00016347132623195648,
+    "nll_delta_ci95": [
+      -0.04942917847074568,
+      0.04476901260204613
+    ],
+    "pruned_224_ppl": 6.2060948161381635,
+    "top1_agreement_note": "full 0.668914794921875, pruned 0.666748046875"
+  },
+  "schema": "strata-flint-mlx-artifact-v1",
+  "serving": {
+    "host": "127.0.0.1",
+    "label": "dev.resmp.flint224-mxfp4",
+    "launcher": "/Users/kearm/mlx-stack/scripts/flint224_mxfp4_service.sh",
+    "port": 8084
+  }
+}

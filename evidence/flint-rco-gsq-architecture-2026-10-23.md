@@ -596,3 +596,28 @@ then was aborted because it would leave an incomplete private model repo for
 about an hour. The temporary private repository was deleted. No 224 artifact
 is published locally or remotely. The validated files remain at
 `/Users/kearm/models/RecursiveSI-Flint-40B-A2.5B-MLX-GPTQ-MXFP4-224`.
+
+### Durable artifact seal and local service
+
+The physical 224 MXFP4 directory now carries `artifact-manifest.json` and
+`SHA256SUMS`. The manifest records the base revision, license, mask hash,
+expert-ID map, materialization and physical-evaluation receipts, parameter
+bytes, quality metrics, serving endpoint, file sizes, and per-file SHA-256.
+`shasum -a 256 -c SHA256SUMS` passed for all 16 files, including the five
+payload shards.
+
+The resident service is `dev.resmp.flint224-mxfp4` at
+`http://127.0.0.1:8084`, launched by
+`/Users/kearm/mlx-stack/scripts/flint224_mxfp4_service.sh`. It uses the
+backlog-hardened MLX-LM server with decode concurrency 4 and prompt
+concurrency 2. The Python process starts through `env -i`, so inherited
+credential variables are not passed to the model process.
+
+Live checks passed for health, model listing, a 64-token completion, SSE
+streaming, 20 top logprobs, and a four-request synchronized burst. On a
+4,096-character real holdout prompt, one request measured 90.82 per-stream
+decode tok/s and 0.395 s first token; four concurrent requests measured
+222.73 sum per-stream decode tok/s and 2.945 s median first token. These are
+short local smokes, not benchmark claims.
+
+The model is local-only and not uploaded. QLoRA, CPT, and SFT have not run.
