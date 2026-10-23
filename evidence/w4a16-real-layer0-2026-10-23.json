@@ -1,0 +1,87 @@
+{
+  "artifact": {
+    "breakdown_bytes": {
+      "embed_tokens": 1271398400,
+      "hyper_connection_mixer": 3502080,
+      "layer0": 794011408,
+      "lm_head": 1271398400
+    },
+    "fused_bytes": 3340325470,
+    "fused_tensor_count": 48,
+    "layer0_expert_bytes": 752025600,
+    "linearized_bytes": 3340541173,
+    "paths": {
+      "fused": "/home/kearm/strata-scratch/own-coder-run/w4a16/layer0-fused",
+      "linearized": "/home/kearm/strata-scratch/own-coder-run/w4a16/layer0-quant"
+    }
+  },
+  "cost_model_cross_check": {
+    "match": true,
+    "observed_layer_expert_bytes": 752025600,
+    "predicted_layer_expert_bytes": 752025600,
+    "source": "evidence/w4a16-cost-model-2026-10-23.json"
+  },
+  "findings": [
+    {
+      "id": "coarse-sequential-target-oom",
+      "resolution": "per-expert ExpertMLPWithGate targets with 8 experts per subgraph completed on GPU0",
+      "statement": "A whole-decoder-layer sequential target ran out of memory on the second subgraph."
+    },
+    {
+      "consequence": "the full run needs an explicit decision on whether to ignore the hyper-connection mix weights, based on a measured quality comparison rather than a guess",
+      "id": "hyper-connection-quantization-error",
+      "statement": "GPTQ reported error 50955.06 and 1296712.75 for hyper_connection_mixer.input_mix_weight_down and input_mix_weight_up, versus 0.06 on a normal module",
+      "status": "open"
+    }
+  ],
+  "format": "strata-evidence-w4a16-real-layer0-v1",
+  "fused_layout_verification": {
+    "comparison": "MXFP4 decompression of fused and per-expert layouts, exact equality",
+    "experts_compared": 288,
+    "result": "pass",
+    "tensors_compared": 576,
+    "tool": "tools/verify_fused_moe_artifact.py"
+  },
+  "host": {
+    "alias": "b550-zt",
+    "gpu": "GPU0, RTX 3090 Ti 24 GiB, free at run start",
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91"
+  },
+  "non_claims": [
+    "Only layer 0 was quantized; the other 47 layers, PLE, and the MTP path were not.",
+    "Calibration used 2 sequences of 2048 tokens, not the 256-sequence recipe.",
+    "No BF16 oracle, quality metric, serving test, or runtime benchmark ran.",
+    "The fused artifact is layout-verified but not proven loadable by an inference engine."
+  ],
+  "quantization": {
+    "calibration": "calibration/alphaheng-calibration-256x2048.npy",
+    "elapsed_seconds": 23.387,
+    "max_seq_length": 2048,
+    "modules_configured": 881,
+    "num_calibration_samples": 2,
+    "pipeline": "sequential",
+    "quantization_format": "mxfp4-pack-quantized",
+    "recipe": "GPTQModifier targets=Linear scheme=MXFP4A16 ignore=lm_head dampening_frac=0.01 actorder=static",
+    "sequential_offload_device": "cpu",
+    "sequential_targets": [
+      "Qwen4ExpTextGatedDeltaNet",
+      "Qwen4ExpTextAttention",
+      "ExpertMLPWithGate"
+    ],
+    "sequential_targets_per_subgraph": 8
+  },
+  "recorded_at": "2026-10-23",
+  "scope": "First real-weight W4A16 quantization of the 288-expert own-Coder model, layer 0 only",
+  "source_checkpoint": "/home/kearm/strata-scratch/own-coder-run/pruned-bf16-288",
+  "streaming_load": {
+    "elapsed_seconds": 4.985,
+    "keep_layers": 1,
+    "loaded_bytes": 5540726208,
+    "loaded_tensors": 29,
+    "missing_parameters": [],
+    "note": "peak host memory is the selected prefix, not the 231 GiB checkpoint",
+    "shards_read": 5,
+    "tool": "tools/qwen4exp_partial_load.py"
+  }
+}

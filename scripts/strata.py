@@ -187,6 +187,7 @@ def quality() -> int:
                         "tools.test_qwen4exp_moe_repack",
                         "tools.test_qwen4exp_moe_probe",
                         "tools.test_w4a16_cost_model",
+                        "tools.test_qwen4exp_partial_load",
                     ],
                 ),
                 run_logged(
@@ -230,6 +231,8 @@ def quality() -> int:
                         "tools/verify_fused_moe_artifact.py",
                         "tools/w4a16_cost_model.py",
                         "tools/test_w4a16_cost_model.py",
+                        "tools/qwen4exp_partial_load.py",
+                        "tools/test_qwen4exp_partial_load.py",
                     ],
                 ),
                 run_logged(
@@ -270,6 +273,8 @@ def quality() -> int:
                         "tools/verify_fused_moe_artifact.py",
                         "tools/w4a16_cost_model.py",
                         "tools/test_w4a16_cost_model.py",
+                        "tools/qwen4exp_partial_load.py",
+                        "tools/test_qwen4exp_partial_load.py",
                     ],
                 ),
                 run_logged(

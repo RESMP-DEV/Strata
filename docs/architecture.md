@@ -2703,3 +2703,29 @@ quality measurement, or benchmark ran. The receipts are
 [Qwen4Exp MoE machinery](../evidence/qwen4exp-moe-machinery-2026-10-23.json),
 [W4A16 cost model](../evidence/w4a16-cost-model-2026-10-23.json), and
 [W4A16 resource plan](../evidence/w4a16-resource-plan-2026-10-23.json).
+
+### First real-weight W4A16 layer, 2026-10-23
+
+A streaming partial load made the real checkpoint usable on a host that cannot hold it.
+`tools/qwen4exp_partial_load.py` built the configured model on the meta device, kept only
+layer 0, and copied 29 tensors (5,540,726,208 bytes) from five safetensors shards in 4.985
+seconds, with no parameters left on meta and nothing missing.
+
+GPTQ then ran on real layer-0 weights with the real calibration matrix. A whole-decoder-
+layer sequential target ran out of memory on the second subgraph, which reproduced the
+coarse-target problem the earlier readiness receipt predicted. Targeting
+`Qwen4ExpTextGatedDeltaNet`, `Qwen4ExpTextAttention`, and the linearized
+`ExpertMLPWithGate` class with eight experts per subgraph completed on GPU0 in 23.387
+seconds for two calibration sequences, and produced a compressed-tensors
+`mxfp4-pack-quantized` artifact.
+
+`tools/qwen4exp_moe_repack.py` fused that artifact and
+`tools/verify_fused_moe_artifact.py` compared all 288 experts and 576 tensors after MXFP4
+decompression with exact equality. The fused layer-0 artifact is 3,340,325,470 bytes, of
+which 752,025,600 bytes are the expert tensors, which matches the independent cost model
+to the byte. GPTQ also reported errors of 50955.06 and 1296712.75 on the two
+hyper-connection mix weights against 0.06 on a normal module, so whether those weights
+belong in the ignore list is an open measured decision for the full run. Only layer 0 ran,
+calibration used two sequences rather than 256, and no oracle, quality metric, serving
+test, or benchmark exists yet. The receipt is
+[W4A16 real layer 0](../evidence/w4a16-real-layer0-2026-10-23.json).
