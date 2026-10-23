@@ -261,7 +261,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         hook = None
         if physical_layer not in dense_layers:
 
-            def capture(_module, args_tuple, _output, sink=captured):
+            def capture(_module, args_tuple, sink=captured):
                 sink.append(args_tuple[0])
 
             hook = layer.mlp.register_forward_pre_hook(capture)
