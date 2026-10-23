@@ -2419,3 +2419,14 @@ preserved MTP bytes. The synthetic full-inventory suite, dependency proof,
 Ruff, and `just quality` pass; no shard was opened. Full hashes and non-claims
 are in
 [materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).
+
+A follow-up header-only pass then opened each of the 48 pinned safetensors
+files, read its 8-byte prefix and JSON header, and refused to read any tensor
+payload. All 96,085 names matched the index, every offset interval was exact
+and non-overlapping, every routed dtype/shape matched the pinned contract, and
+the 48 file sizes sum to the declared 510,286,023,000 data bytes. The 94,464
+routed tensors comprise exactly 31,488 each of `I8 [2304,2560]` and
+`F8_E8M0 [2304,160]`, plus 15,744 each of `I8 [5120,1152]` and
+`F8_E8M0 [5120,72]`. This verifies the source header geometry but still does
+not execute or materialize the model. Full shard rows and failures are in
+[header verification evidence](../evidence/deepseek-v41-rco-header-verification-2026-10-22.json).

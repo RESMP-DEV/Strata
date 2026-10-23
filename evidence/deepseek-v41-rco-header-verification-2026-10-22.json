@@ -1,0 +1,555 @@
+{
+  "agent": "Codex parent",
+  "command": "python3 verify_dsv41_headers.py CHECKPOINT model.safetensors.index.json RESULT.json",
+  "exit": 0,
+  "hardware": {
+    "disk": "24TB hard-drive checkpoint",
+    "host": "B550"
+  },
+  "non_claims": [
+    "No tensor payload byte was read; only each shard prefix and safetensors header JSON were read.",
+    "Header validation does not execute, quantize, convert, or load the model.",
+    "No materialized target checkpoint or loader compatibility is claimed."
+  ],
+  "recorded_at": "2026-10-23T00:17:00Z",
+  "schema": "strata-work-evidence-v1",
+  "source_dirty": false,
+  "source_revision": "c852e04894ddd6a72325c35c4da3a9a25e94097e",
+  "task": "Verify every pinned DeepSeek safetensors shard header without reading payloads",
+  "verification": {
+    "checkpoint": "/mnt/resmp-24tb/hf-weights/deepseek-ai_DeepSeek-V4.1-Flash-1017",
+    "dtype_shape_failures": 0,
+    "failure_count": 0,
+    "failures": [],
+    "file_size_failures": 0,
+    "format": "strata-deepseek-shard-header-verification-v1",
+    "index_declared_total_size_bytes": 510286023000,
+    "interval_failures": 0,
+    "passed": true,
+    "payload_bytes_read": 0,
+    "routed_signature_counts": {
+      "F8_E8M0:2304x160": 31488,
+      "F8_E8M0:5120x72": 15744,
+      "I8:2304x2560": 31488,
+      "I8:5120x1152": 15744
+    },
+    "shard_rows": [
+      {
+        "data_bytes": 970506240,
+        "file_bytes": 970533624,
+        "header_bytes": 27376,
+        "shard": "model-00001-of-00048.safetensors",
+        "tensors": 263
+      },
+      {
+        "data_bytes": 1323857920,
+        "file_bytes": 1323858272,
+        "header_bytes": 344,
+        "shard": "model-00002-of-00048.safetensors",
+        "tensors": 4
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00003-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00004-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7405694680,
+        "file_bytes": 7405953784,
+        "header_bytes": 259096,
+        "shard": "model-00005-of-00048.safetensors",
+        "tensors": 2342
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00006-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00007-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00008-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00009-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00010-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7405694680,
+        "file_bytes": 7405953784,
+        "header_bytes": 259096,
+        "shard": "model-00011-of-00048.safetensors",
+        "tensors": 2342
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389759032,
+        "header_bytes": 258136,
+        "shard": "model-00012-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00013-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00014-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00015-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00016-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7405694680,
+        "file_bytes": 7405956128,
+        "header_bytes": 261440,
+        "shard": "model-00017-of-00048.safetensors",
+        "tensors": 2342
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00018-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00019-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00020-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00021-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00022-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7400451800,
+        "file_bytes": 7400713088,
+        "header_bytes": 261280,
+        "shard": "model-00023-of-00048.safetensors",
+        "tensors": 2341
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00024-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00025-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00026-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7395076568,
+        "file_bytes": 7395337384,
+        "header_bytes": 260808,
+        "shard": "model-00027-of-00048.safetensors",
+        "tensors": 2337
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00028-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00029-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00030-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7395076568,
+        "file_bytes": 7395337384,
+        "header_bytes": 260808,
+        "shard": "model-00031-of-00048.safetensors",
+        "tensors": 2337
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00032-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00033-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00034-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7395076568,
+        "file_bytes": 7395337384,
+        "header_bytes": 260808,
+        "shard": "model-00035-of-00048.safetensors",
+        "tensors": 2337
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00036-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00037-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00038-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7395076568,
+        "file_bytes": 7395337384,
+        "header_bytes": 260808,
+        "shard": "model-00039-of-00048.safetensors",
+        "tensors": 2337
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00040-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00041-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 7389500888,
+        "file_bytes": 7389761368,
+        "header_bytes": 260472,
+        "shard": "model-00042-of-00048.safetensors",
+        "tensors": 2334
+      },
+      {
+        "data_bytes": 1323837440,
+        "file_bytes": 1323837624,
+        "header_bytes": 176,
+        "shard": "model-00043-of-00048.safetensors",
+        "tensors": 2
+      },
+      {
+        "data_bytes": 2652643800,
+        "file_bytes": 2652728736,
+        "header_bytes": 84928,
+        "shard": "model-00044-of-00048.safetensors",
+        "tensors": 801
+      },
+      {
+        "data_bytes": 2573913560,
+        "file_bytes": 2573998176,
+        "header_bytes": 84608,
+        "shard": "model-00045-of-00048.safetensors",
+        "tensors": 798
+      },
+      {
+        "data_bytes": 2706317272,
+        "file_bytes": 2706402896,
+        "header_bytes": 85616,
+        "shard": "model-00046-of-00048.safetensors",
+        "tensors": 802
+      },
+      {
+        "data_bytes": 101535150272,
+        "file_bytes": 101535150936,
+        "header_bytes": 656,
+        "shard": "model-00047-of-00048.safetensors",
+        "tensors": 6
+      },
+      {
+        "data_bytes": 101537925968,
+        "file_bytes": 101537926640,
+        "header_bytes": 664,
+        "shard": "model-00048-of-00048.safetensors",
+        "tensors": 6
+      }
+    ],
+    "shards": 48,
+    "tensors": 96085,
+    "top_nonrouted_signatures": [
+      {
+        "count": 80,
+        "dtype": "F32",
+        "shape": [
+          384
+        ],
+        "suffix": "gate"
+      },
+      {
+        "count": 43,
+        "dtype": "F32",
+        "shape": [
+          64
+        ],
+        "suffix": "attn"
+      },
+      {
+        "count": 43,
+        "dtype": "BF16",
+        "shape": [
+          512
+        ],
+        "suffix": "kv_norm"
+      },
+      {
+        "count": 43,
+        "dtype": "BF16",
+        "shape": [
+          1280
+        ],
+        "suffix": "q_norm"
+      },
+      {
+        "count": 43,
+        "dtype": "BF16",
+        "shape": [
+          5120
+        ],
+        "suffix": "attn_norm"
+      },
+      {
+        "count": 43,
+        "dtype": "BF16",
+        "shape": [
+          5120
+        ],
+        "suffix": "ffn_norm"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          16,
+          160
+        ],
+        "suffix": "wkv"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          256,
+          128
+        ],
+        "suffix": "wo_a"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          160,
+          256
+        ],
+        "suffix": "wo_b"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          40,
+          160
+        ],
+        "suffix": "wq_a"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          1024,
+          40
+        ],
+        "suffix": "wq_b"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          72,
+          160
+        ],
+        "suffix": "w1"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          160,
+          72
+        ],
+        "suffix": "w2"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E8M0",
+        "shape": [
+          72,
+          160
+        ],
+        "suffix": "w3"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E4M3",
+        "shape": [
+          512,
+          5120
+        ],
+        "suffix": "wkv"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E4M3",
+        "shape": [
+          8192,
+          4096
+        ],
+        "suffix": "wo_a"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E4M3",
+        "shape": [
+          5120,
+          8192
+        ],
+        "suffix": "wo_b"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E4M3",
+        "shape": [
+          1280,
+          5120
+        ],
+        "suffix": "wq_a"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E4M3",
+        "shape": [
+          32768,
+          1280
+        ],
+        "suffix": "wq_b"
+      },
+      {
+        "count": 43,
+        "dtype": "F8_E4M3",
+        "shape": [
+          2304,
+          5120
+        ],
+        "suffix": "w1"
+      }
+    ],
+    "total_data_bytes": 510286023000,
+    "total_header_bytes": 10684928
+  }
+}
