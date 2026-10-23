@@ -2,10 +2,10 @@
 """Fail-closed planning gate for RCO/GSQ optimizer launches.
 
 The gate is deliberately host-safe: it never imports Torch, opens a model
-checkpoint, contacts a host, or launches an optimizer.  Its job is to make the
-pre-GPU contract explicit and refuse a stage whose inputs are only partially
-present.  A green gate is permission to invoke the named implementation, never
-evidence that the optimizer itself passed.
+checkpoint, contacts a remote host, or launches an optimizer. A green result
+requires every named evidence file to match its SHA-256 and every host
+verification command to exit zero. It remains permission to invoke the named
+implementation, never evidence that the optimizer itself passed.
 """
 
 from __future__ import annotations
@@ -13,7 +13,9 @@ from __future__ import annotations
 # The acceptance prose is intentionally explicit; the host-safe behavior is tested.
 # ruff: noqa: E501
 import argparse
+import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -146,6 +148,8 @@ def load_ready(path: Path) -> dict[str, Any]:
     if not isinstance(document, dict) or document.get("format") != FORMAT:
         raise ValueError(f"{path}: expected format {FORMAT}")
     stage = document.get("stage")
+    if not isinstance(stage, str):
+        raise ValueError(f"{path}: stage must be a string")
     if stage not in STAGE_REQUIREMENTS:
         raise ValueError(f"{path}: unknown or missing stage {stage!r}")
     requirements = document.get("requirements")
@@ -161,8 +165,19 @@ def load_ready(path: Path) -> dict[str, Any]:
         if not isinstance(evidence, dict):
             raise ValueError(f"{path}:{requirement}: evidence must be an object")
         for field in ("artifact", "sha256"):
-            if not isinstance(evidence.get(field), str) or not evidence[field]:
+            value = evidence.get(field)
+            if not isinstance(value, str) or not value:
                 raise ValueError(f"{path}:{requirement}: {field} must be a non-empty string")
+        artifact = Path(evidence["artifact"])
+        if artifact.is_absolute() or ".." in artifact.parts:
+            raise ValueError(
+                f"{path}:{requirement}: artifact must stay inside the manifest directory"
+            )
+        digest = evidence["sha256"]
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise ValueError(
+                f"{path}:{requirement}: sha256 must be 64 lowercase hexadecimal characters"
+            )
         command = evidence.get("command")
         if (
             not isinstance(command, list)
@@ -173,15 +188,58 @@ def load_ready(path: Path) -> dict[str, Any]:
     return document
 
 
-def check_ready(document: dict[str, Any]) -> dict[str, Any]:
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def check_ready(path: Path, *, command_timeout_seconds: int = 900) -> dict[str, Any]:
+    document = load_ready(path)
+    root = path.parent
     stage = document["stage"]
+    requirements: dict[str, dict[str, Any]] = document["requirements"]
+
+    for _requirement, evidence in requirements.items():
+        artifact = root / evidence["artifact"]
+        if not artifact.is_file():
+            raise ValueError(f"{artifact}: required evidence artifact is not a regular file")
+        observed_digest = _sha256(artifact)
+        if observed_digest != evidence["sha256"]:
+            raise ValueError(
+                f"{artifact}: SHA-256 mismatch; expected {evidence['sha256']}, "
+                f"got {observed_digest}"
+            )
+
+    for requirement, evidence in requirements.items():
+        completed = subprocess.run(
+            evidence["command"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=command_timeout_seconds,
+        )
+        if completed.returncode != 0:
+            detail = completed.stderr.strip() or completed.stdout.strip()
+            raise ValueError(
+                f"{requirement}: verification command exited {completed.returncode}: {detail}"
+            )
+
     return {
         "format": FORMAT,
         "stage": stage,
         "passed": True,
         "gpu_allowed": True,
         "requirement_count": len(STAGE_REQUIREMENTS[stage]),
-        "non_claim": "This gate proves input provenance only, not optimizer quality or runtime fitness.",
+        "artifact_sha256_verified": len(requirements),
+        "verification_commands_passed": len(requirements),
+        "non_claim": (
+            "This gate verifies named artifact bytes and host verification commands only; "
+            "it does not prove optimizer quality or runtime fitness."
+        ),
     }
 
 
@@ -192,6 +250,7 @@ def parse_args() -> argparse.Namespace:
     plan.add_argument("--stage", required=True, choices=sorted(STAGE_REQUIREMENTS))
     check = subparsers.add_parser("check", help="check a ready manifest")
     check.add_argument("--ready", required=True, type=Path)
+    check.add_argument("--command-timeout", type=int, default=900)
     return parser.parse_args()
 
 
@@ -201,8 +260,16 @@ def main() -> int:
         print(json.dumps(stage_plan(args.stage), indent=2, sort_keys=True))
         return 0
     try:
-        result = check_ready(load_ready(args.ready))
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+        result = check_ready(
+            args.ready,
+            command_timeout_seconds=args.command_timeout,
+        )
+    except (
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+        subprocess.SubprocessError,
+    ) as error:
         print(
             json.dumps(
                 {"format": FORMAT, "passed": False, "gpu_allowed": False, "error": str(error)}

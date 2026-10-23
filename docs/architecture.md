@@ -2597,7 +2597,8 @@ streaming materializer, calibration identity, and wrappers/exporters.
 `tools/optimizer_gate.py` now defines six fail-closed stages for Qwen4Exp and DeepSeek
 RCO pruning, RCO quant-aware assignment, and GSQ. Planning always reports
 `gpu_allowed=false`; a ready manifest must name every required artifact, SHA-256, and
-verification argv before a stage reports green. The gate is wired into the common
-quality suite. It does not validate artifact hashes itself and does not claim optimizer
-quality. Full findings and worker receipts are in
+verification argv, and the gate hashes each file and runs each host verification command
+before reporting green. The gate is wired into the common quality suite. It does not
+invoke an optimizer and does not claim optimizer quality. Full findings and worker
+receipts are in
 [quant-aware optimizer boundary evidence](../evidence/quant-aware-optimizer-boundaries-2026-10-23.json).

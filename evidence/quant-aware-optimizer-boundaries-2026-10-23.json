@@ -1,6 +1,7 @@
 {
   "schema": "strata-work-evidence-v1",
   "recorded_at": "2026-10-23T19:09:00Z",
+  "updated_at": "2026-10-23T19:21:00Z",
   "agent": "Codex parent with MiniMax read-only workers",
   "task": "Map quant-aware RCO/GSQ model support and add a fail-closed GPU gate shared with DeepSeek",
   "source_revision": "f384039268190508f161e3191f0ac8e935469318",
@@ -68,8 +69,9 @@
       "deepseek-v41.rco-quant-aware": 7,
       "deepseek-v41.gsq": 6
     },
-    "ready_manifest_contract": "Exact requirement set plus artifact, SHA-256, and argv command for every acceptance item",
-    "non_claim": "A green gate is input-provenance permission only; it does not prove optimizer quality or runtime fitness."
+    "ready_manifest_contract": "Exact requirement set plus a manifest-directory artifact, matching SHA-256, and host verification argv for every acceptance item",
+    "green_result": "Every evidence file is hashed and every verification command exits zero before gpu_allowed becomes true",
+    "non_claim": "A green gate proves those evidence bytes and host checks only; it does not prove optimizer quality or runtime fitness."
   },
   "workers": [
     {
@@ -95,7 +97,7 @@
     {
       "command": "python3 -m unittest tools.test_optimizer_gate tools.test_custom_coder_plan tools.test_deepseek_rco_plan tools.test_deepseek_rco_materialization_plan tools.test_build_rco_tokens tools.test_reap_mask_from_traces tools.test_materialize_pruned_qwen4exp -v",
       "exit": 0,
-      "result": "97 tests passed; 2 optional Torch/safetensors materializer tests skipped"
+      "result": "98 tests passed; 2 optional Torch/safetensors materializer tests skipped"
     },
     {
       "command": "ruff check and format on optimizer_gate, its test, and scripts/strata.py",
@@ -122,6 +124,6 @@
     "No RCO search, GSQ optimization, model forward, candidate generation, payload read, pack build, or GPU command ran.",
     "The B550 GPU1 VFIO boundary and Windows VM ownership remain unchanged.",
     "No Qwen4Exp or DeepSeek wrapper was implemented in the external GSQ/RCO forks during this host-safe governance pass.",
-    "The gate does not validate SHA-256 values against artifacts; callers must bind each ready-manifest hash to its named verification command before treating the gate as green."
+    "The gate executes only the host verification commands named by a ready manifest; it does not execute an optimizer or claim those commands cover every possible input defect."
   ]
 }
