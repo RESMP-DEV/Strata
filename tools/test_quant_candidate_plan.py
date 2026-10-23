@@ -114,6 +114,37 @@ class QuantCandidatePlanTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "token streams must differ"):
                 PLAN.build_plan(document, root=root)
 
+    def test_explicit_w4a16_only_mode_produces_a_single_arm_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = input_document(root)
+            document["candidate_mode"] = "w4a16-only"
+            document["candidates"] = [candidate(root, "w4a16")]
+            result = PLAN.build_plan(document, root=root)
+            self.assertEqual(result["candidate_mode"], "w4a16-only")
+            self.assertEqual([arm["id"] for arm in result["arms"]], ["w4a16"])
+            self.assertEqual(result["arms"][0]["activation_bits"], 16)
+            self.assertFalse(result["gpu_allowed"])
+            claims = " ".join(result["non_claims"])
+            self.assertIn("not RCO multi-candidate optimization", claims)
+            self.assertIn("W4A4", claims)
+
+    def test_single_arm_without_an_explicit_mode_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = input_document(root)
+            document["candidates"] = [candidate(root, "w4a16")]
+            with self.assertRaisesRegex(ValueError, "exactly W4A16 and W4A4 arms"):
+                PLAN.build_plan(document, root=root)
+
+    def test_unknown_candidate_mode_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = input_document(root)
+            document["candidate_mode"] = "w4a4-only"
+            with self.assertRaisesRegex(ValueError, "candidate_mode must be one of"):
+                PLAN.build_plan(document, root=root)
+
     def test_cost_artifact_byte_or_hash_mismatch_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -20,6 +20,10 @@ from typing import Any
 INPUT_FORMAT = "strata-quant-candidate-manifest-v1"
 OUTPUT_FORMAT = "strata-quant-measurement-plan-v1"
 ACTIVATION_PRECISIONS = {"w4a16": 16, "w4a4": 4}
+CANDIDATE_MODES = {
+    "w4a16-w4a4": ["w4a16", "w4a4"],
+    "w4a16-only": ["w4a16"],
+}
 REFERENCE_FORMATS = {"bf16-full-log-probs", "bf16-topk-log-probs"}
 HEX_DIGITS = set("0123456789abcdef")
 
@@ -200,33 +204,65 @@ def build_plan(
     if calibration["tokens_sha256"] == heldout["tokens_sha256"]:
         raise PlanError("calibration and held-out token streams must differ")
 
+    candidate_mode = document.get("candidate_mode", "w4a16-w4a4")
+    if candidate_mode not in CANDIDATE_MODES:
+        raise PlanError(f"candidate_mode must be one of {sorted(CANDIDATE_MODES)}")
+    expected_identifiers = CANDIDATE_MODES[candidate_mode]
+    requirement = (
+        "exactly a W4A16 arm" if candidate_mode == "w4a16-only" else "exactly W4A16 and W4A4 arms"
+    )
     raw_candidates = document.get("candidates")
-    if not isinstance(raw_candidates, list) or len(raw_candidates) != 2:
-        raise PlanError("candidates must contain exactly W4A16 and W4A4 arms")
+    if not isinstance(raw_candidates, list) or len(raw_candidates) != len(expected_identifiers):
+        raise PlanError(f"{candidate_mode} mode requires {requirement}")
     candidates = [
         validate_candidate(candidate, index, root=root, verify_hash=verify_hash)
         for index, candidate in enumerate(raw_candidates)
     ]
     identifiers = [candidate["id"] for candidate in candidates]
-    if sorted(identifiers) != ["w4a16", "w4a4"]:
-        raise PlanError("candidate arms must be exactly w4a16 and w4a4")
+    if sorted(identifiers) != sorted(expected_identifiers):
+        raise PlanError(f"{candidate_mode} mode requires {requirement}")
     oracle = validate_reference_oracle(document.get("reference_oracle"))
 
+    non_claims = [
+        claim
+        for claim in (
+            (
+                "No W4A16 measurement, model forward, activation capture, or benchmark ran."
+                if candidate_mode == "w4a16-only"
+                else (
+                    "No W4A16 or W4A4 measurement, model forward, activation capture, "
+                    "or benchmark ran."
+                )
+            ),
+            (
+                "A W4A16-only plan is a single deployable artifact lane and is not "
+                "RCO multi-candidate optimization."
+                if candidate_mode == "w4a16-only"
+                else "This plan contains both W4A16 and W4A4 candidate identities."
+            ),
+            (
+                "No W4A4 arm is planned or measured in this lane; W4A4 is deferred "
+                "and this plan makes no W4A4 claim."
+                if candidate_mode == "w4a16-only"
+                else ""
+            ),
+            "Exact tensor bytes come from the supplied cost manifests; this planner "
+            "does not derive bytes from nominal bits.",
+            "A BF16 reference cache is an optimization oracle only and is not a deployment arm.",
+            "Execution remains blocked until the separate optimizer readiness gate passes.",
+        )
+        if claim
+    ]
     return {
         "format": OUTPUT_FORMAT,
+        "candidate_mode": candidate_mode,
         "model": model,
         "splits": {"calibration": calibration, "heldout": heldout},
         "arms": candidates,
         "reference_oracle": oracle,
         "gpu_allowed": False,
         "next_gate": "tools/optimizer_gate.py check --ready READY_MANIFEST",
-        "non_claims": [
-            "No W4A16 or W4A4 measurement, model forward, activation capture, or benchmark ran.",
-            "Exact tensor bytes come from the supplied cost manifests; this planner "
-            "does not derive bytes from nominal bits.",
-            "A BF16 reference cache is an optimization oracle only and is not a deployment arm.",
-            "Execution remains blocked until the separate optimizer readiness gate passes.",
-        ],
+        "non_claims": non_claims,
     }
 
 
