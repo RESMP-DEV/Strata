@@ -78,7 +78,7 @@ def dequantize_group(codes: Any, scales: Any, shape: tuple[int, int]) -> Any:
     return values.reshape(out_features, groups * GROUP_SIZE)[:, :in_features]
 
 
-def capture_layer_inputs(model: Any, tokens: Any) -> dict[str, Any]:
+def capture_layer_inputs(model: Any, tokens: Any, layer_index: int = 0) -> dict[str, Any]:
     """Capture the exact arguments the real model passes to layer 0."""
     import torch
 
@@ -88,7 +88,7 @@ def capture_layer_inputs(model: Any, tokens: Any) -> dict[str, Any]:
         captured["args"] = args
         captured["kwargs"] = dict(kwargs)
 
-    handle = model.model.layers[0].register_forward_pre_hook(hook, with_kwargs=True)
+    handle = model.model.layers[layer_index].register_forward_pre_hook(hook, with_kwargs=True)
     try:
         with torch.no_grad():
             model(input_ids=tokens, use_cache=False)
@@ -128,6 +128,7 @@ def relative_error(reference: Any, observed: Any) -> float:
 def measure_candidates(
     model: Any,
     captured: dict[str, Any],
+    layer_index: int,
     reference: Any,
     bits_list: tuple[int, ...],
     *,
@@ -135,7 +136,7 @@ def measure_candidates(
 ) -> dict[str, Any]:
     """Measure each candidate on one expert at a time against BF16 output."""
 
-    layer = model.model.layers[0]
+    layer = model.model.layers[layer_index]
     experts = layer.mlp.experts
     gate_up = experts.gate_up_proj.detach()
     down = experts.down_proj.detach()
@@ -209,11 +210,12 @@ def greedy_assignment(
 def measure_assignment(
     model: Any,
     captured: dict[str, Any],
+    layer_index: int,
     reference: Any,
     assignment: dict[str, Any],
 ) -> dict[str, Any]:
     """Measure the assembled mixed-width layer once against BF16."""
-    layer = model.model.layers[0]
+    layer = model.model.layers[layer_index]
     experts = layer.mlp.experts
     gate_up = experts.gate_up_proj.detach()
     down = experts.down_proj.detach()
@@ -234,11 +236,12 @@ def measure_assignment(
 def measure_all_width(
     model: Any,
     captured: dict[str, Any],
+    layer_index: int,
     reference: Any,
     bits: int,
 ) -> dict[str, Any]:
     """Measure every expert at one width, as an all-Wn control."""
-    layer = model.model.layers[0]
+    layer = model.model.layers[layer_index]
     experts = layer.mlp.experts
     gate_up = experts.gate_up_proj.detach()
     down = experts.down_proj.detach()
@@ -262,19 +265,25 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     import torch
 
     started = time.perf_counter()
-    model, load_receipt = partial.load_partial(args.model, 1, device=args.device)
+    model, load_receipt = partial.load_partial(
+        args.model,
+        args.layer + 1,
+        device=args.device,
+        disk_ple=args.layer >= 1,
+    )
     calibration = np.load(args.calibration, mmap_mode="r")[: args.num_samples]
     tokens = torch.tensor(np.asarray(calibration), dtype=torch.long, device=args.device)
-    captured = capture_layer_inputs(model, tokens)
-    reference = call_layer(model.model.layers[0], captured)
+    captured = capture_layer_inputs(model, tokens, args.layer)
+    reference = call_layer(model.model.layers[args.layer], captured)
     measured = measure_candidates(
         model,
         captured,
+        args.layer,
         reference,
         CANDIDATE_BITS,
         limit_experts=args.limit_experts,
     )
-    experts = model.model.layers[0].mlp.experts
+    experts = model.model.layers[args.layer].mlp.experts
     per_expert_bytes = {
         str(bits): candidate_bytes(
             int(experts.gate_up_proj.shape[1]), int(experts.gate_up_proj.shape[2]), bits
@@ -291,7 +300,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         byte_budget_total=budget_per_expert * measured["experts_measured"],
         per_expert_bytes=per_expert_bytes,
     )
-    assembled = measure_assignment(model, captured, reference, assignment)
+    assembled = measure_assignment(model, captured, args.layer, reference, assignment)
     heldout = None
     controls: dict[str, Any] = {}
     heldout_assembled: dict[str, Any] = {}
@@ -300,17 +309,25 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         heldout_tokens = torch.tensor(
             np.asarray(heldout_matrix), dtype=torch.long, device=args.device
         )
-        heldout = capture_layer_inputs(model, heldout_tokens)
-        heldout_reference = call_layer(model.model.layers[0], heldout)
+        heldout = capture_layer_inputs(model, heldout_tokens, args.layer)
+        heldout_reference = call_layer(model.model.layers[args.layer], heldout)
         controls = {
-            str(bits): measure_all_width(model, heldout, heldout_reference, bits)
+            str(bits): measure_all_width(model, heldout, args.layer, heldout_reference, bits)
             for bits in CANDIDATE_BITS
         }
-        heldout_assembled = measure_assignment(model, heldout, heldout_reference, assignment)
+        heldout_assembled = measure_assignment(
+            model, heldout, args.layer, heldout_reference, assignment
+        )
+    ple_stats = [
+        {"module": name, **module.stats}
+        for name, module in model.named_modules()
+        if isinstance(getattr(module, "stats", None), dict)
+    ]
     return {
         "format": RCO_FORMAT,
+        "ple_stream": ple_stats,
         "scope": (
-            f"layer 0 only, {args.num_samples} calibration samples, "
+            f"layer {args.layer} only, {args.num_samples} calibration samples, "
             f"{measured['experts_measured']} experts measured"
         ),
         "model": str(args.model),
@@ -362,6 +379,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", required=True, type=Path)
+    parser.add_argument("--layer", type=int, default=0)
     parser.add_argument("--calibration", required=True, type=Path)
     parser.add_argument("--heldout", type=Path)
     parser.add_argument("--num-heldout", type=int, default=1)

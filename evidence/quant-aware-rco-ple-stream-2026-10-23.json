@@ -1,0 +1,95 @@
+{
+  "comparison_with_layer0": {
+    "layer0_all_w3": 0.05580468103289604,
+    "layer0_all_w4": 0.023819798603653908,
+    "layer0_assembled": 0.029261423274874687,
+    "layer0_receipt": "evidence/quant-aware-rco-layer0-2026-10-23.json"
+  },
+  "cost_ratio_vs_all_w4": 0.8889,
+  "design": {
+    "engine_analog": "Strata --ple-io direct: table never resident, bounded row cache, batched in-flight reads",
+    "output_cache": "memoized gathered matrix per token batch, bounded to 8 entries",
+    "read_path": "os.pread of 320-byte rows directly from the safetensors shards",
+    "row_cache": "bounded dictionary keyed by global row id",
+    "tool": "tools/qwen4exp_ple_stream.py"
+  },
+  "findings": [
+    "The PLE table stayed on disk: layer 1 served 28.6 million row requests from 39,200 distinct rows with 12.2 MB of reads.",
+    "Memoizing the gathered output per token batch cut PLE gather time from 61.9 s to 0.747 s with identical measured errors.",
+    "The same mixed-assignment result holds across a linear-attention layer (layer 1) and a full-attention layer (layer 2): about 42 to 47 percent below all-W3 and 23 to 37 percent above all-W4 at 88.9 percent of the all-W4 byte cost."
+  ],
+  "format": "strata-evidence-quant-aware-rco-ple-stream-v1",
+  "host": {
+    "alias": "b550-zt",
+    "gpu": "GPU0, RTX 3090 Ti 24 GiB",
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "storage": {
+      "optane_device": "nvme1n1, HP ET000750KWJTF, 699 G, 639 G free at probe",
+      "optane_mount": "/mnt/optane"
+    }
+  },
+  "measured_layer1": {
+    "assignment_bytes": 707788800,
+    "assignment_histogram": {
+      "2": 22,
+      "3": 100,
+      "4": 166
+    },
+    "elapsed_seconds": 39.618,
+    "heldout_all_w2": 0.054418355226516724,
+    "heldout_all_w3": 0.01905449479818344,
+    "heldout_all_w4": 0.008080366998910904,
+    "heldout_assembled": 0.011069022119045258,
+    "increase_vs_all_w4_fraction": 0.3698,
+    "ple_stream": {
+      "bytes_read": 12165120,
+      "cache_hits": 1184,
+      "elapsed_seconds": 0.7471271618560422,
+      "gathers": 873,
+      "output_cache_hits": 871,
+      "rows_requested": 28606464,
+      "unique_rows": 39200
+    },
+    "raw_receipt": "build/w4a16/remote/rco-layer1-full-memo.json",
+    "raw_receipt_sha256": "b942b437cb92477b15a63143add4bda91f10d019e372cb903808142b5367f1ff",
+    "reduction_vs_all_w3_fraction": 0.419
+  },
+  "measured_layer2": {
+    "assignment_bytes": 707788800,
+    "assignment_histogram": {
+      "2": 28,
+      "3": 88,
+      "4": 172
+    },
+    "elapsed_seconds": 32.411,
+    "heldout_all_w2": 0.09778248518705368,
+    "heldout_all_w3": 0.03505071625113487,
+    "heldout_all_w4": 0.01497617270797491,
+    "heldout_assembled": 0.018454615026712418,
+    "increase_vs_all_w4_fraction": 0.2323,
+    "layer_type": "full_attention",
+    "raw_receipt": "build/w4a16/remote/rco-layer2-full.json",
+    "raw_receipt_sha256": "d046c5dff3fb42fdced2108ab799c31b106f161fb8dd02d5259d31d42143449b",
+    "reduction_vs_all_w3_fraction": 0.4734
+  },
+  "non_claims": [
+    "One calibration and one held-out sequence per layer; not the 256/64 recipe.",
+    "Layer-scope reconstruction error, not end-to-end logits or quality.",
+    "Candidates are group-32 RTN, not GPTQ or the stock RCO optimizer.",
+    "No full-model artifact, serving path, throughput, or VRAM measurement exists.",
+    "The streaming reader is a Python measurement path, not the Strata engine's C++ reader."
+  ],
+  "ple_table": {
+    "bf16_size_gib": 95.43,
+    "dim": 160,
+    "dtype_in_pruned_checkpoint": "BF16",
+    "note": "the materializer upcast the shipped FP8 table to BF16; the streaming reader handles both dtypes",
+    "rows": 320001536,
+    "rows_per_shard": 2500012,
+    "shards": 128,
+    "shipped_source_dtype": "F8_E4M3 at 51.2 GB, per tools/ple_fp8_pack.py"
+  },
+  "recorded_at": "2026-10-23",
+  "scope": "Disk-streamed PLE rows on B550 Optane, used to extend quant-aware RCO beyond layer 0"
+}

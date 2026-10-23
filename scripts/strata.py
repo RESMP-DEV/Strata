@@ -189,6 +189,7 @@ def quality() -> int:
                         "tools.test_w4a16_cost_model",
                         "tools.test_qwen4exp_partial_load",
                         "tools.test_qwen4exp_quant_aware_rco",
+                        "tools.test_qwen4exp_ple_stream",
                     ],
                 ),
                 run_logged(
@@ -236,6 +237,8 @@ def quality() -> int:
                         "tools/test_qwen4exp_partial_load.py",
                         "tools/qwen4exp_quant_aware_rco.py",
                         "tools/test_qwen4exp_quant_aware_rco.py",
+                        "tools/qwen4exp_ple_stream.py",
+                        "tools/test_qwen4exp_ple_stream.py",
                     ],
                 ),
                 run_logged(
@@ -280,6 +283,8 @@ def quality() -> int:
                         "tools/test_qwen4exp_partial_load.py",
                         "tools/qwen4exp_quant_aware_rco.py",
                         "tools/test_qwen4exp_quant_aware_rco.py",
+                        "tools/qwen4exp_ple_stream.py",
+                        "tools/test_qwen4exp_ple_stream.py",
                     ],
                 ),
                 run_logged(

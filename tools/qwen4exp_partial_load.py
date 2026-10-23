@@ -66,6 +66,8 @@ def load_partial(
     keep_layers: int,
     *,
     device: str = "cpu",
+    disk_ple: bool = False,
+    cache_rows: int = 1 << 18,
 ) -> tuple[Any, dict[str, Any]]:
     import torch
     from safetensors import safe_open
@@ -94,7 +96,13 @@ def load_partial(
     by_shard: dict[str, list[tuple[str, str]]] = {}
     missing: list[str] = []
     mapping: dict[str, str] = {}
+    streamed: list[str] = []
     for name, _ in model.named_parameters():
+        if disk_ple and ".ple_embedding.ngram_embedding." in name:
+            # The PLE table is streamed from disk; loading it would defeat the
+            # purpose and cannot fit in host RAM.
+            streamed.append(name)
+            continue
         source = checkpoint_name(name, weight_map)
         if source is None:
             missing.append(name)
@@ -135,6 +143,12 @@ def load_partial(
         for handle in handles.values():
             del handle
 
+    ple_stream: list[dict[str, Any]] = []
+    if streamed:
+        from qwen4exp_ple_stream import replace_ple_modules
+
+        ple_stream = replace_ple_modules(model, model_dir, cache_rows=cache_rows)
+
     # Params still on meta are a hard error: a partially materialized model
     # would silently produce garbage activations.
     meta_params = [
@@ -156,6 +170,8 @@ def load_partial(
         "loaded_bytes": sum(entry["bytes"] for entry in loaded),
         "shards_read": len(by_shard),
         "missing_parameters": missing,
+        "streamed_ple_parameters": streamed,
+        "ple_stream": ple_stream,
         "tensors": loaded,
         "environment": {
             "python": sys.version.split()[0],
@@ -240,6 +256,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--keep-layers", type=int, default=1)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--disk-ple", action="store_true")
+    parser.add_argument("--ple-cache-rows", type=int, default=1 << 18)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--quantize", action="store_true")
     parser.add_argument("--calibration", type=Path)
@@ -258,7 +276,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     started = time.perf_counter()
     try:
-        model, receipt = load_partial(args.model, args.keep_layers, device=args.device)
+        model, receipt = load_partial(
+            args.model,
+            args.keep_layers,
+            device=args.device,
+            disk_ple=args.disk_ple,
+            cache_rows=args.ple_cache_rows,
+        )
         if args.quantize:
             if args.calibration is None or args.output is None:
                 raise LoadError("--quantize requires --calibration and --output")
@@ -303,6 +327,7 @@ def main(argv: list[str] | None = None) -> int:
                 "loaded_bytes": receipt["loaded_bytes"],
                 "shards_read": receipt["shards_read"],
                 "missing_parameters": receipt["missing_parameters"],
+                "ple_stream": receipt["ple_stream"],
                 "elapsed_seconds": receipt["elapsed_seconds"],
                 "quantize": receipt.get("quantize"),
             },

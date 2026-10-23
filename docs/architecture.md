@@ -2751,3 +2751,27 @@ at a time while the controls quantize all 288 at once. This is a layer-0 reconst
 result: it is not end-to-end logits, and it used one calibration and one held-out sequence
 with RTN candidates rather than GPTQ or the stock RCO optimizer. The receipt is
 [quantization-aware RCO layer 0](../evidence/quant-aware-rco-layer0-2026-10-23.json).
+
+### PLE streamed from disk, and quant-aware RCO across layer types, 2026-10-23
+
+The layer-0 result was limited by the 95.43 GiB BF16 PLE table, which cannot sit in B550's
+91 GiB of RAM. The engine already solves this with `--ple-io direct`, unbuffered row reads
+and a bounded row cache. `tools/qwen4exp_ple_stream.py` gives the Python measurement path
+the same property: the 320,001,536 by 160 table is addressed as row ranges across the 128
+safetensors shards, gathered with `os.pread` on demand, held in a bounded row cache, and
+memoized per token batch.
+
+With PLE streamed, layer 1 loads in 8.59 GB resident instead of 104 GB, and the full
+288-expert quant-aware RCO sweep ran through the real PLE path. Layer 1 served 28.6 million
+row requests from 39,200 distinct rows with 12.2 MB of disk reads; memoizing the gathered
+output cut PLE gather time from 61.9 seconds to 0.747 seconds with identical errors. Layer 2
+then ran as the first full-attention layer.
+
+The mixed assignment holds across layer types at 707,788,800 bytes, 88.9 percent of the
+all-W4 cost. Layer 1 reached 0.01107 held-out error against 0.01905 all-W3 and 0.00808
+all-W4; layer 2 reached 0.01845 against 0.03505 and 0.01498. That is roughly 42 to 47
+percent below all-W3 and 23 to 37 percent above all-W4. Each layer used one calibration and
+one held-out sequence with RTN candidates, so this remains layer-scope reconstruction, not
+end-to-end quality, and the reader is a Python measurement path rather than the engine's C++
+reader. The receipt is
+[quant-aware RCO with streamed PLE](../evidence/quant-aware-rco-ple-stream-2026-10-23.json).
