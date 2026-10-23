@@ -278,7 +278,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     model.config.num_experts,
                 )
                 keep_rows.append(result["keep_ids"])
-            analysis_result = result
+                analysis_result = result
         finally:
             if hook is not None:
                 hook.remove()
