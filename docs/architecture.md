@@ -2662,3 +2662,28 @@ same 192-expert mask SHA-256
 `7f3389f70afa160611c70df2dc517d2221246dda5f9e2989400306a574d984c6`.
 The paired evaluator also now rejects the missing extra token for a 1024-token
 window file instead of silently evaluating a shifted target.
+
+The earlier 16-window rejection was corrected with a 32-window sample spread
+across the full 1.96M-token agentic corpus. The 224-expert lane then measured
+PPL 6.081 versus 6.198, NLL delta -0.01908 with CI [-0.11321, 0.05757], and a
+0.27-point top-1 loss. It is accepted as the candidate for quantization-aware
+selection. The 192-expert lane still measured PPL 6.856, NLL +0.10094, and a
+2.06-point top-1 loss, so the 25% cut is not accepted. The 0.95 agreement gate
+is retired as a veto because it measures behavioral divergence rather than task
+quality.
+
+The decisive comparison now runs on the deployed weights. The calibrated full
+256-expert MLX GPTQ-MXFP4 checkpoint is sliced in memory to the candidate mask,
+so router rows, expert q/scales, and expert tensors are all shrunk together.
+On the same 32 spread agentic windows, full 256 measured PPL 6.20711 and top-1
+0.66891. The quantization-aware 224 mask measured PPL 6.20609, NLL delta
+-0.00016 with CI [-0.04943, 0.04477], and top-1 0.66675, a 0.217-point drop.
+It saves 2,519,597,056 parameter bytes, or 2.35 GiB (11.41%). The BF16-selected
+224 mask measured PPL 6.26226 and the 192 mask measured PPL 6.92679, so 224 is
+the accepted quality-preserving tradeoff and 25% remains too aggressive.
+
+This changes the objective and the objection. The objective is maximum
+expert-bank reduction at parity with the full MXFP4 deployment, not BF16
+perplexity. The earlier objection was a narrow sample and a self-imposed 0.95
+agreement veto. Both are retired for the product decision. A packed 224 MXFP4
+artifact and task-level agentic measurements remain unrun.

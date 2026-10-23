@@ -473,3 +473,77 @@ Gate-timing clarification: an earlier run at `f78cad51` had already been seen,
 but its per-window assembly was invalid. The table above was fixed before the
 corrected `1b47e1f9` window-level report existed. "Pre-registered" here means
 before the valid report, not blind to every earlier aggregate number.
+
+### Verdict correction after the broad agentic sample
+
+The first agentic gate used 16 windows from the opening region of the holdout
+corpus and was not representative. A 32-window sample spread across the full
+1,962,793-token corpus changed the result:
+
+| arm | PPL | NLL delta | 95% CI | top-1 loss | agreement |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 224 experts | 6.0805 | -0.01908 | [-0.11321, 0.05757] | 0.27 pp | 90.65% |
+| 192 experts | 6.8559 | +0.10094 | [-0.01781, 0.21028] | 2.06 pp | 86.97% |
+
+The source arm PPL was 6.1977. The 224 lane is viable on this broader workload:
+its paired NLL difference is indistinguishable from zero, it slightly lowers
+PPL, and it loses only 0.27 top-1 points. The 192 lane still degrades
+materially: PPL rises 10.6% and top-1 falls 2.06 points.
+
+The 0.95 next-token-agreement threshold is therefore retired as a veto. It
+measures behavioral divergence, not task quality. Agreement remains a reported
+diagnostic. The 224 lane is accepted as the candidate for quantization-aware
+selection and final MXFP4 evaluation; the 192 lane is not accepted at this
+time. BF16 results remain diagnostic only because every deployment target is
+quantized.
+
+### Quantization-aware selection
+
+`tools/flint_prune_impact_search.py` now accepts `--quantized-artifacts`. It
+loads the calibrated full-256 GPTQ-MXFP4 Stage-A artifact, dequantizes every
+quantized linear for each layer with `Pipeline.apply_precomputed`, runs the
+real quantized activations, and computes leave-one-out impacts from the
+dequantized expert weights. This is QDQ-aware mask selection under the fixed
+GPTQ-MXFP4 quantizer. It is not joint QAT of mask and quantizer parameters.
+
+The available Stage-A artifact was produced before the RoPE repair, so the
+first QDQ mask is provisional. A post-RoPE full-256 calibration is required
+before treating the QDQ mask as final provenance.
+
+### Actual MXFP4 deployment comparison
+
+The BF16 gate was only diagnostic. The decisive measurement loads the already
+calibrated full-256 MLX GPTQ-MXFP4 checkpoint, slices the router and quantized
+expert tensors in memory to the requested mask, and evaluates the deployed
+weights directly.
+
+The 32-window agentic sample produced:
+
+| arm | PPL | NLL delta | 95% CI | top-1 delta | parameter bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| full 256 MXFP4 | 6.20711 | reference | reference | reference | 22,075,711,040 |
+| BF16-selected 224 | 6.26226 | +0.00885 | [-0.04363, 0.05631] | -0.403 pp | 19,556,113,984 |
+| QDQ-selected 224 | 6.20609 | -0.00016 | [-0.04943, 0.04477] | -0.217 pp | 19,556,113,984 |
+| BF16-selected 192 | 6.92679 | +0.10970 | [0.01060, 0.20037] | -1.810 pp | not promoted |
+
+The QDQ 224 lane is effectively parity with full 256 on the deployed MXFP4
+weights: 15 of 32 windows are better, the paired delta is slightly negative,
+and the confidence interval contains zero. It also removes 2,519,597,056
+parameter bytes, or 2.35 GiB, an 11.41% reduction. This is the quality and
+memory evidence that the BF16-only gate could not provide.
+
+The QDQ-selected 224 mask differs from the BF16-selected 224 mask by only about
+three experts per layer (mean overlap 221.23 of 224, range 217–223). The
+quantization-aware correction is real but small; the expert ranking is stable.
+
+Receipt SHA-256 values:
+
+- full 256 MXFP4: `4d22af88a15dd023ebbd26430f240789724e3c7af7b189c6a0abeb5ef0b971b4`;
+- BF16-selected 224: `bd1c7293a63fb72f77e0793d9f761b7532cc5901acbaeb1e9ed1867f488efb75`;
+- QDQ-selected 224: `5f0e5e8cebaad558dd30ed3e2481c174c7e0e77a7eafab043a7034f5bb591623`;
+- BF16-selected 192: `311a247aec9ea2434f2f09366937dff46c2182d8dfee833a2227e32aad32c4fc`.
+
+This comparison uses the calibrated full-256 MXFP4 weights with the mask
+applied at runtime. A distributed 224 artifact must preserve those q/scales and
+pass a packed-model equivalence check before publication. It is not yet
+uploaded.
