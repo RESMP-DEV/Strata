@@ -2575,6 +2575,19 @@ upstream remotes are fetch-only, while the owned fork remotes are named `resmp`.
 optimizer ran and no upstream patch was applied. Full evidence is in
 [GSQ/RCO upstream fork evidence](../evidence/gsq-rco-upstream-forks-2026-10-23.json).
 
+### Reproducible DeepSeek RCO adapter injection, 2026-10-23
+
+`tools/rco_adapter_runner.py` now loads the exact pinned stock RCO tree read-only and,
+for DeepSeek V4.1, replaces the four topology-sensitive functions in the in-process
+`search.prune` module with the Strata adapter: geometry resolution, wrapper
+installation/removal, and hard-mask KL evaluation. It restores the originals and module
+state afterward, refuses any revision other than `9a1e09c`, disables bytecode writes,
+and records hashes proving the pinned files were unchanged. An explicit `qwen4exp` mode
+is a stock pass-through. Dependency-light tests cover injection, forwarding, failure
+cleanup, and revision refusal; the full pinned Torch environment covers real import and
+restoration. No model or optimizer ran. Full evidence is in
+[RCO adapter-runner evidence](../evidence/rco-adapter-runner-2026-10-23.json).
+
 ### Quant-aware optimizer boundaries and GPU gate, 2026-10-23
 
 RCO does have a separate quantization-aware search: `rco_search_quant.py` interpolates
