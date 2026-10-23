@@ -712,23 +712,37 @@ class AdapterHardMaskEvaluationTest(unittest.TestCase):
         short_reference = [reference[:, :-1, :].clone() for reference in references]
         short_mask = [mask[:, :-1].clone() for mask in masks]
         cases = {
-            "non-finite-reference": (nan_reference, masks),
-            "non-finite-mask": (references, nan_mask),
-            "mask-out-of-range": (references, out_of_range_mask),
-            "wrong-reference-shape": (short_reference, masks),
-            "wrong-mask-shape": (references, short_mask),
+            "non-finite-reference": (nan_reference, masks, "ref_log_probs values must be finite"),
+            "non-finite-mask": (references, nan_mask, "ref_masks values must be finite"),
+            "mask-out-of-range": (
+                references,
+                out_of_range_mask,
+                r"ref_masks values must be in \[0, 1\]",
+            ),
+            "wrong-reference-shape": (
+                short_reference,
+                masks,
+                r"ref_log_probs has shape .* expected \(1, 8, V\)",
+            ),
+            "wrong-mask-shape": (
+                references,
+                short_mask,
+                r"ref_masks entry has shape .* expected \(1, 9\)",
+            ),
         }
 
-        for description, (refs, cache_masks) in cases.items():
+        for description, (refs, cache_masks, expected_message) in cases.items():
             with self.subTest(case=description):
-                self.assertRaises(
+                self.assertRaisesRegex(
                     ADAPTER.RcoAdapterError,
+                    expected_message,
                     ADAPTER.evaluate_with_mask,
                     self.model,
                     prune_mask,
                     self.input_ids,
                     refs,
                     cache_masks,
+                    batch_size=1,
                 )
 
         for block, original in zip(self.model.model.layers, original_forwards, strict=True):

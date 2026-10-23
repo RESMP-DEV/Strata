@@ -13,12 +13,12 @@
   },
   "inputs": {
     "bf16_split": {
-      "pattern": "/home/kearm/strata-scratch/own-coder-run/flash-next-own-288-bf16-0000N-of-00006.gguf",
+      "pattern": "flash-next-own-288-bf16-0000N-of-00006.gguf",
       "shards": 6,
       "total_bytes": 248223368224
     },
     "imatrix": {
-      "path": "/home/kearm/strata-scratch/own-coder-run/alphaheng-288-imatrix-full-0-255-2048.gguf",
+      "path": "alphaheng-288-imatrix-full-0-255-2048.gguf",
       "sha256": "90173f3073edc204a8cdeb95642318b5c7a3f440843439ea69ca3e41b8187033",
       "chunk_count": 256,
       "chunk_size": 2048,
@@ -26,7 +26,7 @@
     },
     "quantizer_sha256": "05f3352224658dc7d36a342a51c5d4ac9d401fc8ce31f2a5a9e85f8aac52af20",
     "tensor_recipe": {
-      "path": "/home/kearm/strata-scratch/own-coder-run/own-288-iq3s-iq4nl.tensor-types",
+      "path": "own-288-iq3s-iq4nl.tensor-types",
       "sha256": "710cf689c48ca7ea05e5bb5f287ea2f366906f1957dbb0fa744969907a4ccbda",
       "rows": 1224,
       "gate_up_iq3_s": 96,
@@ -45,7 +45,7 @@
     "run_seconds": 1933.476
   },
   "output": {
-    "pattern": "/home/kearm/strata-scratch/own-coder-run/flash-next-own-288-iq3s-iq4nl-0000N-of-00006.gguf",
+    "pattern": "flash-next-own-288-iq3s-iq4nl-0000N-of-00006.gguf",
     "shards": 6,
     "total_bytes": 70931955648,
     "reported_quant_size_mib": 67635.47,
@@ -71,7 +71,7 @@
       "00005-of-00006": "b9a9cb2c924845e86bde8273daade9df924dd1f415fcc7b333970858961be6dc",
       "00006-of-00006": "71cb1b1b8c36a57bc6ccee125dd0e1070fa37f630784c5c667d365529425ef0d"
     },
-    "manifest": "/home/kearm/strata-scratch/own-coder-run/own-288-iq3s-iq4nl.SHA256SUMS",
+    "manifest": "own-288-iq3s-iq4nl.SHA256SUMS",
     "run_log_sha256": "68c35477b3ddd12a4984969fbad3c489f5bdf66219a43513ffdc4630f401fb04"
   },
   "checks": [

@@ -2518,3 +2518,23 @@ padding, shard boundaries, and final file sizes remain explicitly deferred. This
 is payload arithmetic, not proof that a materializer wrote or a loader read those
 bytes. The updated receipt is in
 [materialization planning evidence](../evidence/deepseek-v41-rco-materialization-plan-2026-10-22.json).
+
+### Own-Coder quantization review repairs, 2026-10-23
+
+CodeRabbit's review of the complete quantization recipe found one command-generation
+bug and one recipe-integrity gap: the exact parent-byte ratio was still a
+`Fraction`, which made the generated manifest fail JSON encoding, and split-sibling
+reading trusted filenames without checking every shard's `split.no`,
+`split.count`, and `split.tensors.count` identity. The planner now serializes the
+ratio while retaining exact byte arithmetic, and the recipe generator refuses a
+mixture of split families or a combined tensor count that disagrees with shard
+metadata.
+
+The same repair round makes the malformed DeepSeek reference-cache test execute all
+five intended validation branches under the pinned Torch/Transformers environment,
+changes the header verifier to report an absent indexed shard as structured failure
+output rather than an uncaught traceback, and removes workstation paths from durable
+receipts without changing artifact hashes. Host-safe tests, the 36-test Torch
+adapter suite, Ruff, whitespace, and `just quality` passed; no optimizer, payload,
+pack, model load, quality, or runtime gate ran. Details are in
+[own-Coder review-repair evidence](../evidence/qwen-own-coder-review-repairs-2026-10-23.json).

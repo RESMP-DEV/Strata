@@ -135,6 +135,7 @@ class CustomCoderPlanTest(unittest.TestCase):
     def test_manifest_contains_bounded_execution_plan(self) -> None:
         args = self.make_args()
         manifest = MODULE.build_manifest(args, 288)
+        self.assertIsInstance(json.dumps(manifest), str)
         self.assertEqual(manifest["format"], "strata-custom-coder-plan-v1")
         self.assertEqual(manifest["selected_budget"]["kept_experts"], 13_824)
         self.assertIn("--per-layer-budget", manifest["commands"]["search_own_mask"]["argv"])

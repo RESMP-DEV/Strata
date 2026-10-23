@@ -1,0 +1,61 @@
+{
+  "schema": "strata-work-evidence-v1",
+  "recorded_at": "2026-10-23T17:58:00Z",
+  "agent": "Codex parent",
+  "task": "Repair the six CodeRabbit findings against the complete own-Coder quantization methodology",
+  "source_revision": "db6ea5dc35f7d3b8ea1675262ffc0735c7e45adc",
+  "source_dirty": true,
+  "source_revision_role": "clean PR head before these review repairs",
+  "review": {
+    "reviewer": "CodeRabbit",
+    "review_id": 5632338305,
+    "reviewed_head": "db6ea5dc35f7d3b8ea1675262ffc0735c7e45adc",
+    "actionable_finding_count": 6,
+    "repairs": [
+      "Serialize the exact Coder parent-byte ratio as a float while retaining exact Fraction byte arithmetic.",
+      "Require matching split.no, split.count, and split.tensors.count metadata across every GGUF sibling and prove the combined tensor count.",
+      "Exercise each malformed reference-cache branch with batch_size 1 and its exact error message under the pinned Torch/Transformers environment.",
+      "Record an absent DeepSeek indexed shard as verifier output and a file-size failure instead of an uncaught traceback.",
+      "Write only the checkpoint directory basename in new verifier receipts.",
+      "Remove workstation paths from the durable own-Coder quantization and DeepSeek header receipts while retaining hashes and basenames."
+    ]
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest tools.test_custom_coder_plan tools.test_exact_copy_recipe tools.test_deepseek_rco_adapter tools.test_verify_deepseek_v41_headers",
+      "exit": 0,
+      "result": "52 tests passed; 32 Torch-dependent adapter tests skipped by the bare interpreter"
+    },
+    {
+      "command": "python3 -m unittest tools.test_reap_mask_from_traces tools.test_build_rco_tokens tools.test_custom_coder_plan tools.test_exact_copy_recipe tools.test_materialize_pruned_qwen4exp tools.test_deepseek_rco_plan tools.test_deepseek_rco_materialization_plan",
+      "exit": 0,
+      "result": "94 tests passed; 2 optional Torch-dependent tests skipped"
+    },
+    {
+      "command": "uv run --quiet --with torch --with httpx --with 'huggingface-hub>=1.5,<2' --with transformers==5.20.2 --with accelerate --with datasets python -m unittest tools.test_deepseek_rco_adapter -v",
+      "exit": 0,
+      "result": "36 tests passed with no skips; every malformed-cache branch matched its expected message"
+    },
+    {
+      "command": "ruff check and ruff format --check on all seven modified Python files",
+      "exit": 0,
+      "result": "lint and formatting passed"
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0,
+      "result": "no whitespace errors"
+    },
+    {
+      "command": "just quality",
+      "exit": 0,
+      "result": "all 20 repository checks passed"
+    }
+  ],
+  "non_claims": [
+    "No model, GGUF payload, checkpoint payload, optimizer, pack, or inference was loaded or executed by this repair.",
+    "The existing quantized GGUF bytes and recorded SHA-256 hashes were not changed.",
+    "The verifier repair was exercised with a synthetic missing indexed shard, not by damaging the 48-shard DeepSeek checkpoint.",
+    "No RCO expert search or GSQ quantization optimization ran."
+  ]
+}

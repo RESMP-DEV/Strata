@@ -97,8 +97,16 @@ class ExactCopyRecipeTest(unittest.TestCase):
             root = Path(temporary)
             first = root / "model-00001-of-00002.gguf"
             second = root / "model-00002-of-00002.gguf"
-            write_minimal_f32_gguf(first, ["blk.0.ssm_a"], {"split.count": 2})
-            write_minimal_f32_gguf(second, ["blk.1.ssm_a"], {"split.count": 2})
+            write_minimal_f32_gguf(
+                first,
+                ["blk.0.ssm_a"],
+                {"split.no": 0, "split.count": 2, "split.tensors.count": 2},
+            )
+            write_minimal_f32_gguf(
+                second,
+                ["blk.1.ssm_a"],
+                {"split.no": 1, "split.count": 2, "split.tensors.count": 2},
+            )
             self.assertEqual(
                 [tensor.name for tensor in EC.read_split_tensors(first)],
                 ["blk.0.ssm_a", "blk.1.ssm_a"],
@@ -108,6 +116,17 @@ class ExactCopyRecipeTest(unittest.TestCase):
             missing.write_bytes(first.read_bytes())
             with self.assertRaisesRegex(ValueError, "missing split sibling"):
                 EC.read_split_tensors(missing)
+
+            foreign_first = root / "foreign-00001-of-00002.gguf"
+            foreign_second = root / "foreign-00002-of-00002.gguf"
+            foreign_first.write_bytes(first.read_bytes())
+            write_minimal_f32_gguf(
+                foreign_second,
+                ["blk.1.ssm_a"],
+                {"split.no": 1, "split.count": 3, "split.tensors.count": 2},
+            )
+            with self.assertRaisesRegex(ValueError, "split identity mismatch"):
+                EC.read_split_tensors(foreign_first)
 
 
 if __name__ == "__main__":

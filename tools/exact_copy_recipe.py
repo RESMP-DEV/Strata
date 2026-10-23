@@ -115,13 +115,36 @@ def read_split_tensors(model: Path) -> list:
         )
 
     tensors = []
+    expected_tensor_count = first.metadata.get("split.tensors.count")
+    if not isinstance(expected_tensor_count, int) or expected_tensor_count < 1:
+        raise ValueError(f"{model.name}: multi-split input lacks a valid split.tensors.count")
+
     for index in range(1, split_count + 1):
         sibling = model.with_name(
             model.name.replace(marker.group(0), f"-{index:05d}-of-{split_count:05d}", 1)
         )
         if not sibling.is_file():
             raise ValueError(f"{model.name}: missing split sibling {sibling.name}")
-        tensors.extend(GGUFFile(sibling).tensors)
+        sibling_file = GGUFFile(sibling)
+        sibling_split_count = sibling_file.metadata.get("split.count")
+        sibling_split_no = sibling_file.metadata.get("split.no")
+        sibling_tensor_count = sibling_file.metadata.get("split.tensors.count")
+        if (
+            sibling_split_count != split_count
+            or sibling_split_no != index - 1
+            or sibling_tensor_count != expected_tensor_count
+        ):
+            raise ValueError(
+                f"{sibling.name}: split identity mismatch "
+                f"(split.no={sibling_split_no!r}, split.count={sibling_split_count!r}, "
+                f"split.tensors.count={sibling_tensor_count!r})"
+            )
+        tensors.extend(sibling_file.tensors)
+    if len(tensors) != expected_tensor_count:
+        raise ValueError(
+            f"{model.name}: split siblings hold {len(tensors)} tensors, "
+            f"but split.tensors.count is {expected_tensor_count}"
+        )
     return tensors
 
 

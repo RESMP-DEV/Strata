@@ -30,7 +30,7 @@
   },
   "task": "Verify every pinned DeepSeek safetensors shard header without reading payloads",
   "verification": {
-    "checkpoint": "/mnt/resmp-24tb/hf-weights/deepseek-ai_DeepSeek-V4.1-Flash-1017",
+    "checkpoint": "deepseek-ai_DeepSeek-V4.1-Flash-1017",
     "dtype_shape_failures": 0,
     "failure_count": 0,
     "failures": [],

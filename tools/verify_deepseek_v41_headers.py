@@ -71,7 +71,12 @@ def main() -> int:
 
     for shard in sorted(by_shard):
         path = checkpoint / shard
-        actual_size = path.stat().st_size
+        try:
+            actual_size = path.stat().st_size
+        except OSError as error:
+            failures.append(f"{shard}: cannot stat shard: {error}")
+            file_size_failures += 1
+            continue
         with path.open("rb") as handle:
             prefix = handle.read(8)
             if len(prefix) != 8:
@@ -186,7 +191,7 @@ def main() -> int:
     result = {
         "format": "strata-deepseek-shard-header-verification-v1",
         "passed": passed,
-        "checkpoint": str(checkpoint),
+        "checkpoint": checkpoint.name,
         "payload_bytes_read": 0,
         "shards": len(shard_rows),
         "tensors": sum(int(row["tensors"]) for row in shard_rows),

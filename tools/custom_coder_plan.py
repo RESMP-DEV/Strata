@@ -166,7 +166,7 @@ def budget(keep: int, recipe_name: str) -> dict[str, Any]:
         "expert_bytes": round(expert_bytes),
         "expert_gb_decimal": float(expert_bytes / 1_000_000_000),
         "expert_gib": float(expert_bytes / 2**30),
-        "relative_to_parent_expert_bytes": bits / parent_bits,
+        "relative_to_parent_expert_bytes": float(bits / parent_bits),
     }
 
 
