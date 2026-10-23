@@ -73,13 +73,14 @@ class FlintPruneImpactSearchTest(unittest.TestCase):
         block.experts.up_proj = torch.nn.Parameter(identity.repeat(experts, 1, 1))
         block.experts.down_proj = torch.nn.Parameter(identity.repeat(experts, 1, 1))
         removed = torch.zeros(experts, dtype=torch.bool)
-        impacts, frequency, energy = MODULE.round_impacts(
+        impacts, frequency, energy, score_sum = MODULE.round_impacts(
             block, torch.ones(1, 3, hidden), removed, 2
         )
         self.assertTrue(torch.isfinite(impacts).all())
         self.assertGreater(float(energy), 0.0)
         self.assertEqual(frequency[:2].tolist(), [3.0, 3.0])
         self.assertEqual(frequency[2:].tolist(), [0.0, 0.0])
+        self.assertTrue(torch.isfinite(score_sum).all())
 
 
 if __name__ == "__main__":

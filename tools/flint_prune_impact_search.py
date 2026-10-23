@@ -69,7 +69,7 @@ def round_impacts(
     hidden: Any,
     removed: Any,
     top_k: int,
-) -> tuple[Any, Any, Any]:
+) -> tuple[Any, Any, Any, Any]:
     """Score the exact impact of removing each still-available expert.
 
     The routed output with the current removal set is compared against the
@@ -81,6 +81,7 @@ def round_impacts(
         impacts: [experts] float64 squared output change per expert.
         frequency: [experts] float64 selection count per expert.
         energy: float64 reference routed output energy.
+        score_sum: [experts] float64 sigmoid router mass per expert.
     """
     import torch
 
@@ -99,6 +100,7 @@ def round_impacts(
 
     impacts = torch.zeros(scores.shape[-1], dtype=torch.float64, device=flat.device)
     frequency = torch.zeros(scores.shape[-1], dtype=torch.float64, device=flat.device)
+    score_sum = scores.sum(dim=0).double()
     next_scores = values[:, top_k]
     next_outputs = slot_outputs[:, top_k]
     for slot in range(top_k):
@@ -114,7 +116,7 @@ def round_impacts(
         change = (delta**2).sum(dim=-1)
         impacts.index_add_(0, indices[:, slot], change.double())
         frequency.index_add_(0, indices[:, slot], torch.ones_like(change, dtype=torch.float64))
-    return impacts, frequency, energy
+    return impacts, frequency, energy, score_sum
 
 
 def analyze_block(
@@ -135,14 +137,25 @@ def analyze_block(
     for round_index, remove_count in enumerate(remove_rounds):
         impacts = torch.zeros(num_experts, dtype=torch.float64, device=device)
         frequency = torch.zeros(num_experts, dtype=torch.float64, device=device)
+        score_sums = torch.zeros(num_experts, dtype=torch.float64, device=device)
         for hidden in hidden_batches:
-            round_impact, round_frequency, energy = round_impacts(block, hidden, removed, top_k)
+            round_impact, round_frequency, energy, round_score_sum = round_impacts(
+                block, hidden, removed, top_k
+            )
             impacts += round_impact
             frequency += round_frequency
+            score_sums += round_score_sum
             if round_index == 0:
                 reference_energy += energy
         available = [expert for expert in kept if not bool(removed[expert])]
-        ranked = sorted(available, key=lambda expert: (float(impacts[expert]), expert))
+        ranked = sorted(
+            available,
+            key=lambda expert: (
+                float(impacts[expert]),
+                float(score_sums[expert]),
+                expert,
+            ),
+        )
         victims = ranked[:remove_count]
         for expert in victims:
             removed[expert] = True
@@ -161,6 +174,7 @@ def analyze_block(
         "keep_ids": sorted(kept),
         "impacts": impacts.tolist(),
         "frequency": frequency.tolist(),
+        "router_score_sums": score_sums.tolist(),
         "rounds": round_receipts,
         "reference_energy": reference_energy,
     }
