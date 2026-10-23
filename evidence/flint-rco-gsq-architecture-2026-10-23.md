@@ -547,3 +547,43 @@ This comparison uses the calibrated full-256 MXFP4 weights with the mask
 applied at runtime. A distributed 224 artifact must preserve those q/scales and
 pass a packed-model equivalence check before publication. It is not yet
 uploaded.
+
+### Physical 224-expert MXFP4 artifact
+
+`tools/materialize_pruned_flint_mlx.py` then sliced the calibrated full-256
+MLX model into a physical 224-expert artifact at:
+
+`/Users/kearm/models/RecursiveSI-Flint-40B-A2.5B-MLX-GPTQ-MXFP4-224`
+
+The slicer changed 329 tensors (47 router matrices and 282 expert
+weight/scale tensors), preserved every GPTQ q/scale value, set
+`num_experts=224`, and carried the expert-ID map and mask as sidecars. Shard
+payloads total 19,556,263,509 bytes. The materialization receipt SHA-256 is
+`e127cc8c683015de32a8fda24b749caabd8d7ce55ba83de82e638b7cd71723e5`;
+the expert-ID-map SHA-256 is
+`d731ae02d470bdfa9e9b17984e7cb500d426da6862bfbc048167176f145bb949`.
+
+The physical artifact loaded normally and reproduced the runtime-pruned QDQ
+result exactly:
+
+- mean NLL: `1.8255318440496922` nats/token;
+- perplexity: `6.2060948161381635`;
+- top-1: `0.666748046875`;
+- parameter bytes: `19,556,113,984`.
+
+Receipt SHA-256:
+`4529d46dac9f4bdba4709cb849c48149da4d2ffe09df45933928cd65cc0449ed`.
+The per-window NPZ is byte-identical to the runtime-pruned QDQ arm, proving
+the physical slicing did not change model numerics.
+
+A single short direct greedy generation measured:
+
+| model | generation | peak memory |
+| --- | ---: | ---: |
+| full 256 MXFP4 | 121.660 tok/s | 35.481 GB |
+| physical 224 MXFP4 | 124.373 tok/s | 31.285 GB |
+
+This is one 4-token prompt and 64 generated tokens, so the 2.2% decode
+difference is not a throughput claim. The 4.196 GB peak-memory reduction and
+the 2.5196 GB parameter reduction are direct measurements and agree in scale.
+The artifact has not been uploaded.

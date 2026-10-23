@@ -1,0 +1,43 @@
+{
+  "expert_id_map_sha256": "d731ae02d470bdfa9e9b17984e7cb500d426da6862bfbc048167176f145bb949",
+  "kept_per_layer": 224,
+  "mask": "build/reports/flint/b550/prune-impact-qdq-224x1024-mask.json",
+  "mask_sha256": "b34167c369b0ac419b21fc406dbd57540f7962b44ca5e3088d666f62ac20619b",
+  "non_claims": [
+    "Slicing preserves the source GPTQ-MXFP4 q/scales; it does not recalibrate.",
+    "Runtime quality and packed-model equivalence must be measured separately."
+  ],
+  "payload_bytes": 19556263509,
+  "routed_layers": 47,
+  "schema": "strata-pruned-flint-mlx-v1",
+  "shards": [
+    {
+      "bytes": 4697304218,
+      "name": "model-00001-of-00005.safetensors",
+      "sha256": "2444ab051839d28d8bf05cc06ba8df0174213744dbd3e5cb9076389956a146cd"
+    },
+    {
+      "bytes": 4663684044,
+      "name": "model-00002-of-00005.safetensors",
+      "sha256": "57c696cbe0eef7b8fb9faa0ba9d138ecad85974524ad70566fc6fad38ebed127"
+    },
+    {
+      "bytes": 4663684030,
+      "name": "model-00003-of-00005.safetensors",
+      "sha256": "1226ed35ebf3d9b0fae0b3fc00871721f495458d2a490c1c7fca059c4a9260fe"
+    },
+    {
+      "bytes": 4663684004,
+      "name": "model-00004-of-00005.safetensors",
+      "sha256": "eba1a8df0992ea5816c55b1fdaa0bef863ac746a865aa70aa31a207e35a29183"
+    },
+    {
+      "bytes": 867907213,
+      "name": "model-00005-of-00005.safetensors",
+      "sha256": "b99819eefc10449f5e0732e376891c6374e01a532a81cb7dce9ceb0d14c0cec3"
+    }
+  ],
+  "sliced_tensors": 329,
+  "source": "/Users/kearm/models/RecursiveSI-Flint-40B-A2.5B-MLX-GPTQ-MXFP4",
+  "source_experts": 256
+}

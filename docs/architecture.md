@@ -2687,3 +2687,14 @@ expert-bank reduction at parity with the full MXFP4 deployment, not BF16
 perplexity. The earlier objection was a narrow sample and a self-imposed 0.95
 agreement veto. Both are retired for the product decision. A packed 224 MXFP4
 artifact and task-level agentic measurements remain unrun.
+
+The QDQ 224 mask is now an actual physical MLX artifact, not only a runtime
+experiment. `tools/materialize_pruned_flint_mlx.py` sliced 329 router and
+quantized expert tensors from the full MXFP4 checkpoint, preserved q/scales,
+set `num_experts=224`, and wrote
+`RecursiveSI-Flint-40B-A2.5B-MLX-GPTQ-MXFP4-224`. The physical model reproduced
+the runtime numbers exactly: PPL 6.20609, top-1 0.66675, and 19,556,113,984
+parameter bytes. A single 64-token greedy run measured 124.373 tok/s at 31.285
+GB peak versus 121.660 tok/s at 35.481 GB for full 256; the memory reduction is
+a direct result, while the small decode difference is not yet a throughput
+claim. The artifact is validated but not uploaded.
