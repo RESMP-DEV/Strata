@@ -30,6 +30,7 @@ from typing import Any
 
 import qwen4exp_partial_load as partial
 import qwen4exp_quant_aware_rco as rco
+from holo4_mxfp4_quant_aware_rco import mxfp4_dequant
 
 SWEEP_FORMAT = "strata-qwen4exp-chunked-rco-sweep-v1"
 ALLOCATION_FORMAT = "strata-expert-width-allocation-v1"
@@ -48,6 +49,8 @@ def capture_chunk(
     layers = list(model.model.layers)[start_layer:]
     captured: list[dict[str, Any]] = []
     references: list[Any] = []
+    block_inputs: list[dict[str, Any]] = [{} for _ in layers]
+    block_references: list[Any] = [None for _ in layers]
     handles = []
 
     def make_pre(index: int):
@@ -76,6 +79,16 @@ def capture_chunk(
         references.append(None)
         handles.append(layer.register_forward_pre_hook(make_pre(index), with_kwargs=True))
         handles.append(layer.register_forward_hook(make_post(index)))
+        block = layer.mlp
+
+        def block_pre(_m: Any, a: tuple[Any, ...], k: dict[str, Any], i: int = index) -> None:
+            block_inputs[i] = {"args": a, "kwargs": dict(k)}
+
+        def block_post(_m: Any, _a: tuple[Any, ...], out: Any, i: int = index) -> None:
+            block_references[i] = out
+
+        handles.append(block.register_forward_pre_hook(block_pre, with_kwargs=True))
+        handles.append(block.register_forward_hook(block_post))
 
     try:
         with torch.no_grad():
@@ -87,7 +100,7 @@ def capture_chunk(
         raise rco.RcoError("chunk inputs were not captured for every layer")
     if any(reference is None for reference in references):
         raise rco.RcoError("chunk references were not captured for every layer")
-    return captured, references[-1], references
+    return captured, references[-1], references, block_inputs, block_references
 
 
 def measure_all_width_layer(
@@ -162,7 +175,11 @@ def measure_layer(
     *,
     byte_budget_per_expert: float,
     expert_sample: int = 0,
+    signal: str = "router",
+    block_captured: dict[str, Any] | None = None,
+    block_reference: Any | None = None,
 ) -> dict[str, Any]:
+    import torch
 
     layer = list(model.model.layers)[layer_index]
     experts = layer.mlp.experts
@@ -188,17 +205,42 @@ def measure_layer(
                     + weight_relative_error(original_down, down_deq)
                 )
             )
-    # Router load is the measured signal that tracks output impact: experts
-    # with no routed tokens cannot change the layer output.  Weighting the
-    # exact weight-space error by routed token count keeps the selection
-    # activation-aware without one forward per expert.
-    counts = routed_token_counts(layer, captured)
-    weighted_errors = {
-        bits: [error * (count + 1) ** 0.5 for error, count in zip(values, counts, strict=True)]
-        for bits, values in weight_errors.items()
-    }
+    if signal == "qdq" and block_captured is not None:
+        # Direct QDQ impact: measure the MoE block after quantizing one expert,
+        # using MXFP4 for the 4-bit candidate and int group-32 RTN otherwise.
+        qdq_errors: dict[str, list[float]] = {str(bits): [] for bits in rco.CANDIDATE_BITS}
+        block = layer.mlp
+        for index in range(int(gate_up.shape[0])):
+            original_gate = gate_up[index].detach().clone()
+            original_down = down[index].detach().clone()
+            try:
+                for bits in rco.CANDIDATE_BITS:
+                    if bits == 4:
+                        gate, down_deq = mxfp4_dequant(original_gate), mxfp4_dequant(original_down)
+                    else:
+                        gate, down_deq = rco.quantize_expert(original_gate, original_down, bits)
+                    gate_up[index].copy_(gate.to(gate_up.dtype))
+                    down[index].copy_(down_deq.to(down.dtype))
+                    args = list(block_captured["args"])
+                    kwargs = dict(block_captured["kwargs"])
+                    with torch.no_grad():
+                        output = block(*args, **kwargs)
+                    qdq_errors[str(bits)].append(rco.relative_error(block_reference, output))
+            finally:
+                gate_up[index].copy_(original_gate)
+                down[index].copy_(original_down)
+        selection_errors = qdq_errors
+        counts = []
+    else:
+        # Router load is the measured signal that tracks output impact:
+        # experts with no routed tokens cannot change the layer output.
+        counts = routed_token_counts(layer, captured)
+        selection_errors = {
+            bits: [error * (count + 1) ** 0.5 for error, count in zip(values, counts, strict=True)]
+            for bits, values in weight_errors.items()
+        }
     assignment = rco.greedy_assignment(
-        weighted_errors,
+        selection_errors,
         bits_list=rco.CANDIDATE_BITS,
         byte_budget_total=byte_budget_per_expert * int(gate_up.shape[0]),
         per_expert_bytes=per_expert_bytes,
@@ -238,6 +280,7 @@ def measure_layer(
         "per_expert_bytes": per_expert_bytes,
         "weight_errors": weight_errors,
         "routed_token_counts": counts,
+        "selection_signal": signal,
         "output_sample": sample,
     }
 
@@ -261,7 +304,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             device=args.device,
             disk_ple=start <= 1 < end,
         )
-        captured, boundary, references = capture_chunk(
+        captured, boundary, references, block_inputs, block_references = capture_chunk(
             model, tokens, start_layer=start, boundary=boundary
         )
         for position in range(end - start):
@@ -272,6 +315,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 references[position],
                 byte_budget_per_expert=args.byte_budget_per_expert,
                 expert_sample=args.expert_sample,
+                signal=args.signal,
+                block_captured=block_inputs[position],
+                block_reference=block_references[position],
             )
             layers.append(
                 {
@@ -365,6 +411,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--chunk-layers", type=int, default=3)
     parser.add_argument("--byte-budget-per-expert", type=float, default=0.0)
     parser.add_argument("--expert-sample", type=int, default=0)
+    parser.add_argument("--signal", choices=("router", "qdq"), default="qdq")
     parser.add_argument("--receipt", type=Path)
     return parser.parse_args(argv)
 

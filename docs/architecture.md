@@ -2847,3 +2847,28 @@ BF16-input reconstruction, a measured proxy for per-expert selection, and no end
 logits or served throughput. The receipts are
 [full-depth allocation](../evidence/rco-full-depth-allocation-2026-10-23.json) and
 [expert width allocation](../evidence/rco-expert-width-allocation-2026-10-23.json).
+
+### QDQ selection chosen for the own-Coder RCO allocation, 2026-10-23
+
+Three selection methodologies were compared on real weights at the MoE block, where expert
+quantization actually acts, using the same 2,457,600-byte-per-expert budget. Weight-space
+error scored 0.10883 mean assembled block error, router-weighted error 0.08738, and direct
+QDQ impact 0.08445, where QDQ quantizes one expert (MXFP4 E2M1 with an E8M0 scale per 32
+for the 4-bit candidate, int group-32 RTN for 3 and 2 bits) and measures the block output
+against BF16. On the first six layers at the decoder-layer level QDQ beat router-weighted
+error on every layer, 0.018399 against 0.022428.
+
+Direct QDQ impact is therefore the chosen methodology, and it won at full depth. The
+48-layer allocation chose 3,069 experts at 2 bits, 1,526 at 3 bits, and 9,229 at 4 bits,
+for 33,511,833,600 expert bytes, 87.68 percent of all-W4. Mean assembled layer error was
+0.026311 against 0.062173 for all-W3, 0.026193 for all-W4, and 0.18182 for all-W2: 57.68
+percent better than all-W3 and 0.45 percent worse than all-W4. Every layer beat all-W3 and
+none beat all-W4. Linear-attention layers averaged 0.026538 and full-attention layers
+0.025631. The sweep took 770.643 seconds on GPU0.
+
+This supersedes the router-weighted allocation. The 4-bit candidate uses the true W4A16
+number format; 3 and 2 bits remain int RTN proxies for IQ3_S and IQ2_S, so exact IQ QDQ
+needs the llama.cpp quantizers per tensor. RCO remains one-for-one with no expert removal,
+and the own-Coder packer still needs per-expert width support. The receipts are
+[QDQ methodology decision](../evidence/qdq-method-selection-2026-10-23.json) and
+[QDQ expert width allocation](../evidence/rco-expert-width-allocation-qdq-2026-10-23.json).

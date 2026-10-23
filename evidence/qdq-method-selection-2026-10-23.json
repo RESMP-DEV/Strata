@@ -1,0 +1,75 @@
+{
+  "block_level_comparison": {
+    "budget_per_expert": 2457600,
+    "calibration": "1 x 512 tokens",
+    "layers": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "mean_assembled_block_relative_error": {
+      "qdq": 0.08444960881024599,
+      "router": 0.08738344255834818,
+      "weight": 0.10883395839482546
+    },
+    "raw_receipt": "build/w4a16/remote/qdq-method-compare-0-3.json"
+  },
+  "candidates": {
+    "qdq": "measured MoE-block output error after quantizing one expert (MXFP4 for 4-bit, int RTN for 3/2)",
+    "router": "weight error multiplied by sqrt(routed token count)",
+    "weight": "per-expert weight-space quantization error"
+  },
+  "decision": "Use direct QDQ impact. It won the block-level head-to-head, beat router-weighted error on all six test layers, and produced the best full-depth result at lower byte cost than the router-weighted allocation.",
+  "format": "strata-evidence-qdq-method-selection-v1",
+  "full_depth_result": {
+    "all_w3_mean": 0.062173,
+    "all_w4_mean": 0.026193,
+    "allocation": "evidence/rco-expert-width-allocation-qdq-2026-10-23.json",
+    "elapsed_seconds": 770.643,
+    "fraction_of_all_w4_bytes": 0.8768,
+    "full_attention_layer_mean": 0.025631,
+    "histogram": {
+      "2": 3069,
+      "3": 1526,
+      "4": 9229
+    },
+    "improvement_vs_all_w3_fraction": 0.5768,
+    "increase_vs_all_w4_fraction": 0.0045,
+    "layers_beating_all_w3": 48,
+    "layers_beating_all_w4": 0,
+    "linear_layer_mean": 0.026538,
+    "mean_assembled_relative_error": 0.026311392488423735,
+    "raw_sweep": "build/w4a16/remote/rco-sweep-48x512-qdq.json",
+    "raw_sweep_sha256": "30856f59d7796426c66974a3d78870dc27d4053f30e2c522992e24e4ec03c2a7",
+    "total_expert_bytes": 33511833600
+  },
+  "implementation_notes": [
+    "The 4-bit candidate uses the true W4A16 number format (MXFP4 E2M1, E8M0 scale per 32).",
+    "The 3- and 2-bit candidates are int group-32 RTN proxies for IQ3_S and IQ2_S/IQ2_XS; exact IQ QDQ would require the llama.cpp quantizers per tensor.",
+    "The own-Coder packer must gain per-expert width support to consume this allocation."
+  ],
+  "layer_level_comparison": {
+    "layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "mean_assembled_layer_relative_error": {
+      "qdq": 0.018399,
+      "router": 0.022428
+    },
+    "note": "QDQ beat router-weighted on every one of the six layers"
+  },
+  "non_claims": [
+    "One 512-token calibration sequence; per-layer BF16-input reconstruction.",
+    "No end-to-end logits, artifact packing, engine run, or served throughput.",
+    "Block-level and layer-level numbers are not comparable to each other; only within each comparison."
+  ],
+  "question": "Which QDQ selection methodology should drive the own-Coder RCO width allocation?",
+  "recorded_at": "2026-10-23",
+  "supersedes": "evidence/rco-full-depth-allocation-2026-10-23.json"
+}

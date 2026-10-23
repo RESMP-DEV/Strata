@@ -58,5 +58,6 @@
     "total_expert_bytes": 33973862400
   },
   "scope": "Full 48-layer quantization-aware RCO width allocation, one-for-one expert replacement",
+  "superseded_by": "evidence/rco-expert-width-allocation-qdq-2026-10-23.json",
   "tool": "tools/qwen4exp_chunked_rco.py"
 }
