@@ -132,6 +132,16 @@ Stable Homebrew 0.32 is not the right base: it has MLX 0.32.2, Transformers
 source/dev builds are closer and pin MLX 0.32.4. Existing source supports paged
 full attention, per-layer sliding windows, GQA, and learned sinks.
 
+The audited current source revision is
+`f0812a6b679ce6afbe4cb5120d53be35ad625cc9`, with dev release
+`0.32.0.dev20261023120028`. The exact minimum compatibility surface is:
+`FlintCompatConfig`, a metadata-only `FlintForCausalLM` architecture alias
+restricted to the MLX backend, a dynamic attention contract that treats
+`module.rope is None` as position-free, and a runtime-only
+`softmax_offset` fallback where the paged wrapper currently reads `sinks`.
+Flint is absent from the compiled-MLP policy, so MoE compilation is a separate
+post-correctness optimization rather than part of minimum integration.
+
 The durable adapter needs guarded config registration, a metadata-only vLLM
 architecture alias, the owned MLX-LM fork dependency, per-layer no-RoPE
 contracts, and a `softmax_offset` to `sinks` alias, followed by hybrid
