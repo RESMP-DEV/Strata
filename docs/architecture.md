@@ -2996,3 +2996,33 @@ first request hit 99.4 percent of routed experts, and the four repeats hit 100 p
 These repeated identical prompts overstate suffix-draft and cache behavior for varied user
 traffic. The full commands, placement controls, raw logs, and non-claims are in
 [own-Coder perplexity and throughput](../evidence/own-coder-perplexity-and-throughput-2026-10-23.json).
+
+### Prebuilt Qwen3.8-27B NVFP4 prefiller on B550, 2026-10-24
+
+The published disaggregated-quantization artifact is now a qualified external
+runtime lane rather than a Strata native model. The exact ISTA-DASLab IQ2_S
+prefiller revision and Unsloth IQ2_S decoder were downloaded, independently
+hashed, transferred to B550, and verified all 64 blocks plus the decoder. The
+IST-DASLab fork builds clean for SM86 and its three ODP/quant tests pass. On
+Ampere the NVFP4 tensors execute through generic dequant/Q8_1/DP4A MMQ, not
+Blackwell native FP4 MMA.
+
+One RTX 3090 Ti generated coherent ODP and decoder-only controls with exact
+markers. The short prompt measured 2.9 ODP prompt tok/s versus 88.9 decoder-only,
+with generation effectively tied at 57.4 versus 57.3 tok/s. A 3,424-token real
+paper passage measured 323.58 ODP service prompt tok/s and 56.81 generation
+tok/s; the same-prompt decoder-only control reached 1333.1 prompt tok/s and 55.9
+generation tok/s. These are warm-cache serving measurements, not cold-drive TTFT
+or task-quality claims.
+
+The service is enabled as B550 user `qwen27b-nvfp4-ccr.service`, bound only to
+127.0.0.1:18098, authenticated from a 0600 key file, exposed through the
+existing authenticated SSH tunnel as local port 18082, and configured with
+prompt caching/checkpoints disabled so recurrent-state snapshots do not re-stream
+all ODP blocks. Unauthenticated model listing is 401, health is 200, a clean stop
+releases GPU0 to 1 MiB, and restart returns authenticated HTTP 200. CCR now has
+single-flight `qwen27b-nvfp4-b550,qwen3.8-27b-nvfp4-prefiller` after the Strata
+Coder and before local27; all four listeners restarted idle-gated and an explicit
+routed request returned HTTP 200 while the B550 token counters increased by the
+exact request. Full provenance, measurements, and non-claims are in
+[Qwen27B NVFP4 prefiller serving](../evidence/qwen27b-nvfp4-prefiller-b550-serving-2026-10-24.json).
