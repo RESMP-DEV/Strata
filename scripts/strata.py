@@ -193,6 +193,7 @@ def quality() -> int:
                         "tools.test_qwen4exp_chunked_rco",
                         "tools.test_qwen4exp_qdq_method_compare",
                         "tools.test_iq3_qdq",
+                        "tools.test_qwen4exp_iq_arm_measure",
                     ],
                 ),
                 run_logged(
@@ -248,6 +249,10 @@ def quality() -> int:
                         "tools/test_qwen4exp_qdq_method_compare.py",
                         "tools/iq3_qdq.py",
                         "tools/test_iq3_qdq.py",
+                        "tools/qwen4exp_iq_arm_measure.py",
+                        "tools/test_qwen4exp_iq_arm_measure.py",
+                        "tools/bench_iq3.py",
+                        "tools/bench_iq3_scale.py",
                     ],
                 ),
                 run_logged(
@@ -300,6 +305,10 @@ def quality() -> int:
                         "tools/test_qwen4exp_qdq_method_compare.py",
                         "tools/iq3_qdq.py",
                         "tools/test_iq3_qdq.py",
+                        "tools/qwen4exp_iq_arm_measure.py",
+                        "tools/test_qwen4exp_iq_arm_measure.py",
+                        "tools/bench_iq3.py",
+                        "tools/bench_iq3_scale.py",
                     ],
                 ),
                 run_logged(

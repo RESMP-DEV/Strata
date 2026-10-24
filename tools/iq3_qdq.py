@@ -68,6 +68,50 @@ def qdq(weights: Any, *, kind: int = IQ3_S, library: Any | None = None) -> tuple
     return output, int(out_bytes.value)
 
 
+def _qdq_slice(args: tuple[Any, int, str]) -> tuple[Any, int]:
+    """Worker entry point: quantize-dequantize one row block (module level so it pickles)."""
+    weights, kind, library_path = args
+    return qdq(weights, kind=kind, library=load_library(Path(library_path)))
+
+
+def qdq_parallel(
+    weights: Any,
+    *,
+    kind: int = IQ3_S,
+    workers: int | None = None,
+    library: Any | None = None,
+) -> tuple[Any, int]:
+    """Quantize-dequantize a 2D tensor with row blocks spread over CPU workers.
+
+    IQ rows are quantized independently, so splitting by rows is exact, not an
+    approximation.  This is the speed lever for the reference quantizers, which
+    are single-threaded CPU code.
+    """
+    import multiprocessing
+    import os
+
+    import numpy as np
+
+    if weights.ndim != 2:
+        raise Iq3Error(f"expected a 2D tensor, got {weights.shape}")
+    rows = weights.shape[0]
+    count = workers if workers and workers > 0 else (os.cpu_count() or 1)
+    count = max(1, min(count, 32))
+    if count == 1 or rows < 64:
+        return qdq(weights, kind=kind, library=library)
+    library_path = str(
+        library or Path(os.environ.get("STRATA_IQ_QDQ_LIB", "tools/ggml/libiq_qdq.so"))
+    )
+    source = np.ascontiguousarray(weights, dtype=np.float32)
+    step = (rows + count - 1) // count
+    tasks = [(source[start : start + step], kind, library_path) for start in range(0, rows, step)]
+    with multiprocessing.get_context("fork").Pool(len(tasks)) as pool:
+        results = pool.map(_qdq_slice, tasks)
+    output = np.concatenate([item[0] for item in results], axis=0)
+    total_bytes = sum(item[1] for item in results)
+    return output, total_bytes
+
+
 def block_bytes(kind: int, *, library: Any | None = None) -> int:
     lib = library or load_library()
     value = lib.iq_block_bytes(kind)

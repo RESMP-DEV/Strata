@@ -2898,3 +2898,26 @@ their bytes are the exact Strata types. Re-measuring every expert with IQ3 and p
 artifact remain open. The receipts are
 [IQ3 QDQ selection](../evidence/iq3-qdq-selection-2026-10-23.json) and
 [Strata IQ allocation](../evidence/rco-expert-width-allocation-strata-iq-2026-10-23.json).
+
+### Servable IQ arm decision and the per-expert engine boundary, 2026-10-23
+
+The engine's native expert pack stores one gate/up type, one down type, and one blob size per
+layer (`ExpertLayout` in `include/strata/kernels/cpu/expert_layout.hpp`). Per-expert widths are
+therefore not representable today; supporting them would require a `native_experts.txt` format
+bump and changes in the arena, VRAM tier, CPU pool, and GPU window.
+
+To decide whether that engine change is worth it, the three servable uniform arms and the
+per-expert reference were measured on real layers 0, 1, and 2 through the pinned llama.cpp
+reference quantizers: IQ3_S, IQ3_XXS, and IQ4_XS gate/up, each with IQ4_NL down. On MoE-block
+output, IQ3_XXS and IQ3_S are effectively tied (0.07881 versus 0.07805) while IQ3_XXS stores
+6.6 percent fewer bytes. IQ4_XS plus IQ4_NL is 40.06 percent lower error than arm 3 for 14.29
+percent more bytes. The per-expert reference is only 1.10 percent worse than uniform IQ4_XS
+while saving 5.3 percent, so it does not justify changing the engine layout on this evidence.
+
+This supersedes the earlier weight-space-only choice of IQ3_S: real MoE output makes IQ3_XXS
+the better 3-bit value lane, while IQ4_XS plus IQ4_NL is the recommended own-Coder arm. The
+reference IQ quantizers are CPU-bound, so the bridge now quantizes independent rows across CPU
+workers: 0.926 experts per second serially and 6.419 with 16 workers, a 6.93x speedup. The
+Windows VM was shut off and GPU1 rebound to nvidia for this measurement; GPU0 remained shared
+with an unrelated Flint job. No packed artifact or engine run exists yet. The receipt is
+[IQ arm serving decision](../evidence/iq-arm-serving-decision-2026-10-23.json).

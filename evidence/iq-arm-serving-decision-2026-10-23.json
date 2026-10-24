@@ -1,0 +1,86 @@
+{
+  "correction": "The earlier weight-space comparison chose IQ3_S over IQ3_XXS. Real MoE-block output shows the two are essentially tied, and IQ3_XXS is cheaper, so the weight-space-only conclusion is not a serving decision.",
+  "decisions": [
+    "IQ3_XXS is the best 3-bit serving lane: it is statistically tied with IQ3_S in block error (0.07881 versus 0.07805) while storing 6.6 percent fewer bytes.",
+    "IQ4_XS + IQ4_NL is the recommended own-Coder arm: 40.06 percent lower block error than arm 3 for 14.29 percent more bytes.",
+    "Per-expert width mixing is not worth an engine layout change at this scale: it saves only 5.3 percent versus uniform arm 4 and loses 1.10 percent quality."
+  ],
+  "engine_boundary": {
+    "evidence": "include/strata/kernels/cpu/expert_layout.hpp: blob_bytes(layer), blob_offset(layer, expert)",
+    "finding": "ExpertLayout stores one format and one blob size per layer; per-expert formats are not representable.",
+    "required_engine_change_for_per_expert": [
+      "per-expert format and byte-size tables",
+      "native_experts.txt format bump beyond v4",
+      "arena, VRAM tier, CPU pool, and GPU window dispatch changes"
+    ]
+  },
+  "format": "strata-evidence-iq-arm-serving-decision-v1",
+  "host_state_change": {
+    "gpu0_at_run": "shared with unrelated Flint job",
+    "gpu1_at_run": "used for this measurement, then idle",
+    "vm": "win11-gaming shut off; GPU1 unbound from vfio-pci and bound to nvidia"
+  },
+  "measurement": {
+    "calibration": "1 sequence x 512 tokens",
+    "host": "b550-zt, GPU1 after the VM released it",
+    "layers": [
+      0,
+      1,
+      2
+    ],
+    "quantizers": "pinned llama.cpp 3cf0325 reference IQ3_S, IQ3_XXS, IQ4_XS, and IQ4_NL",
+    "raw_receipt": "build/w4a16/remote/iq-arm-measure-0-2.json",
+    "raw_receipt_sha256": "fc254e4363e99eb037fbe85065dc16f49cf5192f75abfb6efe6769b9040572e6",
+    "tool": "tools/qwen4exp_iq_arm_measure.py"
+  },
+  "non_claims": [
+    "MoE-block scope on layers 0, 1, and 2; not all 48 layers or end-to-end logits.",
+    "One 512-token calibration sequence.",
+    "No packed artifact or Strata engine run was produced.",
+    "The mixed reference arm is not representable in the current pack format and cannot be served."
+  ],
+  "parallel_qdq": {
+    "finding": "Reference IQ quantization is CPU-bound, not GPU-bound",
+    "serial_experts_per_second": 0.926,
+    "sixteen_worker_experts_per_second": 6.419,
+    "speedup": 6.93,
+    "tool": "tools/bench_iq3_scale.py"
+  },
+  "question": "Which IQ arm can Strata serve today, and does per-expert width mixing justify an engine change?",
+  "recorded_at": "2026-10-23",
+  "results": {
+    "mixed_per_expert_reference": {
+      "mean_block_relative_error": 0.04728460994859537,
+      "note": "1.10 percent worse than uniform arm 4 while saving 1.79 GiB (5.3 percent); not worth the engine change on this evidence",
+      "representable_today": false,
+      "total_expert_bytes": 34856137728,
+      "total_gib": 32.44,
+      "types": "IQ3_S or IQ4_XS gate/up per expert + IQ4_NL down"
+    },
+    "uniform_3": {
+      "bytes_per_expert": 2329600,
+      "mean_block_relative_error": 0.07805430889129639,
+      "representable_today": true,
+      "total_expert_bytes": 32204390400,
+      "total_gib": 29.99,
+      "types": "IQ3_S gate/up + IQ4_NL down"
+    },
+    "uniform_3x": {
+      "bytes_per_expert": 2176000,
+      "mean_block_relative_error": 0.07881330077846845,
+      "representable_today": true,
+      "total_expert_bytes": 30081024000,
+      "total_gib": 28.02,
+      "types": "IQ3_XXS gate/up + IQ4_NL down"
+    },
+    "uniform_4": {
+      "bytes_per_expert": 2662400,
+      "mean_block_relative_error": 0.04676951219638189,
+      "representable_today": true,
+      "total_expert_bytes": 36805017600,
+      "total_gib": 34.28,
+      "types": "IQ4_XS gate/up + IQ4_NL down"
+    }
+  },
+  "supersedes": "evidence/iq3-qdq-selection-2026-10-23.json"
+}
