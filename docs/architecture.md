@@ -2872,3 +2872,29 @@ needs the llama.cpp quantizers per tensor. RCO remains one-for-one with no exper
 and the own-Coder packer still needs per-expert width support. The receipts are
 [QDQ methodology decision](../evidence/qdq-method-selection-2026-10-23.json) and
 [QDQ expert width allocation](../evidence/rco-expert-width-allocation-qdq-2026-10-23.json).
+
+### IQ3 QDQ choice and the Strata-servable allocation, 2026-10-23
+
+Serving through Strata means GGML IQ expert types, so the 2-bit arm is dropped and the
+3-bit arm has to be a real IQ3 format. `tools/ggml/iq_qdq.c` builds a small shared
+library against the pinned llama.cpp tree (`3cf0325`) that exposes the reference
+quantize/dequantize functions for IQ3_S, IQ3_XXS, IQ4_NL, and IQ4_XS, driven from Python
+through `tools/iq3_qdq.py`.
+
+On layers 0, 1, and 3 with 16 experts per role, gate/up IQ3_S measured 0.170541 mean
+weight error at 1,408,000 bytes against IQ3_XXS at 0.217886 and 1,254,400 bytes, so IQ3_S
+is 21.7 percent better for 12.2 percent more bytes and is the chosen 3-bit format. The down
+projection cannot use a 256-block type because its in_features is 640, so both arms keep
+IQ4_NL for down, matching the existing own-Coder recipe. IQ4_XS beat IQ4_NL for gate/up on
+both error and bytes (0.079044 versus 0.08071), so it is the 4-bit gate/up type.
+
+The Strata allocation therefore has two role-based arms: 3 is IQ3_S plus IQ4_NL at
+2,329,600 bytes per expert, and 4 is IQ4_XS plus IQ4_NL at 2,662,400 bytes. Mapping the
+measured QDQ ranking (2 and 3 to arm 3, 4 to arm 4) gives 4,595 experts on arm 3 and 9,229
+on arm 4, 35,275,801,600 expert bytes, 95.85 percent of an all-arm-4 layout, with no 2-bit
+arm. The reference IQ3 quantizer costs about a second per expert tensor, so the ranking is
+reused from the measured MXFP4 QDQ sweep rather than re-measured per expert; the arms and
+their bytes are the exact Strata types. Re-measuring every expert with IQ3 and packing the
+artifact remain open. The receipts are
+[IQ3 QDQ selection](../evidence/iq3-qdq-selection-2026-10-23.json) and
+[Strata IQ allocation](../evidence/rco-expert-width-allocation-strata-iq-2026-10-23.json).

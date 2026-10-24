@@ -192,6 +192,7 @@ def quality() -> int:
                         "tools.test_qwen4exp_ple_stream",
                         "tools.test_qwen4exp_chunked_rco",
                         "tools.test_qwen4exp_qdq_method_compare",
+                        "tools.test_iq3_qdq",
                     ],
                 ),
                 run_logged(
@@ -245,6 +246,8 @@ def quality() -> int:
                         "tools/test_qwen4exp_chunked_rco.py",
                         "tools/qwen4exp_qdq_method_compare.py",
                         "tools/test_qwen4exp_qdq_method_compare.py",
+                        "tools/iq3_qdq.py",
+                        "tools/test_iq3_qdq.py",
                     ],
                 ),
                 run_logged(
@@ -295,6 +298,8 @@ def quality() -> int:
                         "tools/test_qwen4exp_chunked_rco.py",
                         "tools/qwen4exp_qdq_method_compare.py",
                         "tools/test_qwen4exp_qdq_method_compare.py",
+                        "tools/iq3_qdq.py",
+                        "tools/test_iq3_qdq.py",
                     ],
                 ),
                 run_logged(

@@ -1,0 +1,53 @@
+{
+  "findings": [
+    "IQ3_S beats IQ3_XXS by 21.7 percent in weight error at 12.2 percent more bytes, so IQ3_S is the best IQ3 arm for Strata.",
+    "down_proj cannot use a 256-block type at in_features 640, so IQ4_NL is the down role in both arms, matching the existing own-Coder recipe.",
+    "IQ4_XS beats IQ4_NL for gate_up on both error and bytes, so it is the 4-bit gate/up arm.",
+    "The reference IQ3 quantizer costs about a second per expert tensor, so full per-expert IQ QDQ across 13,824 experts is hours; the allocation ranking therefore reuses the measured MXFP4 QDQ sweep and the arms use exact Strata types and bytes."
+  ],
+  "format": "strata-evidence-iq3-qdq-selection-v1",
+  "method": {
+    "library": "tools/ggml/iq_qdq.c built against pinned llama.cpp 3cf0325 ggml-quants.c",
+    "metric": "weight-space relative L2 after quantize-dequantize",
+    "quantizers": "quantize_row_iq3_s_ref / iq3_xxs_ref / iq4_nl_ref / iq4_xs_ref, then the matching dequantizers",
+    "sample": "layers 0, 1, 3; 16 experts per role"
+  },
+  "non_claims": [
+    "Sample-based weight error, not end-to-end or MoE-block IQ3 error for every expert.",
+    "The allocation is derived from the MXFP4 QDQ ranking and has not been re-measured with IQ3 arms per expert.",
+    "No packed artifact or Strata engine run exists for this allocation."
+  ],
+  "question": "Which IQ3 QDQ format is the best 3-bit arm for experts served through Strata?",
+  "recorded_at": "2026-10-23",
+  "results": {
+    "down_proj": {
+      "IQ4_NL": {
+        "bytes": 921600,
+        "mean_rel_err": 0.07926
+      }
+    },
+    "gate_up_proj": {
+      "IQ3_S": {
+        "bpw": 3.438,
+        "bytes": 1408000,
+        "mean_rel_err": 0.170541
+      },
+      "IQ3_XXS": {
+        "bpw": 3.062,
+        "bytes": 1254400,
+        "mean_rel_err": 0.217886
+      },
+      "IQ4_NL": {
+        "bpw": 4.5,
+        "bytes": 1843200,
+        "mean_rel_err": 0.08071
+      },
+      "IQ4_XS": {
+        "bpw": 4.25,
+        "bytes": 1740800,
+        "mean_rel_err": 0.079044
+      }
+    },
+    "raw": "build/w4a16/remote/iq3-compare.json"
+  }
+}
