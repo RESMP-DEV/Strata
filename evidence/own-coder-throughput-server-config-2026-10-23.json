@@ -1,0 +1,26 @@
+{
+  "exe": "/home/kearm/strata-main/build/qwen-sm86/strata",
+  "cwd": "/home/kearm/strata-main",
+  "model_name": "own-coder-iq4xs-iq4nl",
+  "tokenizer": "/home/kearm/models/own-coder-iq4xs-iq4nl-pack/tokenizer",
+  "gpu": [0, 1],
+  "layer_split": "auto",
+  "log": "/home/kearm/models/own-coder-iq4xs-iq4nl-4k-server.log",
+  "args": [
+    "--pack", "/home/kearm/models/own-coder-iq4xs-iq4nl-pack",
+    "--native", "/home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf",
+    "--ple-gguf", "/home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00002-of-00006.gguf",
+    "--expert-profile", "/home/kearm/models/own-coder-iq4xs-iq4nl-expert-profile-neutral.bin",
+    "--expert-cache", "auto",
+    "--prefill", "auto",
+    "--spec", "4",
+    "--spec-min-p", "0.5",
+    "--max-context", "8192",
+    "--kv", "int8",
+    "--ple-io", "direct",
+    "--stats",
+    "--pipeline-windows", "2",
+    "--prompt-cache", "0",
+    "--short-read", "0"
+  ]
+}

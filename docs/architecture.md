@@ -2969,3 +2969,30 @@ expert-cache hit rate. An earlier exit-0 run before the verifier input-pointer r
 superseded and is not acceptance evidence. An identical repeat command reproduced all eight
 token IDs at 19.66 tok/s decode. Both GPUs returned to idle afterward. The receipt is
 [own-Coder B550 pack and smoke](../evidence/own-coder-iq4xs-iq4nl-b550-pack-and-smoke-2026-10-23.json).
+
+### Own-Coder held-out perplexity and warm throughput, 2026-10-23
+
+The pinned llama.cpp perplexity tool now accepts the exact-token format already used by the
+own-Coder token pipeline. On held-out AlphaHENG Claude Code validation sequence 0 (2,048
+token IDs, distinct from the calibration stream), context 1,024, and two non-overlapping
+chunks, the source-preserving IQ4_XS+IQ4_NL artifact measured PPL `2.3960 +/- 0.15989`.
+Its own-288 BF16 source measured `2.4526 +/- 0.16817` with the same tokens, chunks, thread
+count, and both 3090 Ti cards. The quantized file is 2.31 percent lower, well inside the
+reported uncertainty; this is a sanity check, not evidence of improved quality.
+
+The warm Strata throughput run used both GPUs, layer split auto, INT8 KV, direct PLE I/O,
+the neutral all-pair expert profile, prompt cache off, and no MTP. An attempted MTP server
+loaded 11,105 resident experts but exited because the existing draft layer requires a native
+quantized head; no foreign head was substituted. The working server kept 11,507 of 13,824
+experts resident (83.24 percent). After one discarded short warm-up, the five repeated short
+requests had medians of 85.4 engine-reported decode tok/s, 325.6 prompt tok/s, and 77.3
+end-to-end streaming tok/s.
+
+The 4K arm used the first 4,000 real tokens from Strata's Python tools corpus and produced
+4,027 server prompt tokens after template processing. Across five fresh-prompt requests,
+median prompt throughput was 2,234.7 tok/s and decode was 95.8 tok/s; the last four warm
+requests median was 2,235.45 prompt tok/s. Every request accepted all 62 suffix drafts, the
+first request hit 99.4 percent of routed experts, and the four repeats hit 100 percent.
+These repeated identical prompts overstate suffix-draft and cache behavior for varied user
+traffic. The full commands, placement controls, raw logs, and non-claims are in
+[own-Coder perplexity and throughput](../evidence/own-coder-perplexity-and-throughput-2026-10-23.json).

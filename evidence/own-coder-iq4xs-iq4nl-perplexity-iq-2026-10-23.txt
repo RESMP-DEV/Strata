@@ -1,0 +1,34 @@
+0.50.833.434 I cmn          init: llama threadpool init, n_threads = 16
+0.51.233.831 I 
+0.51.233.922 I system_info: n_threads = 16 (n_threads_batch = 16) / 32 | CUDA : ARCHS = 860 | USE_GRAPHS = 1 | FA_QUANTS = q4_0-q4_0,q8_0-q8_0,f16-f16,bf16-bf16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | LLAMAFILE = 1 | OPENMP = 1 | REPACK = 1 | 
+0.51.233.937 I perplexity: tokenizing the input ..
+0.51.233.989 I read_token_file: loaded 2048 exact token ids from /home/kearm/strata-scratch/own-coder-run/eval/alphaheng-heldout-seq0-2048.i32
+0.51.234.001 I perplexity: tokenization took 0.061 ms
+0.51.234.049 I perplexity: calculating perplexity over 2 chunks, n_ctx=1024, batch_size=1024, n_seq=1
+0.54.381.969 I perplexity: 3.15 seconds per pass - ETA 0.10 minutes
+[1]3.6483,[2]2.3960,
+0.55.831.704 I Final estimate: PPL = 2.3960 +/- 0.15989
+
+	Command being timed: "build-cuda-owncoder/bin/llama-perplexity -m /home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf --token-file /home/kearm/strata-scratch/own-coder-run/eval/alphaheng-heldout-seq0-2048.i32 -c 1024 -b 1024 -ub 512 --chunks 2 --ppl-stride 0 --device CUDA0,CUDA1 -ngl all -t 16 -tb 16"
+	User time (seconds): 13.20
+	System time (seconds): 6.84
+	Percent of CPU this job got: 35%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:56.54
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 46239832
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 15075
+	Minor (reclaiming a frame) page faults: 601438
+	Voluntary context switches: 104539
+	Involuntary context switches: 426
+	Swaps: 0
+	File system inputs: 47043480
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

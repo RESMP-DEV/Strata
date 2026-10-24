@@ -1,0 +1,144 @@
+{
+  "recorded_at": "2026-10-24T05:35:00Z",
+  "agent": "Codex",
+  "scope": "Run a real held-out exact-token perplexity sanity check for the own-Coder IQ4_XS+IQ4_NL artifact against its own-288 BF16 source, then measure warm short-prompt and 4K code-prompt Strata throughput on B550.",
+  "source_revision": "f4e777c5708ad8ac8d66f5465f0c72789d236066",
+  "source_dirty": true,
+  "canonical_change": "tools/patches/llama-perplexity-token-file.patch adds exact little-endian int32 token input to the pinned llama.cpp perplexity tool",
+  "host": {
+    "alias": "b550-zt",
+    "hostname_at_run": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "gpus": "2x NVIDIA GeForce RTX 3090 Ti",
+    "post_run_state": "both GPUs idle at 1 MiB used and 0 percent utilization; no compute process remained"
+  },
+  "perplexity": {
+    "dataset": "alphaheng-claude-code-v2-validation, held-out sequence 0",
+    "token_source": {
+      "matrix": "/home/kearm/strata-scratch/own-coder-run/w4a16/calibration/alphaheng-heldout-64x2048.npy",
+      "matrix_sha256": "76129194e90120e44f9be7a945a904d641d4c53083293e7836b0202d0dfacad7",
+      "row": 0,
+      "tokens": 2048,
+      "min_token_id": 1,
+      "max_token_id": 248046,
+      "exact_token_file": "/home/kearm/strata-scratch/own-coder-run/eval/alphaheng-heldout-seq0-2048.i32",
+      "exact_token_file_sha256": "5b160a34d4349776081d55dc1f085a302f3ea98066e6ad09f854c05bd04e125c"
+    },
+    "method": "llama-perplexity with context 1024, two non-overlapping chunks, and the tool's last-half-of-context scoring; 1024 target positions are scored",
+    "tool": {
+      "launcher": "/home/kearm/strata-llamacpp-3cf0325/build-cuda-owncoder/bin/llama-perplexity",
+      "implementation_library": "/home/kearm/strata-llamacpp-3cf0325/build-cuda-owncoder/bin/libllama-perplexity-impl.so",
+      "implementation_sha256": "d64277769fd2a94323c92000649470b174f842c982522923e1f6e337f9303d93",
+      "token_patch_applied": true
+    },
+    "iq4xs_iq4nl": {
+      "model": "/home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf",
+      "placement": "CUDA0,CUDA1, -ngl all",
+      "exit": 0,
+      "ppl": 2.3960,
+      "uncertainty": 0.15989,
+      "wall_seconds": 56.54,
+      "max_rss_kib": 46239832,
+      "log": "evidence/own-coder-iq4xs-iq4nl-perplexity-iq-2026-10-23.txt",
+      "log_sha256": "8eb4a6d77834211ea009a484cba9cd37cefa648e9cf31d3bb332ac8a6039f600"
+    },
+    "bf16_source_control": {
+      "model": "/home/kearm/strata-scratch/own-coder-run/flash-next-own-288-bf16-00001-of-00006.gguf",
+      "placement": "CUDA0,CUDA1, -ngl 12, per_layer_token_embd.weight on CPU",
+      "exit": 0,
+      "ppl": 2.4526,
+      "uncertainty": 0.16817,
+      "wall_seconds": 442.18,
+      "max_rss_kib": 93023968,
+      "log": "evidence/own-coder-288-bf16-perplexity-2026-10-23.txt",
+      "log_sha256": "1c54ff934bcb7fd9155d3b83b3f4c5524d35a86d6bab2738ca1712363f600c5b",
+      "first_attempt": "An unbounded -ngl all control exited 1 after trying to allocate a 71189 MiB CUDA0 tensor; no PPL was claimed from that attempt."
+    },
+    "comparison": {
+      "iq_percent_vs_bf16": -2.3077550354725584,
+      "iq_log_ppl": 0.8738006802532029,
+      "bf16_log_ppl": 0.8971486863457886,
+      "delta_log_ppl_iq_minus_bf16": -0.023348006092585694,
+      "interpretation": "The quantized artifact is close to its BF16 source and the small lower PPL is well inside the reported uncertainty; this is a not-garbage sanity check, not evidence of a true quality gain."
+    }
+  },
+  "throughput": {
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata",
+    "engine_sha256": "be84bd21cf2f252868a22ac3e8680e29f68e410ecde58838fdddb0243bcdfdc8",
+    "configuration": {
+      "path": "evidence/own-coder-throughput-server-config-2026-10-23.json",
+      "mode": "two-GPU layer split auto, native IQ pack, neutral 13824-pair profile, auto expert cache, INT8 KV, direct PLE, context 8192, prompt cache off, short reads off, no MTP",
+      "resident_experts": 11507,
+      "resident_fraction": 0.8324,
+      "expert_load_gib_per_second": 3.05,
+      "free_vram_with_everything_loaded_mib": 557
+    },
+    "mtp_attempt": {
+      "exit": 1,
+      "blocker": "strata serve: mtp: the draft layer needs the native head (--native)",
+      "reason": "The own-Coder artifact intentionally preserves BF16 output; no foreign quantized head was substituted for this throughput claim.",
+      "log": "evidence/own-coder-mtp-source-head-blocker-2026-10-23.txt",
+      "log_sha256": "8f9506e83b27286a2c2fd7abb1a414b109e17cccc829f1c439f5ce5f2760e642"
+    },
+    "short_prompt": {
+      "workload": "tools/serve_load.py, one client, 128 output tokens, thinking off; six identical requests with the first discarded",
+      "end_to_end_total_tok_s": [60.8, 76.0, 77.0, 78.7, 77.3, 80.2],
+      "end_to_end_warm_median_tok_s": 77.3,
+      "engine_prompt_tok_s_warm": [317.6, 322.2, 325.6, 327.0, 327.0],
+      "engine_prompt_warm_median_tok_s": 325.6,
+      "engine_decode_tok_s": [72.2, 84.1, 85.2, 87.1, 85.4, 89.0],
+      "engine_decode_warm_median_tok_s": 85.4,
+      "warm_expert_cache_hit_range": [0.969, 0.992],
+      "errors": 0,
+      "raw_log": "evidence/own-coder-short-throughput-2026-10-23.txt",
+      "summary_json": "evidence/own-coder-short-throughput-2026-10-23.json"
+    },
+    "prompt_4k_code": {
+      "workload": "first 4000 real tokens from the Strata tools Python corpus, tokenized with the artifact tokenizer; server saw 4027 prompt tokens including template; five fresh-prompt requests of 128 output tokens after a short generic warm-up",
+      "prompt_sha256": "4a0d876724c6c213f8d2e926e7ecf1c4aa61fd6942d0bc963a81e7dec1e8f0ac",
+      "prompt_tok_s_all5": [1684.7, 2238.6, 2223.3, 2234.7, 2236.2],
+      "prompt_tok_s_all5_median": 2234.7,
+      "prompt_tok_s_last4_median": 2235.45,
+      "decode_tok_s_all5": [93.1, 95.7, 95.8, 95.8, 95.8],
+      "decode_tok_s_all5_median": 95.8,
+      "decode_tok_s_last4_median": 95.8,
+      "suffix_drafts": "62 offered and 62 accepted in every measured request",
+      "expert_cache_hit": "99.4 percent on the first 4K request and 100 percent on the four repeats",
+      "unique_content_sha256": ["cb5285b34080738d510107dec7b6e8394aa425efe7a30fdafca780be709c2f44"],
+      "errors": 0,
+      "result_json": "evidence/own-coder-4k-throughput-2026-10-23.json",
+      "raw_log": "evidence/own-coder-4k-throughput-2026-10-23.txt",
+      "engine_log": "evidence/own-coder-throughput-engine-2026-10-23.txt"
+    }
+  },
+  "checks": [
+    {
+      "name": "exact-token-perplexity-iq",
+      "command": "patched llama-perplexity --token-file heldout-seq0-2048.i32 -c 1024 --chunks 2 --ppl-stride 0",
+      "exit": 0
+    },
+    {
+      "name": "exact-token-perplexity-bf16-control",
+      "command": "patched llama-perplexity --token-file heldout-seq0-2048.i32 -c 1024 --chunks 2 --ppl-stride 0 with bounded GPU placement",
+      "exit": 0
+    },
+    {
+      "name": "short-throughput",
+      "command": "tools/serve_load.py --clients 1 --rounds 6 --max-tokens 128 --nonce ''",
+      "exit": 0
+    },
+    {
+      "name": "4k-code-throughput",
+      "command": "own_coder_4k_bench.py: one generic warm-up plus five fresh 4027-token prompt requests",
+      "exit": 0
+    }
+  ],
+  "non_claims": [
+    "Perplexity uses one held-out sequence and 1024 scored positions; it is not a corpus-wide quality score or task benchmark.",
+    "The 2.31 percent lower quantized PPL is within uncertainty and does not prove improved quality.",
+    "Throughput requests repeat identical prompts, so suffix-draft acceptance and cache hit rates are not representative of varied fresh user traffic.",
+    "The 4K first request is included in all-five medians and excluded from the last-four warm subset; both values are reported.",
+    "MTP is unmeasured because the existing draft runtime refuses the source-preserving BF16 main head; these numbers must not be compared to the prior MTP baseline.",
+    "No 32K prompt, varied-prompt interleave, concurrent clients, power measurement, Tetra deployment, or external-model comparison is claimed."
+  ]
+}

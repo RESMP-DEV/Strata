@@ -1,0 +1,118 @@
+--- a/tools/perplexity/perplexity.cpp
++++ b/tools/perplexity/perplexity.cpp
+@@ -24,6 +24,49 @@
+ #pragma warning(disable: 4244 4267) // possible loss of data
+ #endif
+ 
++static std::string g_token_file;
++
++static bool read_token_file(const std::string & file_name, const llama_vocab * vocab,
++                            std::vector<llama_token> & tokens) {
++    std::ifstream input(file_name, std::ios::binary);
++    if (!input) {
++        LOG_ERR("%s: failed to open token file %s\n", __func__, file_name.c_str());
++        return false;
++    }
++    input.seekg(0, std::ios::end);
++    const std::streamoff size = input.tellg();
++    if (size < 0 || size % sizeof(int32_t) != 0) {
++        LOG_ERR("%s: token file %s must contain whole int32 values\n", __func__, file_name.c_str());
++        return false;
++    }
++    input.seekg(0, std::ios::beg);
++    tokens.resize(static_cast<size_t>(size) / sizeof(int32_t));
++    input.read(reinterpret_cast<char *>(tokens.data()), static_cast<std::streamsize>(size));
++    if (!input) {
++        LOG_ERR("%s: failed to read token file %s\n", __func__, file_name.c_str());
++        return false;
++    }
++    const int32_t n_vocab = llama_vocab_n_tokens(vocab);
++    for (size_t i = 0; i < tokens.size(); ++i) {
++        if (tokens[i] < 0 || tokens[i] >= n_vocab) {
++            LOG_ERR("%s: token id %d at offset %zu is outside the vocabulary\n", __func__, tokens[i], i);
++            return false;
++        }
++    }
++    LOG_INF("%s: loaded %zu exact token ids from %s\n", __func__, tokens.size(), file_name.c_str());
++    return true;
++}
++
++static bool prepare_tokens(llama_context * ctx, const common_params & params, std::vector<llama_token> & tokens) {
++    if (!g_token_file.empty()) {
++        const llama_model * model = llama_get_model(ctx);
++        const llama_vocab * vocab = llama_model_get_vocab(model);
++        return read_token_file(g_token_file, vocab, tokens);
++    }
++    tokens = common_tokenize(ctx, params.prompt, true);
++    return true;
++}
++
+ struct results_perplexity {
+     std::vector<llama_token> tokens;
+     double                   ppl_value;
+@@ -307,7 +350,8 @@
+ 
+     LOG_INF("%s: tokenizing the input ..\n", __func__);
+ 
+-    std::vector<llama_token> tokens = common_tokenize(ctx, params.prompt, true);
++    std::vector<llama_token> tokens;
++    if (!prepare_tokens(ctx, params, tokens)) return {};
+ 
+     const int n_ctx = llama_n_ctx(ctx);
+ 
+@@ -472,7 +516,8 @@
+     auto tim1 = std::chrono::high_resolution_clock::now();
+     LOG_INF("%s: tokenizing the input ..\n", __func__);
+ 
+-    std::vector<llama_token> tokens = common_tokenize(ctx, params.prompt, true);
++    std::vector<llama_token> tokens;
++    if (!prepare_tokens(ctx, params, tokens)) return {};
+ 
+     auto tim2 = std::chrono::high_resolution_clock::now();
+     LOG_INF("%s: tokenization took %g ms\n",__func__,1e-3*std::chrono::duration_cast<std::microseconds>(tim2-tim1).count());
+@@ -2007,6 +2052,34 @@
+ 
+ // satisfies -Wmissing-declarations
+ int llama_perplexity(int argc, char ** argv);
++
++static bool extract_token_file_argument(int & argc, char ** argv) {
++    int out = 1;
++    for (int i = 1; i < argc; ++i) {
++        const std::string argument = argv[i];
++        std::string value;
++        if (argument == "--token-file") {
++            if (++i >= argc) {
++                LOG_ERR("%s: --token-file requires a file name\n", __func__);
++                return false;
++            }
++            value = argv[i];
++        } else if (argument.rfind("--token-file=", 0) == 0) {
++            value = argument.substr(argument.find('=') + 1);
++        } else {
++            argv[out++] = argv[i];
++            continue;
++        }
++        if (value.empty() || !g_token_file.empty()) {
++            LOG_ERR("%s: --token-file requires exactly one nonempty file name\n", __func__);
++            return false;
++        }
++        g_token_file = value;
++    }
++    argv[out] = nullptr;
++    argc = out;
++    return true;
++}
+ 
+ int llama_perplexity(int argc, char ** argv) {
+     std::setlocale(LC_NUMERIC, "C");
+@@ -2018,6 +2091,10 @@
+ 
+     common_init();
+ 
++    if (!extract_token_file_argument(argc, argv)) {
++        return 1;
++    }
++
+     if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_PERPLEXITY)) {
+         return 1;
+     }
