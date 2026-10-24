@@ -1,0 +1,224 @@
+{
+  "recorded_at": "2026-10-24T23:26:40.953832+00:00",
+  "agent": "Codex",
+  "scope": "Measure lower-bits-per-weight prefill/decode behavior for many parallel agent turns with a high shared-prefix cache rate, then sweep short-read admission and batch-slot policy on B550.",
+  "source_revision": "1f6cf64e38f4470a21c458ead9a2c32fbcd71486",
+  "source_dirty": true,
+  "remote_execution": {
+    "host": "b550",
+    "machine_id_sha256": "f1d67f707f3c8644e3f60a8a3151b0bd2ae5db29dde2a63f9d950e96d2fbee46",
+    "access": "authenticated SSH through strix-zt jump to kearm@192.168.1.171 with HostKeyAlias=B550",
+    "remote_worktree": "/home/kearm/strata-moesq",
+    "remote_revision": "1bcf980f4b801edb49484d7463dbd832a8c2cb6d",
+    "remote_dirty": true,
+    "engine": "/home/kearm/strata-moesq/build/moesq-main-sm86-localgg/strata",
+    "engine_sha256": "e52b08869699321030f72b3cf28a20d80d3f0243ba7ef89e37b47726eb09d7a8",
+    "gpu": [
+      "NVIDIA GeForce RTX 3090 Ti 0",
+      "NVIDIA GeForce RTX 3090 Ti 1"
+    ],
+    "gpu_idle_after": {
+      "memory_used_mib_per_gpu": [
+        1,
+        1
+      ],
+      "utilization_percent_per_gpu": [
+        0,
+        0
+      ],
+      "compute_apps": [],
+      "receipt": "build/high-cache-optimization/b550-remote/gpu-after-highcache-idle.txt"
+    }
+  },
+  "artifacts": {
+    "iq2xs": {
+      "pack": "/home/kearm/models/qwen-iq2xs-calibrated-nvme-pack",
+      "experts_bin_bytes": 34603008000,
+      "approx_expert_bpw": 2.29,
+      "experts_bin_sha256": "f2e7cd46a467aabde94081a444ba324894ad4d8bb1e46151a257768867aa43e8"
+    },
+    "moesq_w4a8": {
+      "pack": "/home/kearm/models/qwen38-moesq-strata-pack",
+      "experts_bin_bytes": 67948118016,
+      "approx_expert_bpw": 4.5,
+      "experts_bin_sha256": "222e2c777490c15203f2531e4547873a44dd0af0a0987d8b2d29e1dc3f61b898"
+    },
+    "expert_payload_ratio_moesq_to_iq2xs": 1.9636477272727273,
+    "iq2xs_expert_byte_reduction": 0.4907436878258806
+  },
+  "workload": {
+    "driver": "tools/agent_cache_bench.py",
+    "workers": 8,
+    "warm_rounds": 4,
+    "context_words": 1200,
+    "max_tokens": 32,
+    "inter_round_delay_s": 1,
+    "shared_prefix": "first user document pinned with strata_prefix.messages=1",
+    "server_policy": "STRATA_PARALLEL_SOLO=0; diagnostic trace arms also STRATA_BATCH_TRACE=1",
+    "common_engine": "SM86 dual-GPU layer split, native IQ2_XS dense/PLE source, neutral expert profile, expert-cache auto, prefill auto, spec 4, INT8 KV, max context 2048"
+  },
+  "measurements": {
+    "c4_iq2xs_batch4_trace": {
+      "requests": 16,
+      "errors": 0,
+      "prompt_tokens": 28441,
+      "cached_tokens": 24975,
+      "fresh_tokens": 3466,
+      "cache_ratio": 0.8781336802503428,
+      "completion_tokens": 452,
+      "aggregate_completion_tok_s": 39.539564780721655,
+      "first_token_p50_s": 1.406185704501695,
+      "first_token_p95_s": 2.23069895250228
+    },
+    "c4_moesq_w4a8_batch4_trace": {
+      "requests": 16,
+      "errors": 0,
+      "prompt_tokens": 28718,
+      "cached_tokens": 25015,
+      "fresh_tokens": 3703,
+      "cache_ratio": 0.8710564802562852,
+      "completion_tokens": 512,
+      "aggregate_completion_tok_s": 20.656925083459523,
+      "first_token_p50_s": 2.795882544494816,
+      "first_token_p95_s": 8.4643696264975
+    },
+    "c8_iq2xs_batch4_default_shortread64_trace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 56551,
+      "cached_tokens": 52951,
+      "fresh_tokens": 3600,
+      "cache_ratio": 0.9363406482643986,
+      "completion_tokens": 684,
+      "aggregate_completion_tok_s": 34.00935647451518,
+      "first_token_p50_s": 2.4893602170050144,
+      "first_token_p95_s": 4.452672138248453
+    },
+    "c8_moesq_w4a8_batch4_trace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 57437,
+      "cached_tokens": 52896,
+      "fresh_tokens": 4541,
+      "cache_ratio": 0.9209394641085015,
+      "completion_tokens": 1022,
+      "aggregate_completion_tok_s": 24.17500799130059,
+      "first_token_p50_s": 5.356096228002571,
+      "first_token_p95_s": 9.503609621786746
+    },
+    "c8_iq2xs_batch4_shortread128_trace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 56841,
+      "cached_tokens": 52979,
+      "fresh_tokens": 3862,
+      "cache_ratio": 0.9320560862757516,
+      "completion_tokens": 811,
+      "aggregate_completion_tok_s": 29.628345254560212,
+      "first_token_p50_s": 3.0244546974863624,
+      "first_token_p95_s": 6.169668031747278
+    },
+    "c8_iq2xs_batch4_shortread256_trace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 56798,
+      "cached_tokens": 52896,
+      "fresh_tokens": 3902,
+      "cache_ratio": 0.9313003979013346,
+      "completion_tokens": 812,
+      "aggregate_completion_tok_s": 25.44443556672125,
+      "first_token_p50_s": 3.4374736869795015,
+      "first_token_p95_s": 7.228004045605485
+    },
+    "c8_iq2xs_batch8_default_shortread64_trace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 56604,
+      "cached_tokens": 51600,
+      "fresh_tokens": 5004,
+      "cache_ratio": 0.9115963536145856,
+      "completion_tokens": 758,
+      "aggregate_completion_tok_s": 36.084101419465156,
+      "first_token_p50_s": 2.5200542694947217,
+      "first_token_p95_s": 4.212398076649697
+    },
+    "c8_iq2xs_batch8_default_shortread64_promptcache8_trace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 56840,
+      "cached_tokens": 51652,
+      "fresh_tokens": 5188,
+      "cache_ratio": 0.9087262491203378,
+      "completion_tokens": 766,
+      "aggregate_completion_tok_s": 35.992592738734515,
+      "first_token_p50_s": 2.5701237239991315,
+      "first_token_p95_s": 4.2682881080545485
+    },
+    "c8_iq2xs_batch8_default_shortread64_final_notrace": {
+      "requests": 32,
+      "errors": 0,
+      "prompt_tokens": 56782,
+      "cached_tokens": 51626,
+      "fresh_tokens": 5156,
+      "cache_ratio": 0.9091965763798386,
+      "completion_tokens": 746,
+      "aggregate_completion_tok_s": 35.17583832049408,
+      "first_token_p50_s": 2.5644399389857426,
+      "first_token_p95_s": 4.252369078101765
+    }
+  },
+  "engine_residency": {
+    "iq2xs_batch4": {
+      "expert_slots": 23660,
+      "expert_slots_total": 24576,
+      "resident_ratio": 0.9627278645833334,
+      "vram_free_mib": 486
+    },
+    "iq2xs_batch8_final": {
+      "expert_slots": 23368,
+      "expert_slots_total": 24576,
+      "resident_ratio": 0.9508463541666666,
+      "vram_free_mib": 464
+    },
+    "moesq_w4a8_batch4": {
+      "expert_slots": 14206,
+      "expert_slots_total": 24576,
+      "resident_ratio": 0.5780436197916666,
+      "vram_free_mib": 466
+    }
+  },
+  "decisions": {
+    "lower_bpw_performance": "IQ2_XS/Q2_0 at about 2.29 expert bpw is the performance leader, not a penalty lane: at C8 it reached 35.18 tok/s trace-free versus 24.18 tok/s for MoESQ W4A8, with zero errors in both arms.",
+    "short_read": "Default --short-read 64 wins over 128 and 256 for the batch-four high-cache workload; larger thresholds lowered throughput and worsened TTFT.",
+    "batch_slots": "Eight slots improves C8 throughput from 34.01 to 35.18 tok/s trace-free (36.08 in the matching traced arm) at the cost of measured cache ratio 93.63% to 90.92%. Use batch 8 for throughput-oriented parallel agent tiers and batch 4 plus conversation parking when maximum measured cache ratio is preferred.",
+    "prompt_cache": "Raising prompt-cache from 6 to 8 with eight slots did not recover cache ratio (90.87%), so the dip is not explained by checkpoint capacity.",
+    "trace_policy": "Final absolute result has zero [batch-trace] lines; temporary verbose held-candidate tracing was removed from the source."
+  },
+  "checks": {
+    "python3_-m_unittest_tools.test_agent_cache_bench": "passed, 3/3 tests",
+    "forced_slot_test": "uv run --no-project --with jinja2 python -m unittest serve.test_parallel.ParallelService.test_forced_slots_keep_a_single_request_out_of_the_solo_path passed",
+    "final_trace": "grep -c \"[batch-trace]\" final server log returned 0",
+    "just_quality": "passed; aggregate_passed=true in build/reports/quality/receipt.json",
+    "git_diff_check": "passed"
+  },
+  "raw_local_evidence_dir": "build/high-cache-optimization/b550-remote",
+  "raw_result_sha256": {
+    "iq2xs-lowbpw-c4-sharedprefix2.json": "c88395f5ddbcc88ecb87ab350644f4ea62942f3b2bf8dc3ba01870b9be8388d1",
+    "moesq-w4a8-c4-sharedprefix.json": "85f879df771f4de4a18e24a330f1236384f611ebdd944b603cb114c432b3b7bf",
+    "iq2xs-lowbpw-c8-sharedprefix.json": "8399e60b5182057e1f1948dbfc2a9da5aa23c5b619209213d500f20df0b92ba2",
+    "moesq-w4a8-c8-sharedprefix.json": "a4cc4bb8361c4f5c2b35311e7363e44be2f765f75b7bf07f1d4ce16ea6c2ff7d",
+    "iq2xs-lowbpw-c8-sharedprefix-shortread128.json": "e01e9ff7f736293e19e75eb1f53f62955ba751f70d35df76e29e28e340dfe998",
+    "iq2xs-lowbpw-c8-sharedprefix-shortread256.json": "4a3fdde9f40440f897cb44b51caff5994012d8ed7c12b4476b4a08fc0a983408",
+    "iq2xs-lowbpw-c8-sharedprefix-batch8.json": "c35e8c6d75faac6b494174cbc390f6c0b4fca91df9a30c4324789418e3c23174",
+    "iq2xs-lowbpw-c8-sharedprefix-batch8-promptcache8.json": "85a61a2be2ca653fb0b07aff60548407b80ca7a840b1ed7f74bb5360362e525d",
+    "iq2xs-lowbpw-c8-sharedprefix-batch8-final-notrace.json": "b7747b3a550b6ca79c8b01c592bd733daa13ac5baeebc034a1e9da6094565df6"
+  },
+  "non_claims": [
+    "No perplexity, KL divergence, held-out accuracy, or output-quality comparison was run for these exact arms; near-no-penalty is a performance claim only.",
+    "These are one-shot burst measurements with dynamic model replies, not interleaved medians or a long-duration steady-state serving test.",
+    "MoESQ W4A8 is the Strata hybrid research pack, not native Blackwell paired-sparse W4A4 execution.",
+    "The larger-prefix/4096-context arm was not run because the eight-slot engine reported only 464 MiB free and GPU 1 was nearly full.",
+    "No default route, public model, or CCR serving configuration changed."
+  ],
+  "passed": true
+}

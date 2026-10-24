@@ -194,6 +194,7 @@ def quality() -> int:
                         "tools.test_qwen4exp_qdq_method_compare",
                         "tools.test_iq3_qdq",
                         "tools.test_qwen4exp_iq_arm_measure",
+                        "tools.test_agent_cache_bench",
                     ],
                 ),
                 run_logged(
@@ -255,6 +256,8 @@ def quality() -> int:
                         "tools/bench_iq3_scale.py",
                         "tools/moesq_pack.py",
                         "tools/test_moesq_pack.py",
+                        "tools/agent_cache_bench.py",
+                        "tools/test_agent_cache_bench.py",
                     ],
                 ),
                 run_logged(
@@ -313,6 +316,8 @@ def quality() -> int:
                         "tools/bench_iq3_scale.py",
                         "tools/moesq_pack.py",
                         "tools/test_moesq_pack.py",
+                        "tools/agent_cache_bench.py",
+                        "tools/test_agent_cache_bench.py",
                     ],
                 ),
                 run_logged(

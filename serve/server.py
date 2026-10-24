@@ -1567,8 +1567,9 @@ class StrataEngine:
                     if not ok:
                         return
                     holding, born = True, self.gen                  # (the engine it now has the control lines of)
+                force_slots = os.environ.get("STRATA_PARALLEL_SOLO") == "0"
                 with self.slot_cv:
-                    alone = not any(self.slot_busy) and self.waiting == 0
+                    alone = not force_slots and not any(self.slot_busy) and self.waiting == 0
                 if alone and left > 1:
                     head = f"GENI {left}{keys} {embeddings}" if embeddings else f"GEN {left}{keys}"
                     self._last_done = None                  # (#879: this request's DONE decides below)

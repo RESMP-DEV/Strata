@@ -5,6 +5,7 @@ real StrataEngine and Service, so the server's side is tested without a GPU: req
 wait for a slot, /metrics shows the slots, each request's history row is its own, and a conversation's next turn
 goes back to the slot that holds it."""
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -15,7 +16,6 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from serve.frontend import ChatTemplate
 from serve.server import ByteTokenizer, Service, StrataEngine, engine_args, parallel_args, serve
 
 # The fake engine: one token every STEP seconds per active slot (a "window" serves every active slot at once);
@@ -305,7 +305,8 @@ class PickSlot(unittest.TestCase):
 class ParallelService(unittest.TestCase):
     """The real StrataEngine and Service over HTTP, the fake engine behind them."""
 
-    def start(self, slots, fit=None, slot_cache=False, fail=False, reuse=False, says_groups=0, more=()):
+    def start(self, slots, fit=None, slot_cache=False, fail=False, reuse=False, says_groups=0, more=(),
+              service=True):
         import serve.server as server
         self.tmp = tempfile.TemporaryDirectory()
         script = Path(self.tmp.name) / "fake_strata.py"
@@ -321,10 +322,12 @@ class ParallelService(unittest.TestCase):
         with mock.patch.object(server.subprocess, "Popen",
                                lambda cmd, **kw: real([sys.executable, str(script), *cmd[1:]], **kw)):
             self.engine = StrataEngine("strata", extra)
-        tok = ByteTokenizer()
-        self.svc = Service(self.engine, tok, ChatTemplate(Path(__file__).parent / "chat_template.jinja"))
-        self.httpd = serve(self.svc, port=0)
-        self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        if service:
+            from serve.frontend import ChatTemplate
+            tok = ByteTokenizer()
+            self.svc = Service(self.engine, tok, ChatTemplate(Path(__file__).parent / "chat_template.jinja"))
+            self.httpd = serve(self.svc, port=0)
+            self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
 
     def tearDown(self):
         if getattr(self, "httpd", None):
@@ -638,6 +641,17 @@ class ParallelService(unittest.TestCase):
         self.assertFalse(any(self.engine.slot_busy))
         with self.svc.status_lock:
             self.assertEqual(len(self.svc.history), 2)
+
+    def test_forced_slots_keep_a_single_request_out_of_the_solo_path(self):
+        """STRATA_PARALLEL_SOLO=0 reserves slot affinity even when a burst starts unevenly."""
+        with mock.patch.dict(os.environ, {"STRATA_PARALLEL_SOLO": "0"}):
+            self.start(2, slot_cache=True, service=False)
+            output = [token for token in self.engine.generate_batched(
+                list(b"LONGREPLY please"), 200, {}, threading.Event()) if token is not None]
+        self.assertEqual(bytes(token for token in output if token < 256), b"ok, " + b"la " * 15 + b"done.")
+        kinds = [x.split()[0] for x in self.log.read_text().splitlines()]
+        self.assertIn("BGEN", kinds)
+        self.assertNotIn("GEN", kinds)
 
     def test_next_turn_goes_back_to_its_slot(self):
         self.start(2)

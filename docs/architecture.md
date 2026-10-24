@@ -3043,3 +3043,37 @@ made.  The correctness-first no-iMatrix fallback is also explicit now:
 `tools/qwen4exp_quant_aware_rco.py --assignment-mode all-width --all-width-bits 4`
 skips the greedy per-expert sweep and measures fixed group-32 RTN.  See
 [MoESQ pack evidence](../evidence/qwen38-moesq-strata-pack-2026-10-24.json).
+
+### High-cache parallel agent lane, 2026-10-24
+
+The lower-bits-per-weight lane is now the performance leader for many parallel
+agent turns over a pinned shared prefix.  `tools/agent_cache_bench.py` runs a
+cold prime plus four warm bursts, streams OpenAI SSE events, and records prompt
+reuse, TTFT, aggregate completion throughput, engine timing, draft statistics,
+and per-worker transcripts.  The shared prefix is a first user document pinned
+with `strata_prefix`, because a system-only prefix makes the Qwen template reject
+the request.  `STRATA_PARALLEL_SOLO=0` now also forces the first request into a
+batch slot rather than only preventing a later return to the solo path; this
+preserves slot affinity when a parallel burst starts unevenly.
+
+On B550 with the same dual-GPU engine, native dense/PLE source, worker stream,
+and server policy, calibrated IQ2_XS/Q2_0 at about 2.29 expert bpw reached
+35.18 completion tok/s, 2.564 s TTFT p50, 4.252 s p95, 90.92 percent warm cache
+reuse, and zero errors with eight batch slots.  The 4.5-bpw MoESQ W4A8 control
+reached 24.18 tok/s, 5.356 s p50, 9.504 s p95, 92.09 percent reuse, and zero
+errors.  The lower-bpw pack is 1.96x smaller and keeps 23,368 of 24,576 expert
+slots resident in the final eight-slot run, versus 14,206 for MoESQ.  At four
+workers the same IQ2_XS arm reached 39.54 tok/s versus 20.66 for MoESQ.
+
+Admission tuning favored the defaults for the four-slot high-cache lane:
+`--short-read 128` and `256` reduced throughput to 29.63 and 25.44 tok/s.
+Eight slots improved eight-worker throughput from 34.01 to 35.18 tok/s
+trace-free, but lowered measured reuse from 93.63 to 90.92 percent.  Raising
+prompt-cache entries from six to eight did not recover the ratio.  The operating
+choice is therefore eight slots for a throughput-oriented worker tier and four
+slots plus conversation parking when maximum measured reuse is preferred.  The
+4096-context/larger-prefix arm was not tried because the eight-slot engine had
+only 464 MiB free and one GPU was effectively full.  These are one-shot burst
+results, and no perplexity or held-out quality claim is made.  Full hashes,
+rounds, metrics, configurations, logs, and non-claims are in
+[high-cache parallel agent evidence](../evidence/high-cache-parallel-agent-bench-2026-10-24.json).
