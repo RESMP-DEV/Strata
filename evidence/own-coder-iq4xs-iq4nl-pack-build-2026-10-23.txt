@@ -1,0 +1,7 @@
+tokenizer/: vocab 248320, merges 247587, pre qwen35, specials {'tokenizer.ggml.eos_token_id': 248046, 'tokenizer.ggml.padding_token_id': 248044, 'tokenizer.ggml.bos_token_id': 248044}
+model shards: flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf, flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00002-of-00006.gguf, flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00003-of-00006.gguf, flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00004-of-00006.gguf, flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00005-of-00006.gguf, flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00006-of-00006.gguf
+2 layer(s) have their gate/up/down in different shards: native_experts.txt v4, per-role shard column for 22, 34
+index.txt: 1079 tensors, 0 served natively, 0 in extra.bin, arena 9.17 GiB
+conversions.json: 97 tensors converted to the engine's form (96 exact, 1 rounded; max |err| 2.98e-08)
+narrowed to F16 by the loader: blk.1.ple_conv1d.weight (bf16->f16 round-to-nearest-even (--compat-bf16), index kind 3)
+compat-bf16: 1 tensors, 0.00 GiB; expert and PLE table bytes unchanged

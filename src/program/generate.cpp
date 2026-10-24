@@ -54,6 +54,7 @@
 #include "strata/kernels/elementwise.hpp"
 #include "strata/kernels/shared_expert.hpp"
 #include "strata/kernels/native_moe.hpp"
+#include "strata/kernels/native_mmvq.hpp"
 #include "strata/kernels/native_gdn.hpp"
 #include "strata/kernels/native_router.hpp"
 #include "strata/kernels/native_qsa.hpp"
@@ -3191,20 +3192,55 @@ int main(int argc, char** argv) {
         o.native_bf16 = o.native_bf16_extra = true;
         o.native_ple_key = o.native_moe_combine = o.native_gdn = o.native_router = true;
         o.native_qsa = o.native_qsa_indexer = o.native_rope = o.native_ple_postops = true;
-        if (o.native_head_gguf.empty()) o.native_head_gguf = o.native_preset;
+        if (o.native_head_gguf.empty()) {
+            bool native_head_supported = false;
+            for (const auto& path : o.native_shards) {
+                const strata::GgufFile gguf(path);
+                for (const auto& tensor : gguf.tensors()) {
+                    if (tensor.name == "output.weight" &&
+                        strata::kernels::native_mmvq_supported((int) tensor.type)) {
+                        native_head_supported = true;
+                        break;
+                    }
+                }
+                if (native_head_supported) break;
+            }
+            if (native_head_supported) {
+                o.native_head_gguf = o.native_preset;
+            } else {
+                std::fprintf(stderr, "strata generate: native head fallback: output.weight is not MMVQ-eligible; "
+                                     "keeping the pack's canonical head\n");
+            }
+        }
         if (o.native_dense_gguf.empty()) {
             // every shard of the model (<name>-0000N-of-0000M.gguf beside --native), then the PLE shard: a split
             // may put any layer in any shard (Swift's GGUFs: layers 13-47 in shard 2, the PLE table in shard 1)
-            o.native_dense_gguf = o.native_shards;
             // a PLE-only table (tools/ple_fp8_pack.py: architecture strata-ple) holds no projections
             bool ple_only = false;
             try {
                 strata::GgufFile pg(o.ple_gguf);
                 if (const strata::MetaValue* v = pg.get("general.architecture")) ple_only = v->s == "strata-ple";
             } catch (const std::exception&) {}
-            if (!ple_only &&
-                std::find(o.native_dense_gguf.begin(), o.native_dense_gguf.end(), o.ple_gguf) == o.native_dense_gguf.end())
-                o.native_dense_gguf.push_back(o.ple_gguf);
+            std::vector<std::string> sources = o.native_shards;
+            if (!ple_only && std::find(sources.begin(), sources.end(), o.ple_gguf) == sources.end())
+                sources.push_back(o.ple_gguf);
+            std::set<std::string> served;
+            std::string dense_err;
+            if (!strata::core::NativeDense::served_names(sources, true, served, dense_err)) {
+                std::fprintf(stderr, "strata generate: --native %s: %s\n", o.native_preset.c_str(),
+                             dense_err.c_str());
+                return 2;
+            }
+            if (!served.empty()) {
+                o.native_dense_gguf = std::move(sources);
+            } else {
+                // A source-precision native pack stores these rows as BF16/F32 in dense.bin. NativeDense can
+                // only replace a quantized canonical row, so keep the pack row and the non-native PLE key path
+                // instead of failing an otherwise servable IQ expert pack.
+                o.native_ple_key = false;
+                std::fprintf(stderr, "strata generate: native dense fallback: no MMVQ-eligible projections; "
+                                     "keeping the pack's canonical dense rows\n");
+            }
         }
         // Plan v0.3 (24 Sep): the CPU experts stay on the VNNI kernel.  The llama.cpp-CPU-exact q8_0 contract
         // cost 27.0 vs 17.2 ms/token of pool time and G-C does not need it; `--cpu-oracle-q8-0` still selects it.

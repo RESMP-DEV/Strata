@@ -216,9 +216,26 @@ void shared_expert_multi(int n_tok, const float* x, const uint16_t* x_bf16, cons
                          const uint16_t* gate_inp_bf16, float* gate, float* up, float* g, float* out, int64_t n_embd,
                          int64_t n_ff, void* stream, const void* x_q8_1_ready, int lfuse) {
     const bool gate_deferred = (lfuse & 1) != 0, pair = (lfuse & 2) != 0;
+    const bool bf16_weights = nw.gate_type == 30 && nw.up_type == 30 && nw.down_type == 30;
     if (n_tok < 1 || n_tok > 8 || !nw.q8_1 || !nw.gate_data || !nw.up_data || !nw.down_data || !stream)
         throw std::invalid_argument("shared_expert_multi: needs 1..8 tokens, native weights, scratch and a stream");
     cudaStream_t cs = (cudaStream_t) stream;
+    if (bf16_weights) {
+        // A source-precision IQ pack keeps the shared expert in the BF16 arena. Gate/up read F32 activations;
+        // SwiGLU stays F32, then down reads those F32 rows. Only the weight path changes.
+        bf16_gemv_fp32_mmvf_multi(x, n_embd, (const uint16_t*) nw.gate_data, gate, n_ff, n_embd, n_ff, n_tok,
+                                  stream);
+        bf16_gemv_fp32_mmvf_multi(x, n_embd, (const uint16_t*) nw.up_data, up, n_ff, n_embd, n_ff, n_tok, stream);
+        const int n = (int) (n_ff * n_tok);
+        native_swiglu_kernel<<<(unsigned) ((n + THREADS - 1) / THREADS), THREADS, 0, cs>>>(gate, up, gate, n);
+        bf16_gemv_fp32_mmvf_multi(gate, n_ff, (const uint16_t*) nw.down_data, out, n_embd, n_ff, n_embd, n_tok,
+                                  stream);
+        if (gate_deferred) {
+            const cudaError_t e = cudaGetLastError();
+            if (e != cudaSuccess) throw std::runtime_error(std::string("shared_expert_multi: ") + cudaGetErrorString(e));
+            return;
+        }
+    } else {
     // the activation's q8_1: the caller's (STRATA_VERIFY_QDEDUP, x_q8_1_ready) or the descriptor's, else quantized here
     const void* x_q8_1 = x_q8_1_ready ? x_q8_1_ready : nw.x_q8_1;
     if (!x_q8_1) {
@@ -243,6 +260,7 @@ void shared_expert_multi(int n_tok, const float* x, const uint16_t* x_bf16, cons
         const cudaError_t e = cudaGetLastError();
         if (e != cudaSuccess) throw std::runtime_error(std::string("shared_expert_multi: ") + cudaGetErrorString(e));
         return;
+    }
     }
     static const bool batch = [] { const char* v = std::getenv("STRATA_DEC_BATCH"); return v == nullptr || std::atoi(v) != 0; }();
     if (native_bf16 && batch && n_tok > 1) {   // one gemv for all rows (outputs identical), fused sigmoid+scale

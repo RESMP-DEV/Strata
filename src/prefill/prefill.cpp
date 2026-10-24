@@ -2288,7 +2288,16 @@ const core::WeightRef* need(const core::LayerView& v, const char* suffix, std::s
 }
 bool native_proj(Gemm& gm, const core::WeightRef* w, const uint16_t* X, float* Y, int64_t T, const std::string& name,
                  std::string& err, int64_t ldy = 0, int64_t ldx = 0) {
-    if (!w->native_data) { err = "prefill: " + name + " has no native GGUF blocks (run with --native)"; return false; }
+    if (!w->native_data) {
+        // A source-precision IQ pack keeps these projections in the BF16 arena. They have no NativeDense override,
+        // but the resident GEMM path can serve them without silently borrowing another quantized checkpoint.
+        if (w->kind != core::WeightKind::Bf16InF32 || !w->data) {
+            err = "prefill: " + name + " has neither native GGUF blocks nor a resident BF16 tensor";
+            return false;
+        }
+        gm.bf16(X, (const uint16_t*) w->data, Y, T, w->ne1 > 0 ? w->ne1 : 1, w->ne0, ldy, 0.0f, ldx);
+        return true;
+    }
     gm.native(X, w->native_type, w->native_data, Y, T, w->ne1, w->ne0, ldy, 0.0f, ldx);
     return true;
 }

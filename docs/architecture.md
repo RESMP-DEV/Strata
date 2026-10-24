@@ -2942,3 +2942,30 @@ arm plan; PLE is 26.822 GiB of IQ4_NL and other tensors total 9.235 GiB. The art
 creation and type/byte identity, not quality: no end-to-end logits, held-out KL, Strata engine
 load, or runtime benchmark has run. The receipt is
 [own-Coder IQ4_XS+IQ4_NL artifact](../evidence/own-coder-iq4xs-iq4nl-artifact-2026-10-23.json).
+
+### Own-Coder native pack and source-precision B550 serving, 2026-10-23
+
+The six-shard artifact now has exact SHA-256 parity on B550. `tools/iq_pack.py --compat-bf16`
+built a 9.17-GiB dense native pack totaling 9,855,368,198 bytes: 1,079 dense-index rows, a
+v4 per-role expert manifest for 48 layers, and 97 conversions of which only
+`blk.1.ple_conv1d.weight` rounds (BF16 to F16, maximum absolute error `2.98e-08`). Every
+manifest row names 288 experts, IQ4_XS gate/up, IQ4_NL down, and exactly
+36,805,017,600 expert bytes.
+
+The first engine attempts exposed a real contract boundary rather than an artifact defect:
+`--native` assumed MMVQ-quantized dense projections and output, while this artifact keeps
+those tensors in source precision. The engine now keeps canonical BF16/F32 dense rows, the
+BF16 PLE key, and the BF16 output head when no native MMVQ replacement exists; native-pack
+prefill, verification, and the shared-expert window use resident BF16 GEMMs rather than
+borrowing weights from another quantized checkpoint. The verifier passes each projection's
+current F32 input and row stride, including the GDN and attention output projections.
+
+On the recorded B550 machine, an SM86 build with those changes loaded the 34.28-GiB expert
+arena, opened the 320,001,536-row IQ4_NL PLE table from shard 2 with direct I/O, filled 5,772
+VRAM expert slots from a neutral all-pair STRP profile, and generated eight greedy tokens with
+exit 0 on physical GPU1. The corrected observed run produced tokens `227 50223 5188 5188
+5188 5188 5188 5188` at 18.79 tok/s decode and 16.96 tok/s prefill, with a 56.41 percent
+expert-cache hit rate. An earlier exit-0 run before the verifier input-pointer repair is
+superseded and is not acceptance evidence. An identical repeat command reproduced all eight
+token IDs at 19.66 tok/s decode. Both GPUs returned to idle afterward. The receipt is
+[own-Coder B550 pack and smoke](../evidence/own-coder-iq4xs-iq4nl-b550-pack-and-smoke-2026-10-23.json).

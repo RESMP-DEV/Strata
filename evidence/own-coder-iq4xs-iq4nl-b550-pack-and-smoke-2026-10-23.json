@@ -1,0 +1,161 @@
+{
+  "recorded_at": "2026-10-24T04:28:21Z",
+  "agent": "Codex",
+  "scope": "Verify the six-shard own-Coder IQ4_XS+IQ4_NL artifact on B550, build its Strata native pack, repair the source-precision dense/head serving boundary, and run a real GPU1 generation smoke.",
+  "source_revision": "ecce921f91f6bf1f59a40e7ed3f35c2c9b733ea7",
+  "source_dirty": true,
+  "changed_canonical_files": [
+    "src/program/generate.cpp",
+    "src/prefill/prefill.cpp",
+    "src/core/verify.cpp",
+    "src/kernels/cuda/shared_expert.cu"
+  ],
+  "host": {
+    "alias": "b550-zt",
+    "hostname_at_run": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "remote_checkout": "/home/kearm/strata-main at 83f67c4f with the same four-file source-precision fallback diff",
+    "engine": "/home/kearm/strata-main/build/qwen-sm86/strata",
+    "engine_sha256": "be84bd21cf2f252868a22ac3e8680e29f68e410ecde58838fdddb0243bcdfdc8",
+    "gpu": "physical GPU1, RTX 3090 Ti, UUID GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece; engine logs remap it to CUDA0",
+    "post_run_gpu_state": "both GPUs idle at 1 MiB used and 0 percent utilization; no compute process remained"
+  },
+  "artifact_transfer": {
+    "remote_dir": "/home/kearm/models/own-coder-iq4xs-iq4nl",
+    "shards": 6,
+    "bytes": 75532582976,
+    "sha256_manifest_remote": "/tmp/iq4xs.sha",
+    "sha256_manifest_local_copy": "evidence/own-coder-iq4xs-iq4nl-b550-sha256-2026-10-23.txt",
+    "sha256_manifest_sha256": "c19d7460a5da0c38c1d9b7fe712696b69c87b762e9e169a383aaa579c417ae4a",
+    "comparison": "exact six-line name and digest parity with .worktrees/own-coder/build/own-coder/run-288/iq4xs-iq4nl.sha256"
+  },
+  "native_pack": {
+    "path": "/home/kearm/models/own-coder-iq4xs-iq4nl-pack",
+    "command": "STRATA_GGUF_PY=/home/kearm/strata-llamacpp-3cf0325/gguf-py /home/kearm/.local/bin/uv run --no-project --with numpy --with regex python tools/iq_pack.py --gguf /home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf --out /home/kearm/models/own-coder-iq4xs-iq4nl-pack --compat-bf16",
+    "exit": 0,
+    "bytes_total": 9855368198,
+    "dense_bin_bytes": 9845378560,
+    "manifest": {
+      "version": "v4",
+      "layers": 48,
+      "n_expert_per_layer": 288,
+      "gate_up_type": "IQ4_XS",
+      "down_type": "IQ4_NL",
+      "expert_bytes": 36805017600,
+      "sha256": "f9a5e0d174298023ab6308ba4d93a78a99acb1ae438f5415719c6bc15838f245"
+    },
+    "index_sha256": "95ec403839aff7f0810f347592504e7bc1868b02650e9fcb0d4576342593a7c7",
+    "dense_sha256": "df9a2711301f236d0776b4ef348b149033972b16dde6c05ae15ee6b67598fea0",
+    "conversions": {
+      "count": 97,
+      "exact": 96,
+      "rounded": 1,
+      "rounded_tensor": "blk.1.ple_conv1d.weight",
+      "source_type": "BF16",
+      "destination_type": "F16",
+      "max_abs_err": 2.9802322387695312e-8
+    },
+    "build_log": "evidence/own-coder-iq4xs-iq4nl-pack-build-2026-10-23.txt"
+  },
+  "engine_change": {
+    "reason": "The artifact intentionally keeps dense projections and output in source precision. The native-IQ engine previously assumed MMVQ-quantized dense/head tensors and rejected the BF16 pack rows.",
+    "behavior": [
+      "Keep canonical BF16/F32 dense rows when no MMVQ-eligible NativeDense tensor exists.",
+      "Keep the canonical BF16 PLE key and output head when those source tensors are not MMVQ types.",
+      "Let native-pack prefill and verification use resident BF16 GEMMs for attention/shared projections, with the verifier passing each projection's current F32 input and row stride.",
+      "Let the verifier compute the canonical BF16 output head directly."
+    ],
+    "remote_build": "cmake --build build/qwen-sm86 --target strata -j16",
+    "remote_build_exit": 0,
+    "warnings": "two pre-existing unused-function/variable warnings; no new build error"
+  },
+  "expert_profile": {
+    "path": "/home/kearm/models/own-coder-iq4xs-iq4nl-expert-profile-neutral.bin",
+    "sha256": "1ec6d14b8e631fb5fc1a8fb776e2b3e801e09235d8323a652c53954c1bd89adc",
+    "format": "STRP v1, 48 layers x 288 experts, all 13824 unique pairs",
+    "semantic": "neutral cache-placement ranking generated with tools/make_profile.py --no-base; it is not measured routing preference"
+  },
+  "generation_smoke": {
+    "command": "/home/kearm/strata-main/build/qwen-sm86/strata --pack /home/kearm/models/own-coder-iq4xs-iq4nl-pack --native /home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf --ple-gguf /home/kearm/models/own-coder-iq4xs-iq4nl/flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00002-of-00006.gguf --gpu 1 --tokens 100,101,102 --max-context 2048 --max-new 8 --ple-io direct --spec 2 --prefill 512 --expert-profile /home/kearm/models/own-coder-iq4xs-iq4nl-expert-profile-neutral.bin --expert-cache auto --stats",
+    "exit": 0,
+    "wall_seconds": 63.66,
+    "max_rss_kib": 38989512,
+    "prompt_tokens": [
+      100,
+      101,
+      102
+    ],
+    "output_tokens": [
+      227,
+      50223,
+      5188,
+      5188,
+      5188,
+      5188,
+      5188,
+      5188
+    ],
+    "expert_arena_gib": 34.28,
+    "expert_cache_slots": 5772,
+    "prefill_tok_s": 16.96,
+    "decode_tok_s": 18.79,
+    "expert_cache_hit_rate": 0.5641,
+    "ple": "320001536-row IQ4_NL table opened from shard 2; direct SSD I/O, 256 rows requested and 176 reads observed in the corrected final run",
+    "log": "evidence/own-coder-iq4xs-iq4nl-b550-gpu1-smoke-2026-10-23.txt",
+    "log_sha256": "2faf75a165bc1890983d5e8dc5ac24cac8a44593e368b41bb6cb1a3af03b90ee4",
+    "superseded_diagnostic": "An immediately preceding run reached exit 0 before the verifier output-projection input bug was found; its different token sequence and timings are not acceptance evidence.",
+    "repeat": {
+      "exit": 0,
+      "output_tokens_identical": true,
+      "wall_seconds": 67.52,
+      "decode_tok_s": 19.66,
+      "prefill_tok_s": 17.04,
+      "expert_cache_hit_rate": 0.5641,
+      "log": "evidence/own-coder-iq4xs-iq4nl-b550-gpu1-smoke-repeat-2026-10-23.txt",
+      "log_sha256": "1dc9b52a82809b35d1464072ef2c4e0e580322ca313884d88f6fd40f13453e19",
+      "engine_sha256": "7ab70e7420cad4f1083585a20dc3da48bcdb0ebe4ea7c4a8be7eece0ed4ddc5e",
+      "difference_from_final_binary": "the later final rebuild removed an inert one-token diagnostic guard; the eight-token path under test was unchanged"
+    }
+  },
+  "checks": [
+    {
+      "name": "remote-six-shard-sha256-parity",
+      "command": "sha256sum six remote shards; copy manifest; diff against local iq4xs-iq4nl.sha256",
+      "exit": 0
+    },
+    {
+      "name": "native-pack-build-and-manifest-validation",
+      "command": "tools/iq_pack.py --compat-bf16 followed by assertions over native_experts.txt and conversions.json",
+      "exit": 0
+    },
+    {
+      "name": "b550-sm86-incremental-build",
+      "command": "cmake --build build/qwen-sm86 --target strata -j16",
+      "exit": 0
+    },
+    {
+      "name": "real-gpu1-generation",
+      "command": "verbless direct engine command with --gpu 1, native IQ pack, direct PLE, neutral profile and auto expert cache",
+      "exit": 0
+    },
+    {
+      "name": "real-gpu1-generation-reproducibility",
+      "command": "repeat the corrected generation command; compare eight output token IDs",
+      "exit": 0
+    },
+    {
+      "name": "host-quality",
+      "command": "just quality",
+      "exit": 0,
+      "receipt": "build/reports/quality/receipt.json"
+    }
+  ],
+  "non_claims": [
+    "This is one three-token prompt and eight greedy output tokens, not a quality, KL, NLL, logprob, long-prompt, or coding-evaluation result.",
+    "The neutral profile changes cache placement and the GPU hit path rounds differently from the CPU path; the output tokens are not a no-cache correctness oracle.",
+    "The throughput numbers are one cold-load run, not interleaved medians or a same-day runtime comparison.",
+    "No OpenAI/Anthropic server process, Tetra deployment, multi-GPU run, publication, or Hugging Face upload was exercised.",
+    "The source-precision BF16 fallback is functional on this real artifact but not performance-optimized or benchmarked against quantized dense projections.",
+    "B550 ctest enumeration could not run because that target-specific build directory did not contain test executables; real SM86 compilation and generation are the backend evidence."
+  ]
+}
