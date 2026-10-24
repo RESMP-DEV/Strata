@@ -1,0 +1,114 @@
+=== grouped MMQ parity ===
+group: 508 rows over 20 experts (max 59 / 31 per expert)
+  gate/up, experts 0-15 (bounds from 0)      rel. error 0.5359%
+  gate/up, experts 16-19 (bounds from 16)    rel. error 0.5378%
+  down, experts 16-19 (relative bounds)      rel. error 0.5381%
+RESULT: ok
+
+=== every-layer MMQ parity ===
+L00 gu   T   64  [1280 x 2560]  rel. error 0.5387%  worst 0.6876% of the row max
+L00 dn   T   64  [2560 x 640]  rel. error 0.5318%  worst 1.0531% of the row max
+L01 gu   T   64  [1280 x 2560]  rel. error 0.5369%  worst 0.7778% of the row max
+L01 dn   T   64  [2560 x 640]  rel. error 0.5375%  worst 0.7534% of the row max
+L02 gu   T   64  [1280 x 2560]  rel. error 0.5387%  worst 0.8017% of the row max
+L02 dn   T   64  [2560 x 640]  rel. error 0.5356%  worst 0.7167% of the row max
+L03 gu   T   64  [1280 x 2560]  rel. error 0.5377%  worst 0.7002% of the row max
+L03 dn   T   64  [2560 x 640]  rel. error 0.5393%  worst 0.8316% of the row max
+L04 gu   T   64  [1280 x 2560]  rel. error 0.5383%  worst 0.7541% of the row max
+L04 dn   T   64  [2560 x 640]  rel. error 0.5381%  worst 0.7663% of the row max
+L05 gu   T   64  [1280 x 2560]  rel. error 0.5332%  worst 0.7200% of the row max
+L05 dn   T   64  [2560 x 640]  rel. error 0.5284%  worst 1.0538% of the row max
+L06 gu   T   64  [1280 x 2560]  rel. error 0.5343%  worst 0.7101% of the row max
+L06 dn   T   64  [2560 x 640]  rel. error 0.5323%  worst 0.6762% of the row max
+L07 gu   T   64  [1280 x 2560]  rel. error 0.5385%  worst 0.7012% of the row max
+L07 dn   T   64  [2560 x 640]  rel. error 0.5303%  worst 0.7198% of the row max
+L08 gu   T   64  [1280 x 2560]  rel. error 0.5367%  worst 0.8268% of the row max
+L08 dn   T   64  [2560 x 640]  rel. error 0.5370%  worst 0.7942% of the row max
+L09 gu   T   64  [1280 x 2560]  rel. error 0.5333%  worst 0.7512% of the row max
+L09 dn   T   64  [2560 x 640]  rel. error 0.5403%  worst 0.7357% of the row max
+L10 gu   T   64  [1280 x 2560]  rel. error 0.5368%  worst 0.7099% of the row max
+L10 dn   T   64  [2560 x 640]  rel. error 0.5356%  worst 0.7038% of the row max
+L11 gu   T   64  [1280 x 2560]  rel. error 0.5384%  worst 0.7890% of the row max
+L11 dn   T   64  [2560 x 640]  rel. error 0.5354%  worst 0.7066% of the row max
+L12 gu   T   64  [1280 x 2560]  rel. error 0.5307%  worst 0.7926% of the row max
+L12 dn   T   64  [2560 x 640]  rel. error 0.5284%  worst 0.7242% of the row max
+L13 gu   T   64  [1280 x 2560]  rel. error 0.5373%  worst 0.8380% of the row max
+L13 dn   T   64  [2560 x 640]  rel. error 0.5320%  worst 0.7492% of the row max
+L14 gu   T   64  [1280 x 2560]  rel. error 0.5294%  worst 0.7048% of the row max
+L14 dn   T   64  [2560 x 640]  rel. error 0.5318%  worst 0.7156% of the row max
+L15 gu   T   64  [1280 x 2560]  rel. error 0.5369%  worst 0.7799% of the row max
+L15 dn   T   64  [2560 x 640]  rel. error 0.5286%  worst 0.7222% of the row max
+L16 gu   T   64  [1280 x 2560]  rel. error 0.5318%  worst 0.7527% of the row max
+L16 dn   T   64  [2560 x 640]  rel. error 0.5385%  worst 0.9567% of the row max
+L17 gu   T   64  [1280 x 2560]  rel. error 0.5331%  worst 0.7038% of the row max
+L17 dn   T   64  [2560 x 640]  rel. error 0.5304%  worst 0.7446% of the row max
+L18 gu   T   64  [1280 x 2560]  rel. error 0.5321%  worst 0.7253% of the row max
+L18 dn   T   64  [2560 x 640]  rel. error 0.5380%  worst 0.7526% of the row max
+L19 gu   T   64  [1280 x 2560]  rel. error 0.5321%  worst 0.7062% of the row max
+L19 dn   T   64  [2560 x 640]  rel. error 0.5305%  worst 0.8309% of the row max
+L20 gu   T   64  [1280 x 2560]  rel. error 0.5390%  worst 0.7279% of the row max
+L20 dn   T   64  [2560 x 640]  rel. error 0.5367%  worst 0.7588% of the row max
+L21 gu   T   64  [1280 x 2560]  rel. error 0.5351%  worst 0.8524% of the row max
+L21 dn   T   64  [2560 x 640]  rel. error 0.5405%  worst 0.6800% of the row max
+L22 gu   T   64  [1280 x 2560]  rel. error 0.5330%  worst 0.8883% of the row max
+L22 dn   T   64  [2560 x 640]  rel. error 0.5381%  worst 0.8514% of the row max
+L23 gu   T   64  [1280 x 2560]  rel. error 0.5311%  worst 0.7087% of the row max
+L23 dn   T   64  [2560 x 640]  rel. error 0.5328%  worst 0.6873% of the row max
+L24 gu   T   64  [1280 x 2560]  rel. error 0.5296%  worst 0.7559% of the row max
+L24 dn   T   64  [2560 x 640]  rel. error 0.5327%  worst 0.7280% of the row max
+L25 gu   T   64  [1280 x 2560]  rel. error 0.5360%  worst 0.7133% of the row max
+L25 dn   T   64  [2560 x 640]  rel. error 0.5362%  worst 0.7158% of the row max
+L26 gu   T   64  [1280 x 2560]  rel. error 0.5309%  worst 0.7941% of the row max
+L26 dn   T   64  [2560 x 640]  rel. error 0.5362%  worst 0.6714% of the row max
+L27 gu   T   64  [1280 x 2560]  rel. error 0.5338%  worst 0.7894% of the row max
+L27 dn   T   64  [2560 x 640]  rel. error 0.5331%  worst 0.6892% of the row max
+L28 gu   T   64  [1280 x 2560]  rel. error 0.5366%  worst 0.7476% of the row max
+L28 dn   T   64  [2560 x 640]  rel. error 0.5339%  worst 0.7745% of the row max
+L29 gu   T   64  [1280 x 2560]  rel. error 0.5394%  worst 0.8675% of the row max
+L29 dn   T   64  [2560 x 640]  rel. error 0.5400%  worst 0.8619% of the row max
+L30 gu   T   64  [1280 x 2560]  rel. error 0.5321%  worst 0.7318% of the row max
+L30 dn   T   64  [2560 x 640]  rel. error 0.5317%  worst 0.6883% of the row max
+L31 gu   T   64  [1280 x 2560]  rel. error 0.5361%  worst 0.6956% of the row max
+L31 dn   T   64  [2560 x 640]  rel. error 0.5391%  worst 0.7038% of the row max
+L32 gu   T   64  [1280 x 2560]  rel. error 0.5359%  worst 0.6804% of the row max
+L32 dn   T   64  [2560 x 640]  rel. error 0.5355%  worst 0.7216% of the row max
+L33 gu   T   64  [1280 x 2560]  rel. error 0.5348%  worst 0.7709% of the row max
+L33 dn   T   64  [2560 x 640]  rel. error 0.5424%  worst 0.7187% of the row max
+L34 gu   T   64  [1280 x 2560]  rel. error 0.5327%  worst 0.6943% of the row max
+L34 dn   T   64  [2560 x 640]  rel. error 0.5368%  worst 0.6862% of the row max
+L35 gu   T   64  [1280 x 2560]  rel. error 0.5305%  worst 0.7589% of the row max
+L35 dn   T   64  [2560 x 640]  rel. error 0.5467%  worst 0.7995% of the row max
+L36 gu   T   64  [1280 x 2560]  rel. error 0.5318%  worst 0.7131% of the row max
+L36 dn   T   64  [2560 x 640]  rel. error 0.5306%  worst 0.6932% of the row max
+L37 gu   T   64  [1280 x 2560]  rel. error 0.5385%  worst 0.7824% of the row max
+L37 dn   T   64  [2560 x 640]  rel. error 0.5356%  worst 0.8573% of the row max
+L38 gu   T   64  [1280 x 2560]  rel. error 0.5306%  worst 0.8600% of the row max
+L38 dn   T   64  [2560 x 640]  rel. error 0.5341%  worst 0.7229% of the row max
+L39 gu   T   64  [1280 x 2560]  rel. error 0.5305%  worst 0.8306% of the row max
+L39 dn   T   64  [2560 x 640]  rel. error 0.5389%  worst 0.8993% of the row max
+L40 gu   T   64  [1280 x 2560]  rel. error 0.5406%  worst 0.9098% of the row max
+L40 dn   T   64  [2560 x 640]  rel. error 0.5334%  worst 0.7144% of the row max
+L41 gu   T   64  [1280 x 2560]  rel. error 0.5354%  worst 0.7543% of the row max
+L41 dn   T   64  [2560 x 640]  rel. error 0.5360%  worst 0.7450% of the row max
+L42 gu   T   64  [1280 x 2560]  rel. error 0.5391%  worst 0.7281% of the row max
+L42 dn   T   64  [2560 x 640]  rel. error 0.5275%  worst 0.7646% of the row max
+L43 gu   T   64  [1280 x 2560]  rel. error 0.5395%  worst 0.9660% of the row max
+L43 dn   T   64  [2560 x 640]  rel. error 0.5300%  worst 0.7036% of the row max
+L44 gu   T   64  [1280 x 2560]  rel. error 0.5333%  worst 0.7779% of the row max
+L44 dn   T   64  [2560 x 640]  rel. error 0.5297%  worst 0.7003% of the row max
+L45 gu   T   64  [1280 x 2560]  rel. error 0.5316%  worst 1.0413% of the row max
+L45 dn   T   64  [2560 x 640]  rel. error 0.5315%  worst 0.7342% of the row max
+L46 gu   T   64  [1280 x 2560]  rel. error 0.5301%  worst 0.7738% of the row max
+L46 dn   T   64  [2560 x 640]  rel. error 0.5262%  worst 0.6818% of the row max
+L47 gu   T   64  [1280 x 2560]  rel. error 0.5376%  worst 0.9375% of the row max
+L47 dn   T   64  [2560 x 640]  rel. error 0.5328%  worst 0.6913% of the row max
+RESULT: ok
+
+=== grouped decode expert parity ===
+layer  0 expert   0: s_gate 6.56e-05 s_up 5.51e-05 s_down 5.5e-05 -> expert output rel. error 1.100%
+layer  0 expert   7: s_gate 0.000112 s_up 8.1e-05 s_down 0.000152 -> expert output rel. error 1.164%
+layer 12 expert 100: s_gate 6.66e-05 s_up 7.1e-05 s_down 7.22e-05 -> expert output rel. error 1.173%
+layer 24 expert 300: s_gate 2.73e-05 s_up 2.44e-05 s_down 2.36e-05 -> expert output rel. error 1.140%
+layer 40 expert   5: s_gate 3.87e-05 s_up 4.41e-05 s_down 3.2e-05 -> expert output rel. error 1.153%
+layer 47 expert 511: s_gate 7.58e-05 s_up 5.39e-05 s_down 3.51e-05 -> expert output rel. error 1.147%
+RESULT: ok (worst 1.173%)

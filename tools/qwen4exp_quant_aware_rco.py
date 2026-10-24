@@ -17,6 +17,10 @@ Method:
 The receipt reports exact candidate bytes, per-expert errors, the chosen
 assignment, and the measured assembled error.  It makes no end-to-end quality
 or serving claim.
+
+For a correctness-first control while a calibrated artifact is unavailable, use
+``--assignment-mode all-width --all-width-bits 4``.  This skips the greedy
+per-expert sweep and measures one fixed group-32 RTN width for every expert.
 """
 
 from __future__ import annotations
@@ -207,6 +211,26 @@ def greedy_assignment(
     }
 
 
+def all_width_assignment(
+    expert_count: int,
+    *,
+    bits: int,
+    per_expert_bytes: dict[str, int],
+) -> dict[str, Any]:
+    """Return the correctness-first, no-iMatrix fixed-width RTN assignment."""
+    if bits not in CANDIDATE_BITS:
+        raise RcoError(f"unsupported fixed width {bits}; choose from {CANDIDATE_BITS}")
+    if expert_count < 0 or str(bits) not in per_expert_bytes:
+        raise RcoError(f"invalid expert count or byte table for width {bits}")
+    spent = per_expert_bytes[str(bits)] * expert_count
+    return {
+        "bits": [bits] * expert_count,
+        "histogram": {str(bits): expert_count},
+        "total_bytes": spent,
+        "mean_bytes_per_expert": per_expert_bytes[str(bits)],
+    }
+
+
 def measure_assignment(
     model: Any,
     captured: dict[str, Any],
@@ -275,14 +299,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     tokens = torch.tensor(np.asarray(calibration), dtype=torch.long, device=args.device)
     captured = capture_layer_inputs(model, tokens, args.layer)
     reference = call_layer(model.model.layers[args.layer], captured)
-    measured = measure_candidates(
-        model,
-        captured,
-        args.layer,
-        reference,
-        CANDIDATE_BITS,
-        limit_experts=args.limit_experts,
-    )
     experts = model.model.layers[args.layer].mlp.experts
     per_expert_bytes = {
         str(bits): candidate_bytes(
@@ -291,15 +307,38 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         + candidate_bytes(int(experts.down_proj.shape[1]), int(experts.down_proj.shape[2]), bits)
         for bits in CANDIDATE_BITS
     }
-    budget_per_expert = args.byte_budget_per_expert
-    if budget_per_expert <= 0:
-        budget_per_expert = (per_expert_bytes["3"] + per_expert_bytes["4"]) / 2
-    assignment = greedy_assignment(
-        measured["per_expert_relative_error"],
-        bits_list=CANDIDATE_BITS,
-        byte_budget_total=budget_per_expert * measured["experts_measured"],
-        per_expert_bytes=per_expert_bytes,
-    )
+    if args.assignment_mode == "greedy":
+        measured = measure_candidates(
+            model,
+            captured,
+            args.layer,
+            reference,
+            CANDIDATE_BITS,
+            limit_experts=args.limit_experts,
+        )
+        budget_per_expert = args.byte_budget_per_expert
+        if budget_per_expert <= 0:
+            budget_per_expert = (per_expert_bytes["3"] + per_expert_bytes["4"]) / 2
+        assignment = greedy_assignment(
+            measured["per_expert_relative_error"],
+            bits_list=CANDIDATE_BITS,
+            byte_budget_total=budget_per_expert * measured["experts_measured"],
+            per_expert_bytes=per_expert_bytes,
+        )
+        expert_count = measured["experts_measured"]
+        mean_errors = {
+            bits: sum(values) / len(values)
+            for bits, values in measured["per_expert_relative_error"].items()
+        }
+    else:
+        expert_count = int(experts.gate_up_proj.shape[0])
+        assignment = all_width_assignment(
+            expert_count,
+            bits=args.all_width_bits,
+            per_expert_bytes=per_expert_bytes,
+        )
+        budget_per_expert = per_expert_bytes[str(args.all_width_bits)]
+        mean_errors = {}
     assembled = measure_assignment(model, captured, args.layer, reference, assignment)
     heldout = None
     controls: dict[str, Any] = {}
@@ -328,7 +367,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "ple_stream": ple_stats,
         "scope": (
             f"layer {args.layer} only, {args.num_samples} calibration samples, "
-            f"{measured['experts_measured']} experts measured"
+            f"{expert_count} experts assigned by {args.assignment_mode}"
         ),
         "model": str(args.model),
         "calibration": str(args.calibration),
@@ -336,11 +375,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "sequence_length": int(calibration.shape[1]),
         "candidate_bits": list(CANDIDATE_BITS),
         "candidate_bytes_per_expert": per_expert_bytes,
-        "mean_relative_error_by_bits": {
-            bits: sum(values) / len(values)
-            for bits, values in measured["per_expert_relative_error"].items()
-        },
-        "experts_measured": measured["experts_measured"],
+        "assignment_mode": args.assignment_mode,
+        "all_width_bits": args.all_width_bits if args.assignment_mode == "all-width" else None,
+        "mean_relative_error_by_bits": mean_errors,
+        "experts_assigned": expert_count,
         "assignment": {
             "histogram": assignment["histogram"],
             "total_bytes": assignment["total_bytes"],
@@ -371,7 +409,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "Candidates are group-32 symmetric RTN; no GPTQ, activation-aware, "
             "or healing pass is included.",
             "No serving path, throughput, or full-model artifact was produced.",
-            "The greedy budget rule is a prototype, not the stock RCO optimizer.",
+            "The assignment rule is a prototype, not the stock RCO optimizer.",
         ],
     }
 
@@ -387,8 +425,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--num-samples", type=int, default=2)
     parser.add_argument("--limit-experts", type=int)
     parser.add_argument("--byte-budget-per-expert", type=float, default=0.0)
+    parser.add_argument("--assignment-mode", choices=("greedy", "all-width"), default="greedy")
+    parser.add_argument("--all-width-bits", type=int, choices=CANDIDATE_BITS, default=4)
     parser.add_argument("--receipt", type=Path)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.assignment_mode == "all-width" and args.limit_experts is not None:
+        parser.error(
+            "--limit-experts applies to the greedy candidate sweep, not --assignment-mode all-width"
+        )
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:

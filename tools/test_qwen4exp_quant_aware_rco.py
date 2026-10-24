@@ -59,6 +59,19 @@ class QuantAwareRcoTest(unittest.TestCase):
         )
         self.assertEqual(assignment["bits"], [3])
 
+    def test_all_width_assignment_is_fixed_rtn(self) -> None:
+        assignment = RCO.all_width_assignment(
+            512,
+            bits=4,
+            per_expert_bytes=BYTES,
+        )
+        self.assertEqual(assignment["bits"], [4] * 512)
+        self.assertEqual(assignment["histogram"], {"4": 512})
+        self.assertEqual(assignment["total_bytes"], BYTES["4"] * 512)
+        self.assertEqual(assignment["mean_bytes_per_expert"], BYTES["4"])
+        with self.assertRaisesRegex(ValueError, "unsupported fixed width"):
+            RCO.all_width_assignment(1, bits=5, per_expert_bytes=BYTES)
+
 
 if __name__ == "__main__":
     unittest.main()

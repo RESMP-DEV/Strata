@@ -1,0 +1,266 @@
+{
+  "recorded_at": "2026-10-24T21:29:25.185363+00:00",
+  "agent": "Codex",
+  "scope": "Recover the correct Flash-Next MoESQ lane, reject performance-neutral full-BF16 expert streaming, convert paired-sparse NVFP4 experts to Strata W4A8, and exercise the complete pack on B550.",
+  "source_revision": "1bcf980f4b801edb49484d7463dbd832a8c2cb6d",
+  "source_dirty": true,
+  "changed_files": [
+    "CONTRIBUTING.md",
+    "scripts/strata.py",
+    "tools/moesq_pack.py",
+    "tools/test_moesq_pack.py",
+    "tools/qwen4exp_quant_aware_rco.py",
+    "tools/test_qwen4exp_quant_aware_rco.py",
+    "docs/architecture.md",
+    "evidence/qwen38-moesq-parity-2026-10-24.log",
+    "evidence/qwen38-moesq-strata-b550-smoke-2026-10-24.log",
+    "evidence/qwen38-moesq-strata-pack-2026-10-24.json"
+  ],
+  "host": {
+    "hostname": "b550",
+    "machine_id_sha256": "1ea10d96153c065295848b9fea43a3a26619fa5269d5064ca971dc4444b4ae91",
+    "remote_worktree": "/home/kearm/strata-moesq",
+    "remote_revision": "1bcf980f4b801edb49484d7463dbd832a8c2cb6d",
+    "remote_tracked_dirty": false,
+    "gpu1": {
+      "name": "NVIDIA GeForce RTX 3090 Ti",
+      "uuid": "GPU-8cf9cd0e-92dd-00e4-51f5-25339db67ece",
+      "pci_bus_id": "00000000:08:00.0",
+      "memory_mib": 24564
+    }
+  },
+  "bf16_streaming_decision": {
+    "expert_bytes_bf16": 9830400,
+    "all_routed_expert_bytes_gib": 225.0,
+    "b550_ram_gib": 91,
+    "real_strp_v2_4096_prefix_distinct_layer_expert_pairs": 22041,
+    "real_strp_v2_4096_share_of_24576_pairs": 0.8969,
+    "verdict": "Full BF16 routed-expert streaming can be byte-exact but is not performance-neutral on B550: broad prompt unions approach the full 225 GiB expert set, exceed RAM, and are storage-bound. This does not apply to the small dense/shared or PLE-row working sets.",
+    "evidence_basis": "Exact geometry and routing union from the Flash-Next planner plus the resumed B550 direct storage and exact-shape BF16 compute measurements; the raw resumed-session logs were not retained, so this receipt records the decision and the MoESQ pack below is the durable executable lane."
+  },
+  "source_checkpoint": {
+    "repository": "ISTA-DASLab/Qwen3.8-Flash-Next-P48NVFP4-MoESQ",
+    "revision": "80266c60ab7b2b357ab01c3675eec5f12afef4b4",
+    "remote_path": "/home/kearm/models/Qwen3.8-Flash-Next-P48NVFP4-MoESQ",
+    "shards": 49,
+    "published_sha256_check": "49/49 OK",
+    "aria2_markers": 0,
+    "reconstructed_shard": {
+      "name": "model-00003-of-00049.safetensors",
+      "bytes": 103487182664,
+      "sha256": "f61623b59675e7c06963ae49f51600c37508296cbe555deb8351b3441c3dbe79",
+      "method": "verified head and tail ranges plus unchanged BF16 PLE tensors, copied in safetensors offset order"
+    }
+  },
+  "converter": {
+    "tool": "tools/moesq_pack.py",
+    "focused_tests": "uv run --python 3.12 --with numpy python -m unittest tools.test_moesq_pack: 6/6 OK on Mac and B550",
+    "output_layout": "48 layers x 512 experts; ggml type 40 gate/up/down; 2,764,816 bytes per expert",
+    "weight_contract": {
+      "fp4_codes_exact": true,
+      "e4m3_scale_bytes_exact": true,
+      "moesq_effective_scale": "E4M3 hard scale / weight_global_scale",
+      "strata_tail": "nearest F32 reciprocal of weight_global_scale",
+      "global_multiplier_exact": false,
+      "structured_sparsity_preserved": false,
+      "activation_contract": "Strata W4A8 Q8_1; MoESQ input_global_scale is not applied"
+    },
+    "correctness_incident_and_fix": {
+      "initial_error": "Writing weight_global_scale directly as a Strata multiplier made the real grouped expert output 100.000% off.",
+      "cause": "MoESQ source divides by weight_global_scale; Strata tails multiply.",
+      "fix": "Store the nearest F32 reciprocal.",
+      "post_fix_real_expert_error": "1.100% on layer 0 expert 0, from two Q8_1 activation roundings"
+    },
+    "naive_rtn_control": "tools/qwen4exp_quant_aware_rco.py now has --assignment-mode all-width --all-width-bits 4; its six host-safe tests pass. This is a correctness-first fixed group-32 RTN measurement control, not a packed artifact."
+  },
+  "pack": {
+    "path": "/home/kearm/models/qwen38-moesq-strata-pack",
+    "layers": 48,
+    "experts_per_layer": 512,
+    "blob_bytes": 2764816,
+    "expert_bytes": 67948118016,
+    "expert_gib": 63.2816162109375,
+    "experts_sha256": "222e2c777490c15203f2531e4547873a44dd0af0a0987d8b2d29e1dc3f61b898",
+    "native_experts_sha256": "0fdaf7361da6820f9b90cd4d73310cc9b5413ad51d0ad4efafaabe35db5914fa",
+    "sidecar_sha256": "f3526ab5c82a17d8444b76969b7c5f64b9cb637fada0e47379e2ecd128df6688",
+    "index_sha256": "dcfd110970ea49b376bae9a4eb038da122e04775c8d9f85592e23ff5bfbe165f",
+    "dense_sha256": "1fab0d62440d5ffeaf3cdbf0aa2a3f64961b77ebcea62f6915096cba4765d01a",
+    "base_pack": "/mnt/resmp-24tb/strata-scratch-migrated/qwen-iq2xs-calibrated/pack-split",
+    "base_files_hash_verified": [
+      "dense.bin",
+      "index.txt",
+      "conversions.json",
+      "compat-bf16.json",
+      "tokenizer/chat_template.jinja",
+      "tokenizer/merges.txt",
+      "tokenizer/token_type.json",
+      "tokenizer/tokenizer.json",
+      "tokenizer/vocab.json"
+    ],
+    "sidecar_snapshot_complete": true,
+    "sidecar_partial": false,
+    "total_tree_du": "65G"
+  },
+  "parity": {
+    "engine_sha256": "e52b08869699321030f72b3cf28a20d80d3f0243ba7ef89e37b47726eb09d7a8",
+    "mmq_parity_sha256": "c067fb6801edd7f34b437747b4447c3798e93dc296c5999fc82749d5d694f83f",
+    "decode_parity_sha256": "6e1e7f3e28fea30a11b596a768da62486ff1689311374ba371a79fcd2f2a6b4d",
+    "grouped_prompt": {
+      "entries": 508,
+      "experts": 20,
+      "gate_up_experts_0_15_relative_error": 0.005359,
+      "gate_up_experts_16_19_relative_error": 0.005378,
+      "down_experts_16_19_relative_error": 0.005381,
+      "result": "ok"
+    },
+    "every_layer_expert_7": {
+      "products": 96,
+      "relative_error_min": 0.005262,
+      "relative_error_max": 0.005467,
+      "relative_error_mean": 0.005346729166666667,
+      "result": "ok"
+    },
+    "sampled_grouped_decode": {
+      "experts": 6,
+      "relative_error_min": 0.011,
+      "relative_error_max": 0.01173,
+      "relative_error_mean": 0.011461666666666667,
+      "result": "ok"
+    },
+    "log": "evidence/qwen38-moesq-parity-2026-10-24.log",
+    "log_sha256": "d9c1bf4676e6f5524e87bbc4112dd37cd8f5cd8a9fbb99d932712b39c03dec37"
+  },
+  "engine_smoke": {
+    "command_family": "clean-main SM86 strata, physical GPU1, native IQ2_XS dense/base, MoESQ NVFP4 experts, direct PLE, INT8 KV, prefill 512, spec 2, greedy eight tokens",
+    "hdd_ple_diagnostic": {
+      "exit": 0,
+      "wall_seconds": 112.42,
+      "max_rss_kib": 68646724,
+      "expert_arena_load_gib_per_s": 1.06,
+      "expert_cache_slots": 7272,
+      "output_tokens": [
+        871,
+        606,
+        328,
+        13290,
+        1,
+        198,
+        262,
+        1992
+      ],
+      "decode_tok_s": 7.68,
+      "prefill_tok_s": 7.29,
+      "time_to_first_token_ms": 2379.5,
+      "ple_read_p50_us": 53618,
+      "ple_blocked_ms": 1409.062,
+      "expert_cache_hit_rate": 0.405
+    },
+    "nvme_ple": {
+      "exit": 0,
+      "wall_seconds": 109.8,
+      "max_rss_kib": 68370388,
+      "expert_arena_load_gib_per_s": 1.0,
+      "expert_cache_slots": 7272,
+      "output_tokens": [
+        487,
+        328,
+        248060,
+        487,
+        328,
+        248061,
+        487,
+        3919
+      ],
+      "decode_tok_s": 21.09,
+      "prefill_tok_s": 6.24,
+      "time_to_first_token_ms": 2401.4,
+      "ple_read_p50_us": 497,
+      "ple_blocked_ms": 84.956,
+      "expert_cache_hit_rate": 0.422
+    },
+    "ple_source_stage": {
+      "path": "/home/kearm/models/qwen-iq2xs-calibrated-nvme/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf",
+      "bytes": 39969168288,
+      "source_and_nvme_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915"
+    },
+    "cache_path_observation": "The two auto-cache runs used different GPU/CPU expert placements and produced different token IDs. This is an engine cache-path reproducibility boundary, not a converter parity failure.",
+    "no_cache_boundary": "The native engine contract requires --spec >=2, while --spec needs the expert residency table. --expert-cache 0 completed the two-token CPU prefill but exited 2 before decode; --spec 1 was refused at startup. No no-cache decode claim is made.",
+    "log": "evidence/qwen38-moesq-strata-b550-smoke-2026-10-24.log",
+    "log_sha256": "3b08679183f1308353d47ca8f92d22458a6fdc006a1b18831fe1910e3aab12d7",
+    "post_run_gpu_idle": true
+  },
+  "checks": [
+    {
+      "name": "source-manifest",
+      "command": "sha256sum -c SHARD_HASHES.sha256",
+      "exit": 0,
+      "result": "49/49 OK"
+    },
+    {
+      "name": "focused-converter-tests-mac",
+      "command": "uv run --python 3.12 --with numpy python -m unittest -v tools.test_moesq_pack",
+      "exit": 0
+    },
+    {
+      "name": "focused-converter-tests-b550",
+      "command": "python3 -m unittest -v tools.test_moesq_pack",
+      "exit": 0
+    },
+    {
+      "name": "full-pack-structure-and-hashes",
+      "command": "stat/wc/sha256sum plus sidecar assertions",
+      "exit": 0
+    },
+    {
+      "name": "base-copy-hash-parity",
+      "command": "recompute all nine sidecar base-file hashes",
+      "exit": 0
+    },
+    {
+      "name": "grouped-mmq-parity",
+      "command": "STRATA_PREFILL_NVFP4=w4a8 mmq_nvfp4_parity experts.bin --group",
+      "exit": 0
+    },
+    {
+      "name": "every-layer-mmq-parity",
+      "command": "STRATA_PREFILL_NVFP4=w4a8 mmq_nvfp4_parity experts.bin --layers 7",
+      "exit": 0
+    },
+    {
+      "name": "grouped-decode-parity",
+      "command": "nvfp4_expert_gpu_parity experts.bin",
+      "exit": 0
+    },
+    {
+      "name": "clean-main-sm86-engine-build",
+      "command": "cmake --build build/moesq-main-sm86-localgg --target strata -j12 after GCC-15 linker path workaround",
+      "exit": 0
+    },
+    {
+      "name": "b550-engine-smoke-hdd-ple",
+      "command": "one-shot strata generation on GPU1",
+      "exit": 0
+    },
+    {
+      "name": "b550-engine-smoke-nvme-ple",
+      "command": "repeat one-shot strata generation on GPU1",
+      "exit": 0
+    },
+    {
+      "name": "host-quality",
+      "command": "just quality",
+      "exit": 0,
+      "receipt": "build/reports/quality/receipt.json"
+    }
+  ],
+  "non_claims": [
+    "This is a hybrid research pack: MoESQ routed experts are converted, while dense/index/tokenizer/PLE come from the existing calibrated IQ2_XS base. It is not byte-equivalent to a whole MoESQ checkpoint.",
+    "Strata executes the experts as generic W4A8 Q8_1 on SM86, not native Blackwell paired-sparse W4A4; no MoESQ-equivalent W4A4 quality claim is made.",
+    "The reciprocal global multiplier is rounded once to F32, so effective weights are not bit-exact despite exact FP4 codes and E4M3 bytes.",
+    "No perplexity, KL, held-out quality, coding evaluation, serving deployment, router integration, publication, or Hugging Face upload was run.",
+    "The two short throughput observations are cold-load one-shots with different PLE devices, not matched medians or a same-day control against another model.",
+    "Different auto-cache token IDs are recorded as a boundary; no deterministic full-model output claim is made.",
+    "The failed no-cache arms are not accepted as engine smokes; they only establish the current native-pack/spec residency-table contract."
+  ],
+  "passed": true
+}

@@ -1,0 +1,174 @@
+=== HDD PLE diagnostic smoke ===
+strata: sm_86 (Ampere): 9 exact speed switches on by default (STRATA_SM86_PERF=0 turns them off; a switch you set is kept): ADAPT_NOWAIT ADAPT_LAG CPU_IQ_ALL_EXACT1 SIDE_MIXER ATTN_DAILY GR_UP75 GU_SWIGLU QSA_ROWS B6_MMVQ_ROWS
+strata generate: PCIe probe: 24.9 GB/s host->device (best of 24.9 24.9 24.8 24.9) -> pcie_frac 0.25 (default 0.25)
+strata generate: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+strata: qwen4exp.attention.compress_ratios is all zeros (a converter's placeholder): using the compiled pooling block of 4 cells (#2396)
+strata generate: native pack: /home/kearm/models/qwen38-moesq-strata-pack experts (largest blob 2.76 MB), token embedding IQ4_XS in mapped host memory (322 MiB, 1.7 s)
+strata generate: 1416 MiB of weights loaded from /home/kearm/models/qwen38-moesq-strata-pack in 0.2 s (303 canonical tensors skipped: served natively)
+strata generate: 301 native projection matrices, 1634.57 MiB of weights, in 8.7 s
+strata generate: WARNING: --ple-io direct measures slow here (400 rows/s, about 2 MB/s of random 4 KiB reads): a prompt can spend minutes reading layer 1 and trip the stall watchdog (#1425, #1629). --ple-io mmap was 40-100x faster on some DRAM-less NVMe drives but 7x slower on a SATA SSD (#2040), so it is not chosen for you; --ple-io ram needs the RAM for the table
+strata generate: WARNING: the n-gram table (/mnt/resmp-24tb/strata-scratch-migrated/qwen-iq2xs-calibrated/hf-shards/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf) is on a rotational disk (sda): --ple-io direct reads it at random and can stall a prompt for minutes (#605). --ple-io ram (it then needs RAM for the table) or the model on an SSD is recommended
+strata generate: the SSD is kept awake while rows are read: one page of the table after 100 ms without a read, until 60 s after the last request (STRATA_SSD_KEEPALIVE=0 turns it off)
+strata generate: profile /home/kearm/models/qwen38-moesq-strata-expert-profile-neutral.bin: 24576 ranked pairs, built for 24576 slots
+strata generate: PLE on, table 320001536 rows of /mnt/resmp-24tb/strata-scratch-migrated/qwen-iq2xs-calibrated/hf-shards/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf
+strata generate: experimental native Q5_K head, 521472000 bytes, in 2.3 s
+strata generate: GPU 0: NVIDIA GeForce RTX 3090 Ti, compute capability 8.6
+strata: expert arena: MAP_HUGETLB unavailable (needed 32402 2 MiB pages, vm.nr_hugepages=0); transparent huge pages NOT requested: only 0 GiB of free 2 MiB blocks for a 63 GiB arena, compaction would stall the load (STRATA_ARENA_THP=1 requests them anyway) (#2126)
+strata generate: expert arena read through the file cache (buffered (not Windows))
+strata generate: expert arena: cudaHostRegister PORTABLE ok; MAP_HUGETLB unavailable (needed 32402 2 MiB pages, vm.nr_hugepages=0); transparent huge pages NOT requested: only 0 GiB of free 2 MiB blocks for a 63 GiB arena, compaction would stall the load (STRATA_ARENA_THP=1 requests them anyway) (#2126)
+strata generate: loaded 63.28 GiB at 1.06 GiB/s
+strata generate: GPU host-callback thread started before host-core pinning
+strata generate: CPU pool tasks/phase: 48 (automatic), participating threads: 16
+strata generate: 15 pool workers on logical processors 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, the host thread on 0 (draining too) (--host-core first)
+strata aux cpus: threads that are neither pool workers nor the host go to CPUs 16 (off at start; a request's aux_cpus=1 turns it on)
+strata generate: expert cache auto: 19.41 GiB free, 700 MiB reserved (+0 MiB for the draft head) -> 7272 slots
+strata generate: expert cache 7272 slots, 18.73 GiB of VRAM; policy is
+strata generate: the GPU computes the experts in the cache; it rounds differently from the CPU,
+                 so a reply can differ slightly from a run without the cache (same quality:
+                 bench/results/2026-09-27-cache-parity).
+                 PROFILE, ranked by routing frequency, no eviction.
+strata generate: pre-filled 7272 of 7272 slots from the profile in 0.8 s (23665 MB/s); slot 0 verified
+strata generate: R4 hit path ON - resident experts are computed on the GPU
+strata generate: 15 expert-pool workers + the host thread
+strata generate: session is up (engine 0.1.45)
+strata generate: sampling greedy
+strata generate: token graph hit path: 7272 resident experts, decided on the device
+prefill: the CPU share is ON by default for prompt chunks below 1024 tokens (the idle CPU takes some of the experts the GPU would stream; answers can differ slightly from 0.1.40.3, mean KL ~0.004). STRATA_PREFILL_CPU_SHARE=0 turns it off.
+strata generate: prompt path borrows 132 cache slots (0.34 GiB)
+strata generate: 132 lent slots refilled in 14.7 ms
+strata generate: prefill 2 tokens in 1 chunks, 259.6 ms (7.7 tok/s); experts streamed 234 (234 by DMA, host 0.9 ms), resident 217, on the CPU 292 (share 0.71); PLE 0.6 ms
+strata hc: CUDA0: the hyper-connection read runs as staged (the norm per token and stream, the down projection's activations staged ahead by cp.async); checked bit for bit against the plain read on this card (STRATA_HC_SPLIT=1 or 0 for the earlier ones)
+strata verify: window up to 4 tokens, 65.0 MiB of device buffers
+strata verify: capturing the 1-token window (430 MiB of VRAM free)
+strata verify: captured the 1-token window (upload no error, sync no error)
+strata verify: capturing the 2-token window (414 MiB of VRAM free)
+strata verify: captured the 2-token window (upload no error, sync no error)
+speculation              8 rounds of 4, drafts accepted 0 of 7 (0.000), 1.00 tokens per round
+suffix drafts            0 windows, drafts accepted 0 of 0
+accepted per round       0:8 1:0 2:0 3:0
+verify window            wait for rings 7.500  pool 117.971  host 84.409  commit 0.412 ms/round; CPU experts 7.51 distinct / 9.96 routed per layer
+pool multi               gate/up 27.254  quantize 0.202  down 9.579 ms/round; 29.8 GB/s over the rows phases; CPU pool call 33.576 ms/round
+dispatch                 plan 0.082  activation quantize 0.127  jobs 0.035  run 33.278 ms/round
+adaptive tier            192 experts swapped into the VRAM tier (every 4 rounds, 0.098 ms/round)
+pcie experts             1.98 distinct experts per layer read over PCIe (share 64/256 of the misses)
+prompt  : 100 101 102
+output  : 871 606 328 13290 1 198 262 1992
+decode                   8 tokens in 1041.5 ms  ->  7.68 tok/s
+prefill                  2 tokens in 274.2 ms  ->  7.29 tok/s  (time to first token 2379.5 ms)
+  per token              130.188 ms/token (WALL CLOCK: embed, layers, head, sample)
+  ple io: 528 rows, 0.0% row-cache hits, 528 SSD reads (2.2 MB), read p50 53618 us p99 151773 us, blocked 1409.062 ms total (submit 1.049 ms), cache 528/1048576 rows, SSD kept awake by 352 reads (slowest 24396.4 ms)
+  the CPU expert pool    33.576 ms/token over 48 layers (8 positions, 384 dispatches)
+  pool phases              wait-park 0.000  drain 37.039  re-park 0.000  ms/token
+  expert blobs           11765 blobs read
+  R4 overlap             0 of 0 layers the hit work was DONE when the pool returned
+  R4 expert-cache hits   2604 of 6429 = 0.4050      (0 admitted, 3825 refused, cache 100.0000% full)
+	Command being timed: "./strata --pack /home/kearm/models/qwen38-moesq-strata-pack --native /mnt/resmp-24tb/strata-scratch-migrated/qwen-iq2xs-calibrated/hf-shards/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf --gpu 1 --tokens 100,101,102 --max-context 2048 --max-new 8 --ple-io direct --kv int8 --spec 2 --prefill 512 --expert-profile /home/kearm/models/qwen38-moesq-strata-expert-profile-neutral.bin --expert-cache auto --stats"
+	User time (seconds): 98.78
+	System time (seconds): 54.04
+	Percent of CPU this job got: 135%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:52.42
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 68646724
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2092
+	Minor (reclaiming a frame) page faults: 17192120
+	Voluntary context switches: 457621
+	Involuntary context switches: 6644
+	Swaps: 0
+	File system inputs: 138249464
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+
+=== NVMe PLE smoke ===
+strata: sm_86 (Ampere): 9 exact speed switches on by default (STRATA_SM86_PERF=0 turns them off; a switch you set is kept): ADAPT_NOWAIT ADAPT_LAG CPU_IQ_ALL_EXACT1 SIDE_MIXER ATTN_DAILY GR_UP75 GU_SWIGLU QSA_ROWS B6_MMVQ_ROWS
+strata generate: PCIe probe: 25.0 GB/s host->device (best of 24.9 24.9 24.9 25.0) -> pcie_frac 0.25 (default 0.25)
+strata generate: this CPU has no AVX-512: the expert kernels run on AVX-2 (multi-token for the i-quant gate/up rows)
+strata: qwen4exp.attention.compress_ratios is all zeros (a converter's placeholder): using the compiled pooling block of 4 cells (#2396)
+strata generate: native pack: /home/kearm/models/qwen38-moesq-strata-pack experts (largest blob 2.76 MB), token embedding IQ4_XS in mapped host memory (322 MiB, 0.3 s)
+strata generate: 1416 MiB of weights loaded from /home/kearm/models/qwen38-moesq-strata-pack in 0.8 s (303 canonical tensors skipped: served natively)
+strata generate: 301 native projection matrices, 1634.57 MiB of weights, in 6.5 s
+strata generate: PLE direct read probe: 49776 rows/s (fine)
+strata generate: the SSD is kept awake while rows are read: one page of the table after 100 ms without a read, until 60 s after the last request (STRATA_SSD_KEEPALIVE=0 turns it off)
+strata generate: profile /home/kearm/models/qwen38-moesq-strata-expert-profile-neutral.bin: 24576 ranked pairs, built for 24576 slots
+strata generate: PLE on, table 320001536 rows of /home/kearm/models/qwen-iq2xs-calibrated-nvme/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf
+strata generate: experimental native Q5_K head, 521472000 bytes, in 0.1 s
+strata generate: GPU 0: NVIDIA GeForce RTX 3090 Ti, compute capability 8.6
+strata: expert arena: MAP_HUGETLB unavailable (needed 32402 2 MiB pages, vm.nr_hugepages=0); transparent huge pages NOT requested: only 5 GiB of free 2 MiB blocks for a 63 GiB arena, compaction would stall the load (STRATA_ARENA_THP=1 requests them anyway) (#2126)
+strata generate: expert arena read through the file cache (buffered (not Windows))
+strata generate: expert arena: cudaHostRegister PORTABLE ok; MAP_HUGETLB unavailable (needed 32402 2 MiB pages, vm.nr_hugepages=0); transparent huge pages NOT requested: only 5 GiB of free 2 MiB blocks for a 63 GiB arena, compaction would stall the load (STRATA_ARENA_THP=1 requests them anyway) (#2126)
+strata generate: loaded 63.28 GiB at 1.00 GiB/s
+strata generate: GPU host-callback thread started before host-core pinning
+strata generate: CPU pool tasks/phase: 48 (automatic), participating threads: 16
+strata generate: 15 pool workers on logical processors 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, the host thread on 0 (draining too) (--host-core first)
+strata aux cpus: threads that are neither pool workers nor the host go to CPUs 16 (off at start; a request's aux_cpus=1 turns it on)
+strata generate: expert cache auto: 19.41 GiB free, 700 MiB reserved (+0 MiB for the draft head) -> 7272 slots
+strata generate: expert cache 7272 slots, 18.73 GiB of VRAM; policy is
+strata generate: the GPU computes the experts in the cache; it rounds differently from the CPU,
+                 so a reply can differ slightly from a run without the cache (same quality:
+                 bench/results/2026-09-27-cache-parity).
+                 PROFILE, ranked by routing frequency, no eviction.
+strata generate: pre-filled 7272 of 7272 slots from the profile in 0.9 s (23527 MB/s); slot 0 verified
+strata generate: R4 hit path ON - resident experts are computed on the GPU
+strata generate: 15 expert-pool workers + the host thread
+strata generate: session is up (engine 0.1.45)
+strata generate: sampling greedy
+strata generate: token graph hit path: 7272 resident experts, decided on the device
+prefill: the CPU share is ON by default for prompt chunks below 1024 tokens (the idle CPU takes some of the experts the GPU would stream; answers can differ slightly from 0.1.40.3, mean KL ~0.004). STRATA_PREFILL_CPU_SHARE=0 turns it off.
+strata generate: prompt path borrows 132 cache slots (0.34 GiB)
+strata generate: 132 lent slots refilled in 14.7 ms
+strata generate: prefill 2 tokens in 1 chunks, 305.8 ms (6.5 tok/s); experts streamed 248 (248 by DMA, host 0.9 ms), resident 213, on the CPU 283 (share 0.71); PLE 1.3 ms
+strata hc: CUDA0: the hyper-connection read runs as staged (the norm per token and stream, the down projection's activations staged ahead by cp.async); checked bit for bit against the plain read on this card (STRATA_HC_SPLIT=1 or 0 for the earlier ones)
+strata verify: window up to 4 tokens, 65.0 MiB of device buffers
+strata verify: capturing the 1-token window (430 MiB of VRAM free)
+strata verify: captured the 1-token window (upload no error, sync no error)
+strata verify: capturing the 2-token window (414 MiB of VRAM free)
+strata verify: captured the 2-token window (upload no error, sync no error)
+speculation              8 rounds of 4, drafts accepted 0 of 7 (0.000), 1.00 tokens per round
+suffix drafts            0 windows, drafts accepted 0 of 0
+accepted per round       0:8 1:0 2:0 3:0
+verify window            wait for rings 7.424  pool 33.570  host 1.229  commit 0.119 ms/round; CPU experts 7.39 distinct / 9.70 routed per layer
+pool multi               gate/up 26.896  quantize 0.196  down 9.654 ms/round; 29.5 GB/s over the rows phases; CPU pool call 33.301 ms/round
+dispatch                 plan 0.081  activation quantize 0.129  jobs 0.036  run 33.048 ms/round
+adaptive tier            192 experts swapped into the VRAM tier (every 4 rounds, 0.084 ms/round)
+pcie experts             1.95 distinct experts per layer read over PCIe (share 64/256 of the misses)
+prompt  : 100 101 102
+output  : 487 328 248060 487 328 248061 487 3919
+decode                   8 tokens in 379.4 ms  ->  21.09 tok/s
+prefill                  2 tokens in 320.5 ms  ->  6.24 tok/s  (time to first token 2401.4 ms)
+  per token              47.423 ms/token (WALL CLOCK: embed, layers, head, sample)
+  ple io: 4368 rows, 0.9% row-cache hits, 4328 SSD reads (18.1 MB), read p50 497 us p99 1394 us, blocked 84.956 ms total (submit 3.108 ms), cache 4328/1048576 rows, SSD kept awake by 603 reads (slowest 104.4 ms)
+  the CPU expert pool    33.301 ms/token over 48 layers (8 positions, 384 dispatches)
+  pool phases              wait-park 0.000  drain 36.750  re-park 0.000  ms/token
+  expert blobs           11716 blobs read
+  R4 overlap             0 of 0 layers the hit work was DONE when the pool returned
+  R4 expert-cache hits   2718 of 6441 = 0.4220      (0 admitted, 3723 refused, cache 100.0000% full)
+	Command being timed: "./strata --pack /home/kearm/models/qwen38-moesq-strata-pack --native /home/kearm/models/qwen-iq2xs-calibrated-nvme/Qwen3.8-Flash-Next-IQ2_XS-Q2_0-iMatrix-Calibrated-256x2048-00001-of-00002.gguf --gpu 1 --tokens 100,101,102 --max-context 2048 --max-new 8 --ple-io direct --kv int8 --spec 2 --prefill 512 --expert-profile /home/kearm/models/qwen38-moesq-strata-expert-profile-neutral.bin --expert-cache auto --stats"
+	User time (seconds): 97.47
+	System time (seconds): 77.58
+	Percent of CPU this job got: 159%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:49.80
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 68370388
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 4905
+	Minor (reclaiming a frame) page faults: 17182600
+	Voluntary context switches: 471935
+	Involuntary context switches: 6701
+	Swaps: 0
+	File system inputs: 138543816
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

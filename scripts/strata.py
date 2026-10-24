@@ -253,6 +253,8 @@ def quality() -> int:
                         "tools/test_qwen4exp_iq_arm_measure.py",
                         "tools/bench_iq3.py",
                         "tools/bench_iq3_scale.py",
+                        "tools/moesq_pack.py",
+                        "tools/test_moesq_pack.py",
                     ],
                 ),
                 run_logged(
@@ -309,6 +311,8 @@ def quality() -> int:
                         "tools/test_qwen4exp_iq_arm_measure.py",
                         "tools/bench_iq3.py",
                         "tools/bench_iq3_scale.py",
+                        "tools/moesq_pack.py",
+                        "tools/test_moesq_pack.py",
                     ],
                 ),
                 run_logged(

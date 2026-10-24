@@ -3009,3 +3009,37 @@ the authenticated Strix jump; port 18098 closed and both GPUs returned to 1 MiB.
 The intended follow-on concept is the equivalent disaggregated prefill artifact
 for the Flash-Next family, not this dense 27B release. See
 [Qwen27B NVFP4 rollback](../evidence/qwen27b-nvfp4-prefiller-rollback-2026-10-24.json).
+
+### Flash-Next MoESQ W4A8 research pack, 2026-10-24
+
+The correct published lane is the whole-model
+`ISTA-DASLab/Qwen3.8-Flash-Next-P48NVFP4-MoESQ` checkpoint at revision
+`80266c60…`, not a Flash-Next ODP release.  Its 96.38-GiB third shard was
+reassembled from the verified changed edge ranges and unchanged BF16 PLE tensors;
+all 49 published shard hashes pass.  Full-BF16 routed-expert streaming remains
+rejected as a performance-neutral lane: one expert is 9,830,400 BF16 bytes, the
+complete set is 225 GiB, and a real 4,096-token STRP v2 prompt touches 22,041 of
+24,576 layer/expert pairs (89.69 percent), which cannot fit B550's 91-GiB RAM and
+is storage-bound.  Small dense/shared or PLE-row working sets are a different
+question.
+
+`tools/moesq_pack.py` now converts paired-4:8 sparse NVFP4 into ggml type-40
+blobs without changing FP4 codes or E4M3 scale bytes.  MoESQ's effective scale is
+`E4M3 / weight_global_scale`; the first attempt mistakenly stored that divisor in
+Strata's multiplier tail and produced a 100-percent real-expert error.  The tail
+now stores the nearest F32 reciprocal.  The complete 48x512 pack is 67,948,118,016
+expert bytes (63.282 GiB), reuses the hash-bound IQ2_XS dense/index/tokenizer
+base, and records that it is a hybrid W4A8 research pack rather than a whole
+MoESQ checkpoint.  Full-file grouped prompt parity is 0.5359-0.5381 percent,
+every-layer MMQ parity stays within 0.5262-0.5467 percent, and sampled grouped
+decode experts are within 1.100-1.173 percent of the dequantized reference.  A
+clean-main SM86 engine loaded the arena, generated eight greedy tokens with exit
+0 on physical GPU1, and returned both GPUs to idle.  Moving the PLE-bearing
+source shard to NVMe improved the one-shot decode observation from 7.68 to
+21.09 tok/s; the HDD run spent 1.409 seconds blocked on 53.6-ms median PLE reads.
+The two auto-cache runs selected different GPU/CPU expert placements and produced
+different token IDs, so no deterministic full-model output or quality claim is
+made.  The correctness-first no-iMatrix fallback is also explicit now:
+`tools/qwen4exp_quant_aware_rco.py --assignment-mode all-width --all-width-bits 4`
+skips the greedy per-expert sweep and measures fixed group-32 RTN.  See
+[MoESQ pack evidence](../evidence/qwen38-moesq-strata-pack-2026-10-24.json).

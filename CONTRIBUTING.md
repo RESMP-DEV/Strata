@@ -58,6 +58,7 @@ compile an engine.
 | DeepSeek V4.1 host contracts | `python3 scripts/check_deepseek_contracts.py` (included in `just quality`); the standalone `src/deepseek` CMake project must not gain a backend or dependency |
 | `setup.py` or installer behavior | Affected `python3 tools/test_setup_<name>.py`, plus a fresh installer smoke test appropriate to the platform |
 | Standard calibration token path | `python3 tools/test_standard_imatrix.py` and `python3 tools/test_setup_token_imatrix.py` (both are in `just quality`); a real iMatrix run also needs model/dataset hashes and a durable receipt |
+| MoESQ NVFP4 pack conversion | `uv run --python 3.12 --with numpy python -m unittest tools.test_moesq_pack`; a complete pack also needs all 49 source shard hashes, a real-expert `mmq_nvfp4_parity` and `nvfp4_expert_gpu_parity` run on named CUDA hardware, and exact output size/manifest checks before any engine smoke |
 | `serve/` | Affected `serve/test_*.py` and an API/request lifecycle check that exercises the changed boundary |
 | Engine source shared by CUDA and HIP | CUDA and HIP builds for the affected target; no SYCL claim unless SYCL also builds |
 | SYCL-only file | SYCL build and the affected test or documented probe |
