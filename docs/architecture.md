@@ -2652,3 +2652,39 @@ candidate. The earlier 13.47 tok/s W4A16 and 50.06 tok/s vendor GSQ-RCO numbers 
 non-controlled Qwen3.8-27B runtime measurements and are not promoted to RCO measurement results. No
 process was killed and no GPU measurement ran. Full inventory and commands are in
 [RCO measurement readiness evidence](../evidence/rco-measurement-readiness-2026-10-23.json).
+
+### Native-pack logits collection, 2026-10-21
+
+The native Flash-Next path now has an opt-in teacher-row collector. `--dump-native-logits PATH` emits the
+same two-int32-headed float32 format as `--dump-logits`, but takes rows from the speculative verifier. It
+keeps only rows `0..accepted` (bounded by `--max-new`) and omits rejected drafts, because a rejected draft
+can condition later rows on a token the target did not commit. `PATH.windows.tsv` records the round,
+position, window row, input token, argmax, and accepted-draft count needed to align the bank without
+embedding private prompt text in the repository.
+
+The first real private subset came from train896 prompt `fable-coding-0067`, capped to 512 pinned qwen35
+tokens. On Strix's RTX 5070 Laptop GPU, beside the resident embedding service, the dedicated SM120 build
+collected 512 accepted-context rows over the full 248,320-entry vocabulary in 22.04 seconds. The file is
+508,559,368 bytes; all values are finite, every binary argmax matches the sidecar, positions run contiguously
+from 511 through 1022, and each input token after the prompt-final row is the prior target argmax. The
+embedding service on `127.0.0.1:1236` remained resident. The complete hashes and non-claims are in
+[native logits evidence](../evidence/flash-next-native-logit-collector-2026-10-21.json).
+
+This establishes collection plumbing only. These are Flash-Next logits, not inputs for the existing
+Qwen3.8-27B DFlash2 head, and no Flash-Next-specific QAT trainer or live acceptance gate has run.
+
+The collection boundary moved one step closer to the executable target on the same day. The verifier now
+also exposes `--dump-native-residual PATH`, required alongside the logits dump, and writes the accepted
+10,240-float final residual row for every aligned teacher row. The Qwen4Exp MTP cell is two-ahead: residual
+row `i` plus the token at `i+1` trains against verifier logits row `i+1`, not row `i`. The first aligned
+private bank contains 512 rows and 511 such pairs, with all logits and residuals finite and the same
+contiguous 511..1022 input chain. Hashes and the non-claims are in
+[native MTP residual evidence](../evidence/flash-next-native-mtp-residual-capture-2026-10-21.json).
+No MTP weights were trained or modified.
+
+When consolidating the collector into main on 2026-10-24, the two measurement receipts were kept as
+dated observations rather than rewritten. The first receipt is the superseded standalone logits run;
+the second is the canonical paired logits/residual run and its hashes must be compared only within
+that run. The source-to-replay mapping, the meaning of the first run's dirty source snapshot, and the
+boundary between historical artifact validation and the current host guard are recorded in
+[native collector consolidation provenance](../evidence/native-collector-consolidation-provenance-2026-10-24.json).

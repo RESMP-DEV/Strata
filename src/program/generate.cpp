@@ -72,6 +72,7 @@
 #include "strata/core/native_dense.hpp"
 #include "strata/program/batch_read.hpp"
 #include "strata/program/logits_selection.hpp"
+#include "strata/program/native_dump_guard.hpp"
 #include "strata/program/conv_cache.hpp"
 #include "strata/program/split_rules.hpp"
 #include "strata/prefill/share_rules.hpp"
@@ -421,6 +422,8 @@ struct Options {
     float top_p = 0.95f;
     float temperature = 1.0f;
     std::string dump_logits;          // one line of logits per generated position
+    std::string dump_native_logits;   // native verify-window row 0 per generated position
+    std::string dump_native_residual; // aligned final residual rows for native draft training
     int64_t logits_stride = 1;        // storage selection; all prompt tokens remain conditioned
     /// **THE RESIDUAL, SO THE HEAD CAN BE CHECKED WITHOUT THE LAYERS.**
     ///
@@ -875,6 +878,12 @@ void usage() {
                  "  --seed S             enable sampling with this Philox seed\n"
                  "  --top-k N --top-p F --temperature F\n"
                  "  --dump-logits PATH   write one line of raw logits per position\n"
+                 "  --dump-native-logits PATH\n"
+                 "                       write each accepted native verify-window row; rejected drafts are\n"
+                 "                       omitted, and PATH.windows.tsv aligns positions and argmax ids\n"
+                 "  --dump-native-residual PATH\n"
+                 "                       write the aligned final residual rows consumed by native draft\n"
+                 "                       training; requires --dump-native-logits\n"
                  "  --logits-stride N    store every Nth row plus final input (default 1); N>1 requires --max-new 1\n"
                  "  --dump-residual PATH write the final R (hc x n_embd, f32) for head bisection\n"
                  "  --dump-layers PATH   write R after EVERY layer, per position: the C1 bisection ladder\n"
@@ -2413,6 +2422,8 @@ int main(int argc, char** argv) {
         else if (a == "--top-p") o.top_p = (float) std::atof(next("--top-p"));
         else if (a == "--temperature") o.temperature = (float) std::atof(next("--temperature"));
         else if (a == "--dump-logits") o.dump_logits = next("--dump-logits");
+        else if (a == "--dump-native-logits") o.dump_native_logits = next("--dump-native-logits");
+        else if (a == "--dump-native-residual") o.dump_native_residual = next("--dump-native-residual");
         else if (a == "--logits-stride") {
             if (have_logits_stride) { std::fprintf(stderr, "--logits-stride must be supplied only once\n"); return 2; }
             if (!strata::program::logits_selection::parse_stride(next("--logits-stride"), o.logits_stride)) {
@@ -6901,6 +6912,74 @@ int main(int argc, char** argv) {
         // parsing the header and refusing the file.
         const int32_t n_rows = (int32_t) strata::program::logits_selection::row_count(dump_positions, o.logits_stride);
         hdr[0] = n_vocab; hdr[1] = n_rows;
+    }
+
+    // Native packs run prompt/decode positions through the verifier, not the per-token loop above.  Rows
+    // 0..accepted are the safe teacher rows: every one is conditioned on the committed prefix.  Rejected
+    // draft rows may follow a token the target is about to reject, so this collector omits them.
+    // The binary format matches --dump-logits ([int32 vocab, int32 rows], then float32 rows); the count is
+    // finalized on normal completion because generation can stop at max-new or EOS.
+    std::FILE* native_dump = nullptr;
+    std::FILE* native_windows = nullptr;
+    int64_t native_dump_rows = 0;
+    std::vector<float> native_dump_row;
+    if (!o.dump_native_logits.empty()) {
+        if (native_dump_guard::collides(o.dump_native_logits, o.dump_native_residual)) {
+            std::fprintf(stderr, "strata generate: native logits, windows, and residual paths overlap\n");
+            return 2;
+        }
+        if (n_vocab > INT32_MAX) {
+            std::fprintf(stderr, "strata generate: native logits dump vocabulary exceeds int32\n");
+            return 2;
+        }
+        native_dump = std::fopen(o.dump_native_logits.c_str(), "wb");
+        if (native_dump == nullptr) {
+            std::fprintf(stderr, "strata generate: cannot write %s\n", o.dump_native_logits.c_str());
+            return 1;
+        }
+        const std::string windows_path = o.dump_native_logits + ".windows.tsv";
+        native_windows = std::fopen(windows_path.c_str(), "w");
+        if (native_windows == nullptr) {
+            std::fprintf(stderr, "strata generate: cannot write %s\n", windows_path.c_str());
+            return 1;
+        }
+        const int32_t native_hdr[2] = { (int32_t) n_vocab, 0 };
+        if (std::fwrite(native_hdr, sizeof native_hdr, 1, native_dump) != 1) {
+            std::fprintf(stderr, "strata generate: cannot write native logits header\n");
+            return 1;
+        }
+        std::fprintf(native_windows,
+                     "round\tposition\twindow_size\trow\tinput_token\targmax\taccepted_drafts\n");
+        native_dump_row.resize((size_t) n_vocab);
+    }
+
+    // The native MTP/Qwen4Exp cell pairs each verifier residual row with the next token.  Keep this stream
+    // row-for-row identical to the logits stream (including rejection and max-new boundaries), so a training
+    // adapter never has to infer which residual produced which teacher distribution.
+    std::FILE* native_residual_dump = nullptr;
+    int64_t native_residual_width = 0;
+    std::vector<float> native_residual_row;
+    if (!o.dump_native_residual.empty()) {
+        if (o.dump_native_logits.empty()) {
+            std::fprintf(stderr, "strata generate: --dump-native-residual requires --dump-native-logits\n");
+            return 2;
+        }
+        native_residual_width = (int64_t) g.hc * (int64_t) g.n_embd;
+        if (native_residual_width <= 0 || native_residual_width > INT32_MAX) {
+            std::fprintf(stderr, "strata generate: native residual width exceeds int32\n");
+            return 2;
+        }
+        native_residual_dump = std::fopen(o.dump_native_residual.c_str(), "wb");
+        if (native_residual_dump == nullptr) {
+            std::fprintf(stderr, "strata generate: cannot write %s\n", o.dump_native_residual.c_str());
+            return 1;
+        }
+        const int32_t residual_hdr[2] = { (int32_t) native_residual_width, 0 };
+        if (std::fwrite(residual_hdr, sizeof residual_hdr, 1, native_residual_dump) != 1) {
+            std::fprintf(stderr, "strata generate: cannot write native residual header\n");
+            return 1;
+        }
+        native_residual_row.resize((size_t) native_residual_width);
     }
 
     // ---- THE C1 ORACLE: ONE RESIDUAL SNAPSHOT PER LAYER PER POSITION, so the engine can be bisected against
@@ -15973,6 +16052,63 @@ int main(int argc, char** argv) {
             }
             int a = 0;
             while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
+            if (native_dump != nullptr) {
+                const int64_t remaining = max_new - (int64_t) produced.size();
+                const int accepted_rows = native_dump_guard::accepted_rows(outv, a + 1, o.stop_eos, o.eos_ids);
+                const int emit_rows =
+                    (int) std::max<int64_t>(0, std::min<int64_t>(accepted_rows, remaining));
+                for (int t = 0; t < emit_rows; ++t) {
+                    if (!ver.copy_logits(t, native_dump_row.data())) {
+                        std::fprintf(stderr, "strata generate: cannot copy native logits at position %lld row %d\n",
+                                     (long long) p, t);
+                        return 1;
+                    }
+                    if (!std::all_of(native_dump_row.begin(), native_dump_row.end(),
+                                     [](float value) { return std::isfinite(value); })) {
+                        std::fprintf(stderr, "strata generate: native logits are not finite at position %lld row %d\n",
+                                     (long long) p, t);
+                        return 1;
+                    }
+                    if (std::fwrite(native_dump_row.data(), sizeof(float), native_dump_row.size(), native_dump) !=
+                        native_dump_row.size()) {
+                        std::fprintf(stderr, "strata generate: cannot write native logits at position %lld row %d\n",
+                                     (long long) p, t);
+                        return 1;
+                    }
+                    if (native_residual_dump != nullptr) {
+                        if (cudaMemcpy(native_residual_row.data(),
+                                       ver.final_R_all() + (size_t) t * (size_t) native_residual_width,
+                                       native_residual_row.size() * sizeof(float), cudaMemcpyDeviceToHost) !=
+                            cudaSuccess) {
+                            std::fprintf(stderr,
+                                         "strata generate: cannot copy native residual at position %lld row %d\n",
+                                         (long long) p, t);
+                            return 1;
+                        }
+                        if (!std::all_of(native_residual_row.begin(), native_residual_row.end(),
+                                         [](float value) { return std::isfinite(value); })) {
+                            std::fprintf(stderr,
+                                         "strata generate: native residual is not finite at position %lld row %d\n",
+                                         (long long) p, t);
+                            return 1;
+                        }
+                        if (std::fwrite(native_residual_row.data(), sizeof(float), native_residual_row.size(),
+                                        native_residual_dump) != native_residual_row.size()) {
+                            std::fprintf(stderr,
+                                         "strata generate: cannot write native residual at position %lld row %d\n",
+                                         (long long) p, t);
+                            return 1;
+                        }
+                    }
+                    std::fprintf(native_windows, "%lld\t%lld\t%d\t%d\t%lld\t%d\t%d\n", (long long) rounds,
+                                 (long long) p + t, T, t, (long long) window[(size_t) t],
+                                 (int) outv[(size_t) t], a);
+                    if (++native_dump_rows > INT32_MAX) {
+                        std::fprintf(stderr, "strata generate: native logits dump row count exceeds int32\n");
+                        return 1;
+                    }
+                }
+            }
             if (first_window) {
                 first_window = false;
                 ttft_ms = std::chrono::duration<double, std::milli>(Clock::now() - t_start).count();
@@ -16310,6 +16446,39 @@ int main(int argc, char** argv) {
     }
 
     if (dump != nullptr) std::printf("%-24s %s\n", "logits dumped", o.dump_logits.c_str());
+    if (native_dump != nullptr) {
+        const int32_t final_hdr[2] = { (int32_t) n_vocab, (int32_t) native_dump_rows };
+        if (std::fflush(native_windows) != 0 || std::ferror(native_windows) ||
+            std::fflush(native_dump) != 0 || std::ferror(native_dump) ||
+            std::fseek(native_dump, 0, SEEK_SET) != 0 ||
+            std::fwrite(final_hdr, sizeof final_hdr, 1, native_dump) != 1 || std::fflush(native_dump) != 0) {
+            std::fprintf(stderr, "strata generate: cannot finalize %s\n", o.dump_native_logits.c_str());
+            return 1;
+        }
+        std::fclose(native_dump);
+        native_dump = nullptr;
+        std::fclose(native_windows);
+        native_windows = nullptr;
+        std::printf("%-24s %s (%lld rows)\n", "native logits dumped", o.dump_native_logits.c_str(),
+                    (long long) native_dump_rows);
+        if (native_residual_dump != nullptr) {
+            const int32_t residual_hdr[2] = { (int32_t) native_residual_width,
+                                              (int32_t) native_dump_rows };
+            if (std::fflush(native_residual_dump) != 0 || std::ferror(native_residual_dump) ||
+                std::fseek(native_residual_dump, 0, SEEK_SET) != 0 ||
+                std::fwrite(residual_hdr, sizeof residual_hdr, 1, native_residual_dump) != 1 ||
+                std::fflush(native_residual_dump) != 0) {
+                std::fprintf(stderr, "strata generate: cannot finalize %s\n",
+                             o.dump_native_residual.c_str());
+                return 1;
+            }
+            std::fclose(native_residual_dump);
+            native_residual_dump = nullptr;
+            std::printf("%-24s %s (%lld rows, width %lld)\n", "native residual dumped",
+                        o.dump_native_residual.c_str(), (long long) native_dump_rows,
+                        (long long) native_residual_width);
+        }
+    }
 
     strata::core::session_graphs_free(gr);
     strata::core::doorbell_free(db);
