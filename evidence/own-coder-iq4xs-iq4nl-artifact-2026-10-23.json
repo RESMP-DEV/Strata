@@ -1,0 +1,98 @@
+{
+  "arm": {
+    "dense": "source precision",
+    "down": "IQ4_NL",
+    "gate_up": "IQ4_XS",
+    "output": "BF16",
+    "ple": "IQ4_NL"
+  },
+  "artifact": {
+    "path": "/Users/kearm/Strata/.worktrees/own-coder/build/own-coder/run-288",
+    "shards": [
+      {
+        "bytes": 1920772448,
+        "name": "flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00001-of-00006.gguf",
+        "sha256": "a3e6a27d8aa2b015d80ed6a13885c6579af09ea275e6feae783790908b293692"
+      },
+      {
+        "bytes": 28800138432,
+        "name": "flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00002-of-00006.gguf",
+        "sha256": "03da204e66d52350fa2df1210e932583a6e2150dd26751eeac9719e9126f7b7f"
+      },
+      {
+        "bytes": 12339988512,
+        "name": "flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00003-of-00006.gguf",
+        "sha256": "fe9de4e46b66ac75f1f26b088e92c636475b94599f5b10fe8ccced04613e0fe6"
+      },
+      {
+        "bytes": 12184545824,
+        "name": "flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00004-of-00006.gguf",
+        "sha256": "3982abee62e134b01f81ca218979f7225835b7303e86df9c8c962023ddeaa9c0"
+      },
+      {
+        "bytes": 12251647136,
+        "name": "flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00005-of-00006.gguf",
+        "sha256": "34bb7b445a672d245c275e5efac1cf69abccbdeadd028b3ea097013072edb68a"
+      },
+      {
+        "bytes": 8035490624,
+        "name": "flash-next-own-288-iq4xs-iq4nl-00001-of-00006-00006-of-00006.gguf",
+        "sha256": "4b55fa8845bd70b88a8eb57979b750f612d2721843cea66b6fc6a323c76dfb8a"
+      }
+    ],
+    "total_bytes": 75532582976,
+    "total_gib": 70.345
+  },
+  "format": "strata-evidence-own-coder-iq4xs-iq4nl-artifact-v1",
+  "non_claims": [
+    "This receipt proves artifact creation and tensor-type/byte verification, not model quality.",
+    "No end-to-end logits, held-out KL, Strata engine load, or runtime benchmark has run.",
+    "The artifact still needs transfer to B550 and a same-day engine serving probe."
+  ],
+  "notes": [
+    "The Mac STRATA_EXACT_COPY_PATCH build was required; the unpatched B550 build ignored per-tensor overrides under COPY.",
+    "The first B550 attempt was stopped before completion because it copied BF16; its partial files were removed.",
+    "Shard names carry a doubled split suffix from --keep-split; this is naming only and the six-shard split is valid."
+  ],
+  "prune": {
+    "layers": 48,
+    "method": "one-for-one RCO-style expert replacement; no experts dropped after materialization",
+    "original_experts": 512,
+    "retained_experts": 288
+  },
+  "recorded_at": "2026-10-23",
+  "scope": "First own-Coder IQ4_XS+IQ4_NL artifact from the measured serving-arm decision",
+  "source": {
+    "gguf_prefix": "flash-next-own-288-parent-plus-bf16",
+    "imatrix": "own-288-imatrix-full-0-255-2048.gguf",
+    "imatrix_chunks": 256,
+    "llama_cpp": "3cf0325 with STRATA_EXACT_COPY_PATCH",
+    "max_buffer_mib": 2048,
+    "metal": false,
+    "model": "/home/kearm/strata-scratch/own-coder-run/pruned-bf16-288",
+    "threads": 4,
+    "tool": "build/own-coder/llama-tools/bin/llama-quantize"
+  },
+  "verified": {
+    "expert_byte_match": true,
+    "expert_bytes": 36805017600,
+    "expert_gib": 34.277,
+    "expert_types": {
+      "ffn_down_exps": "IQ4_NL",
+      "ffn_gate_exps": "IQ4_XS",
+      "ffn_up_exps": "IQ4_XS"
+    },
+    "layers_with_experts": 48,
+    "other_gib": 9.235,
+    "ple_bytes": 28804976640,
+    "ple_gib": 26.822,
+    "quantize_elapsed_seconds": 2654.10593,
+    "quantizer_reported_mib": 72022.97,
+    "tensor_type_counts": {
+      "BF16": 691,
+      "F32": 388,
+      "IQ4_NL": 49,
+      "IQ4_XS": 96
+    }
+  }
+}

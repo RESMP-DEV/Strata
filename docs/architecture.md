@@ -2921,3 +2921,24 @@ workers: 0.926 experts per second serially and 6.419 with 16 workers, a 6.93x sp
 Windows VM was shut off and GPU1 rebound to nvidia for this measurement; GPU0 remained shared
 with an unrelated Flint job. No packed artifact or engine run exists yet. The receipt is
 [IQ arm serving decision](../evidence/iq-arm-serving-decision-2026-10-23.json).
+
+### First own-Coder IQ4_XS plus IQ4_NL artifact, 2026-10-23
+
+The measured serving arm is now a real GGUF artifact. The 288-expert BF16 checkpoint was
+quantized from its six-shard GGUF with the full 256-chunk AlphaHENG iMatrix, leaving the
+output and dense tensors in source precision while selecting IQ4_XS for every layer's gate and
+up experts, IQ4_NL for every down expert, and IQ4_NL for the 95.4-GiB PLE table.
+
+The unpatched B550 llama.cpp build ignored per-tensor overrides under `COPY`, so the first
+attempt was stopped before completion and its partial files removed. The Mac build carries
+`STRATA_EXACT_COPY_PATCH`, which applies tensor overrides in copy mode; with four threads, a
+2-GiB row buffer, and Metal disabled, the full quantization completed in 44.2 minutes and
+reported 72,022.97 MiB at 4.87 BPW.
+
+Verification reads all six shards and checks every expert tensor: all 48 layers use IQ4_XS
+gate/up and IQ4_NL down. Expert bytes are exactly 36,805,017,600 (34.277 GiB), matching the
+arm plan; PLE is 26.822 GiB of IQ4_NL and other tensors total 9.235 GiB. The artifact is
+70.33 GiB across six shards, and every shard SHA-256 is recorded. This proves artifact
+creation and type/byte identity, not quality: no end-to-end logits, held-out KL, Strata engine
+load, or runtime benchmark has run. The receipt is
+[own-Coder IQ4_XS+IQ4_NL artifact](../evidence/own-coder-iq4xs-iq4nl-artifact-2026-10-23.json).
