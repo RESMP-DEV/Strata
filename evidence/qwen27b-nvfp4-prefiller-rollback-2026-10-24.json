@@ -1,0 +1,62 @@
+{
+  "recorded_at": "2026-10-24T19:35:00Z",
+  "agent": "Codex",
+  "scope": "Remove the mistakenly selected Qwen3.8-27B NVFP4 disaggregated prefiller and its CCR lane after user correction; the intended next target is the equivalent concept for the Qwen Flash-Next family.",
+  "source_revision": "037f60c1b0d5bf646d1c8abc0c815b9158383e2d",
+  "source_dirty": true,
+  "source_dirty_scope": "This rollback receipt and architecture work-log entry.",
+  "actions": {
+    "ccr_source": {
+      "wrong_route_commit": "d9b3655",
+      "revert_commit": "d952f22",
+      "validation": "43/43 policy tests and all 12 repository quality checks passed after revert"
+    },
+    "ccr_live": {
+      "deployed_policy_sha256": "d7fa0faaa87cd5b78291eeca7ef5bdded88e4070caa121dddd68fd051ce35ca8",
+      "wrong_provider_present": false,
+      "post_sync_drift": [],
+      "listeners_restarted": ["main", "worker", "auth", "ocr"],
+      "all_restarted_listeners_healthy": true
+    },
+    "mac_cleanup": {
+      "removed": [
+        "/Users/kearm/models/unsloth-Qwen3.8-27B-GGUF-IQ2_S",
+        "/Users/kearm/models/qwen27b-nvfp4-mac-download-logs"
+      ],
+      "already_absent_at_rollback": [
+        "/Users/kearm/models/Qwen3.8-27B-NVFP4-prefiller",
+        "/Users/kearm/models/Qwen3.8-27B-NVFP4-prefiller-probe"
+      ],
+      "credential_removed": "CCR_QWEN27B_NVFP4_B550_API_KEY"
+    },
+    "b550_cleanup": {
+      "status": "complete",
+      "authenticated_path": "Mac -> strix-zt -> B550 192.168.1.171 with HostKeyAlias B550",
+      "removed": [
+        "/home/kearm/models/qwen27b-nvfp4-prefiller-verified",
+        "/home/kearm/models/qwen27b-nvfp4-prefiller",
+        "/home/kearm/.config/systemd/user/qwen27b-nvfp4-ccr.service",
+        "/home/kearm/.config/qwen27b-nvfp4-ccr"
+      ],
+      "post_state": {
+        "unit_active": "inactive",
+        "unit_exists": false,
+        "port_18098": "closed",
+        "llama_server_processes": 0,
+        "matching_model_paths": 0,
+        "gpu0_memory_mib": 1,
+        "gpu1_memory_mib": 1
+      }
+    },
+    "b550_rediscovery": {
+      "bounded_retry": "Ten b550-zt attempts from 2026-10-24T18:17:22Z through 2026-10-24T18:21:16Z, spaced about 25 seconds; all returned No route to host. A later authenticated strix-zt jump reached B550 and the cleanup completed.",
+      "mac_network_context": "The Mac default moved to en0 on 192.168.12.134/24; historical wired en15/192.168.1.113 was absent, while cached mDNS still returned B550's old 192.168.1.171 address.",
+      "local_tunnel_state": "The existing Strata tunnel agent remained running but had no B550 listener; local 18082 was absent after the reverted script restart."
+    }
+  },
+  "non_claims": [
+    "This receipt does not identify or qualify a Flash-Next NVFP4/ODP artifact; that is separate work.",
+    "The paper and generic disaggregated-quantization research remain useful concept inputs; no wrong 27B model weights remain in the listed Mac model directories or the four exact B550 cleanup paths.",
+    "CCR pre-existing DeepSeek, local27, and Strata service availability failures are unchanged by this rollback."
+  ]
+}

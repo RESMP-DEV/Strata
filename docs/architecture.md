@@ -2996,3 +2996,16 @@ first request hit 99.4 percent of routed experts, and the four repeats hit 100 p
 These repeated identical prompts overstate suffix-draft and cache behavior for varied user
 traffic. The full commands, placement controls, raw logs, and non-claims are in
 [own-Coder perplexity and throughput](../evidence/own-coder-perplexity-and-throughput-2026-10-23.json).
+
+### Wrong 27B prefiller rollback, 2026-10-24
+
+The short-lived dense Qwen3.8-27B NVFP4 lane selected the wrong model family and
+has been withdrawn. CCR source commit `d952f22` reverts the route, the live
+policy returned to SHA-256
+`d7fa0faaa87cd5b78291eeca7ef5bdded88e4070caa121dddd68fd051ce35ca8`, all four
+listeners restarted healthy, and the Mac model copies plus dedicated credential
+were removed. The four exact B550 model/service paths were then removed through
+the authenticated Strix jump; port 18098 closed and both GPUs returned to 1 MiB.
+The intended follow-on concept is the equivalent disaggregated prefill artifact
+for the Flash-Next family, not this dense 27B release. See
+[Qwen27B NVFP4 rollback](../evidence/qwen27b-nvfp4-prefiller-rollback-2026-10-24.json).
