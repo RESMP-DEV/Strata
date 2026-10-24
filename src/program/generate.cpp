@@ -72,6 +72,7 @@
 #include "strata/core/native_dense.hpp"
 #include "strata/program/batch_read.hpp"
 #include "strata/program/logits_selection.hpp"
+#include "strata/program/native_dump_guard.hpp"
 #include "strata/program/conv_cache.hpp"
 #include "strata/program/split_rules.hpp"
 #include "strata/prefill/share_rules.hpp"
@@ -6923,6 +6924,10 @@ int main(int argc, char** argv) {
     int64_t native_dump_rows = 0;
     std::vector<float> native_dump_row;
     if (!o.dump_native_logits.empty()) {
+        if (native_dump_guard::collides(o.dump_native_logits, o.dump_native_residual)) {
+            std::fprintf(stderr, "strata generate: native logits, windows, and residual paths overlap\n");
+            return 2;
+        }
         if (n_vocab > INT32_MAX) {
             std::fprintf(stderr, "strata generate: native logits dump vocabulary exceeds int32\n");
             return 2;
@@ -16049,7 +16054,9 @@ int main(int argc, char** argv) {
             while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
             if (native_dump != nullptr) {
                 const int64_t remaining = max_new - (int64_t) produced.size();
-                const int emit_rows = (int) std::max<int64_t>(0, std::min<int64_t>(a + 1, remaining));
+                const int accepted_rows = native_dump_guard::accepted_rows(outv, a + 1, o.stop_eos, o.eos_ids);
+                const int emit_rows =
+                    (int) std::max<int64_t>(0, std::min<int64_t>(accepted_rows, remaining));
                 for (int t = 0; t < emit_rows; ++t) {
                     if (!ver.copy_logits(t, native_dump_row.data())) {
                         std::fprintf(stderr, "strata generate: cannot copy native logits at position %lld row %d\n",

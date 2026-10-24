@@ -21,8 +21,9 @@ LOG_ROOT = ROOT / "build" / "reports" / "quality" / "logs"
 SCOPE = (
     "Validates repository governance, ten selected setup regressions, the host-safe "
     "accelerator-plugin ABI test, the disaggregated KV coordinator's state-machine and "
-    "store-refusal contract tests, the KV tier acceptance gate's own decision tests, "
-    "DeepSeek manifest and host C++ contract tests, "
+    "store-refusal contract tests, the host-safe native dump path/EOS guard test, the "
+    "KV tier acceptance gate's own decision tests, DeepSeek manifest and host C++ "
+    "contract tests, "
     "custom Coder token and variant-planning contracts, "
     "the DeepSeek-V4.1-Flash RCO budget planner's own unit tests, "
     "the optimizer-stage readiness gate's manifest, SHA-256, and host-command checks "
@@ -155,6 +156,10 @@ def quality() -> int:
                 run_logged(
                     "plugin-abi",
                     [sys.executable, "scripts/check_plugins.py"],
+                ),
+                run_logged(
+                    "native-dump-guard",
+                    [sys.executable, "scripts/check_native_dump_guard.py"],
                 ),
                 run_logged(
                     "deepseek-contracts",
