@@ -2681,3 +2681,10 @@ private bank contains 512 rows and 511 such pairs, with all logits and residuals
 contiguous 511..1022 input chain. Hashes and the non-claims are in
 [native MTP residual evidence](../evidence/flash-next-native-mtp-residual-capture-2026-10-21.json).
 No MTP weights were trained or modified.
+
+When consolidating the collector into main on 2026-10-24, the two measurement receipts were kept as
+dated observations rather than rewritten. The first receipt is the superseded standalone logits run;
+the second is the canonical paired logits/residual run and its hashes must be compared only within
+that run. The source-to-replay mapping, the meaning of the first run's dirty source snapshot, and the
+boundary between historical artifact validation and the current host guard are recorded in
+[native collector consolidation provenance](../evidence/native-collector-consolidation-provenance-2026-10-24.json).

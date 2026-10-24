@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-24T23:05:00Z",
+  "agent": "Codex",
+  "task": "Bind the two native collector measurement receipts to their source commits and to this consolidation",
+  "runs": [
+    {
+      "receipt": "evidence/flash-next-native-logit-collector-2026-10-21.json",
+      "role": "Historical standalone full-vocabulary logits collection. It is superseded for MTP pair construction by the later paired logits/residual run.",
+      "source_revision": "240489eec3195bae4339cecf6ef16008d7dfd2f0",
+      "source_dirty": true,
+      "interpretation": "The measurement ran before the collector diff was committed. That diff is represented in this consolidation by replayed commit 78615810 (source d83190b3). collector_binary_sha256 binds the historical binary artifact; it is not a substitute for source-tree cleanliness."
+    },
+    {
+      "receipt": "evidence/flash-next-native-mtp-residual-capture-2026-10-21.json",
+      "role": "Canonical paired run for MTP alignment: its logits, residual, sidecar, manifest, and binary hashes belong to one collection.",
+      "source_revision": "d2d6e413",
+      "source_dirty": false,
+      "interpretation": "The residual implementation is represented by replayed commit e43628f6. Its artifact hashes must not be compared with the earlier standalone run: that was a separate collection, not the same binary output."
+    }
+  ],
+  "consolidation_mapping": {
+    "base": "7ec26d288a5dd90375c6d25f743640f2a3c9c052",
+    "native_logits_commit": "78615810 (source d83190b3)",
+    "aligned_residual_commit": "e43628f6 (source d2d6e413)",
+    "collector_record_commit": "c1facbbf (source 765bbf34)",
+    "guard_repair_commit": "00ce2d30"
+  },
+  "current_verification": {
+    "native_dump_guard": "scripts/check_native_dump_guard.py compiles and runs src/program/native_dump_guard_test.cpp at 00ce2d30; it is included in just quality.",
+    "aggregate": "just quality exited 0 at 00ce2d30 with source_dirty=false and aggregate_passed=true."
+  },
+  "non_claims": [
+    "The 2026-10-24 guard test validates path-collision and EOS-row logic in current source; it does not recompute hashes or finiteness for either historical binary bank.",
+    "Historical finiteness, argmax, position, and pairing assertions remain bound to their recorded receipt dates and artifact hashes.",
+    "Resident embedding-service occupancy was an observational runtime check recorded with each historical run; it is not reproducible from repository source and is not a collector code gate.",
+    "No new logits, residuals, accelerator execution, or model training occurred during consolidation."
+  ]
+}
