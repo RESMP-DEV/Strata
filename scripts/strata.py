@@ -195,6 +195,7 @@ def quality() -> int:
                         "tools.test_iq3_qdq",
                         "tools.test_qwen4exp_iq_arm_measure",
                         "tools.test_agent_cache_bench",
+                        "tools.test_disaggregated_handoff_bench",
                     ],
                 ),
                 run_logged(
@@ -258,6 +259,8 @@ def quality() -> int:
                         "tools/test_moesq_pack.py",
                         "tools/agent_cache_bench.py",
                         "tools/test_agent_cache_bench.py",
+                        "tools/disaggregated_handoff_bench.py",
+                        "tools/test_disaggregated_handoff_bench.py",
                     ],
                 ),
                 run_logged(
@@ -318,6 +321,8 @@ def quality() -> int:
                         "tools/test_moesq_pack.py",
                         "tools/agent_cache_bench.py",
                         "tools/test_agent_cache_bench.py",
+                        "tools/disaggregated_handoff_bench.py",
+                        "tools/test_disaggregated_handoff_bench.py",
                     ],
                 ),
                 run_logged(

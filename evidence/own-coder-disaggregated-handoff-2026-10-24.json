@@ -1,0 +1,186 @@
+{
+  "recorded_at": "2026-10-25T00:32:37.851190+00:00",
+  "agent": "Codex",
+  "scope": "Exercise a real prefill/decode disaggregated split on the own-288 RCO/Coder artifact, repair the blocking session and source-precision verifier defects, and compare exact split throughput with an exact warm single-lane control.",
+  "source_revision": "611bceb3dfff674b88a020da273e6140ada974d3",
+  "source_dirty": true,
+  "source_diff_sha256": "97ced90209c72497c8dbf55a736bb95d7832a50e434e4d6057e0f0cd0aff5006",
+  "changed_files": [
+    "include/strata/core/conversation_snapshot.hpp",
+    "src/core/conversation_state.cpp",
+    "src/core/conversation_snapshot_test.cpp",
+    "src/core/verify.cpp",
+    "src/program/generate.cpp",
+    "scripts/strata.py",
+    "tools/disaggregated_handoff_bench.py",
+    "tools/test_disaggregated_handoff_bench.py",
+    "docs/architecture.md",
+    "evidence/own-coder-disaggregated-handoff-2026-10-24.json"
+  ],
+  "host": {
+    "hostname": "b550",
+    "machine_id_sha256": "f1d67f707f3c8644e3f60a8a3151b0bd2ae5db29dde2a63f9d950e96d2fbee46",
+    "access": "authenticated SSH through strix-zt jump to kearm@192.168.1.171 with HostKeyAlias=B550",
+    "cpu": "AMD Ryzen 9 5900XT, 16 physical cores / 32 logical CPUs",
+    "gpus": [
+      "RTX 3090 Ti GPU0",
+      "RTX 3090 Ti GPU1"
+    ],
+    "remote_source_tree": "/home/kearm/strata-rco-disagg (tracked files from the local branch plus this task patch; no .git metadata transferred)",
+    "engine": "/home/kearm/strata-rco-disagg/build/rco-disagg-sm86/strata",
+    "engine_sha256": "1c05fbdeb2cbf78ba0085ad33cb3f39a1def670ce2ae8aed14c0d50202cdad7a",
+    "build": "CMake Ninja, CUDA sm86, Release; system libstdc++ explicitly appended to CMAKE_CXX_STANDARD_LIBRARIES because CUDA GCC-13 search paths hid the GCC-15 __cxa_call_terminate runtime symbol",
+    "gpu_idle_after": {
+      "per_gpu_mib": [
+        1,
+        1
+      ],
+      "utilization_percent": [
+        0,
+        0
+      ],
+      "compute_apps": [],
+      "shm_used_gib": 0
+    }
+  },
+  "artifact": {
+    "name": "flash-next-own-288-iq4xs-iq4nl",
+    "geometry": "48 layers x 288 retained experts",
+    "prune_method": "one-for-one RCO-style expert replacement; no experts dropped after materialization",
+    "native_pack": "/home/kearm/models/own-coder-iq4xs-iq4nl-pack",
+    "expert_bytes": 36805017600,
+    "manifest_sha256": "f9a5e0d174298023ab6308ba4d93a78a99acb1ae438f5415719c6bc15838f245",
+    "dense_sha256": "df9a2711301f236d0776b4ef3489b149033972b16dde6c05ae15eeb67598fea0",
+    "expert_profile": "neutral all-pair STRP v1"
+  },
+  "repairs": {
+    "no_mtp_session_save": {
+      "symptom": "Engine 0.1.41 and the branch engine refused SAVE with conversation snapshot: invalid K/V extent when no --mtp drafter was loaded.",
+      "cause": "SAVE/RESTORE always passed a default MtpDrafter K/V state; with no drafter its max_cells was zero.",
+      "fix": "Add nullable-draft overloads for conversation_snapshot_sources and conversation_session_read_limits, and pass nullptr at the four session-file call sites when use_mtp is false.",
+      "focused_test": "conversation_snapshot_test: 4097 checks passed on B550 CUDA0, including no-draft source/read-limit coverage"
+    },
+    "source_precision_verifier_side_paths": {
+      "symptom": "Branch engine failed verify layer 0 with unsupported native MMVQ GGML type after loading the own-288 source-precision pack.",
+      "cause": "The existing BF16 fallback tested native_data == nullptr, but source-precision BF16 tensors can carry a non-null native descriptor; side-branch gate/query projections still called native_mmvq directly.",
+      "fix": "Route gate/query projections through a stream-aware BF16/native helper and select BF16 MMVF from WeightKind::Bf16InF32 regardless of native_data.",
+      "live_proof": "The exact branch engine completed the 65-token control, SAVE, cross-process RESTORE, and 17-token decode with exact visible output equality."
+    }
+  },
+  "mechanism": {
+    "selected": "Two serial single-GPU engines exchanging full session files through POST /slots/0?action=save|restore.",
+    "not_selected": "--kv-tier is per-process, refuses --batch and --layer-split, truncates foreign session files, and is not a cross-engine prefill/decode handoff.",
+    "hard_semantics": "Session files require --prompt-cache > 0 and refuse --layer-split, --peer-device, and --batch. The split is turn-boundary state transfer with a short decode-side tail re-read, not a literal mid-prompt/mid-generation boundary.",
+    "shared_arena": "Both engines simultaneously used one 35-GiB MAP_SHARED /dev/shm expert arena with pack-hash checking."
+  },
+  "workload": {
+    "driver": "tools/disaggregated_handoff_bench.py",
+    "workers": 4,
+    "rounds": 2,
+    "requests": 8,
+    "context_words": 256,
+    "prompt_tokens_total": 3028,
+    "max_tokens": 32,
+    "shared_prefix": "first user document pinned with strata_prefix.messages=1",
+    "exact_settings": "expert-cache 5000 on both lanes, --pcie-frac 0, --adapt-every 1000000, STRATA_IQ_MT_MIN=1, STRATA_ROUTE_TAIL_SKIP=0, fixed model/config fingerprints",
+    "control_affinity": "all 16 physical cores",
+    "split_affinity_final": "6 physical cores prefill + 10 physical cores decode"
+  },
+  "measurements": {
+    "identity_probe": {
+      "prompt_tokens": 65,
+      "session_bytes": 237094484,
+      "save_ms": 351.1,
+      "restore_ms": 233.8,
+      "restored_decode_cached_tokens": 58,
+      "restored_decode_fresh_tokens": 7,
+      "exact_content_match": true
+    },
+    "warm_exact_control": {
+      "requests": 8,
+      "errors": 0,
+      "prompt_tokens": 3028,
+      "cached_tokens": 2776,
+      "fresh_tokens": 252,
+      "cache_ratio": 0.916776750330251,
+      "completion_tokens": 256,
+      "first_token_p50_s": 0.6486803805019008,
+      "first_token_p95_s": 0.6587671139015583,
+      "makespan_s": 13.333018495002761,
+      "aggregate_completion_tok_s": 19.200453377901578
+    },
+    "warm_exact_split_8cpu_8cpu": {
+      "makespan_s": 19.5443518240063,
+      "aggregate_completion_tok_s": 13.098413408909042
+    },
+    "warm_exact_split_6cpu_prefill_10cpu_decode": {
+      "makespan_s": 18.907939886004897,
+      "aggregate_completion_tok_s": 13.539285693915481
+    },
+    "final_exact_split_handoff": {
+      "save_operations": 8,
+      "save_bytes_sum": 1932238320,
+      "save_client_p50_s": 0.40151188000148635,
+      "restore_operations": 8,
+      "restore_bytes_sum": 1932238320,
+      "restore_client_p50_s": 0.24234326900233172,
+      "prefill_lane_busy_s": 12.049153155996464,
+      "decode_lane_busy_s": 16.98946839402197,
+      "lane_overlap_s": 10.130681664013537
+    },
+    "identity": {
+      "warm_exact_control_vs_final_split": {
+        "exact_text_matches": 8,
+        "requests": 8
+      }
+    },
+    "diagnostics": {
+      "unpinned_nonexact_split": {
+        "completion_tok_s": 15.483975571998782,
+        "note": "CPU pools oversubscribed 15+15 workers on 16 cores"
+      },
+      "disjoint_cpu_nonexact_split": {
+        "completion_tok_s": 22.55841089336598,
+        "exact_text_matches_vs_control": 0,
+        "note": "Faster but placement-rounding output differed, so rejected"
+      },
+      "prompt_cache_tail": {
+        "completion_tok_s": 22.43795601722571,
+        "note": "No improvement in fresh decode tail; rejected"
+      }
+    }
+  },
+  "decision": {
+    "correctness": "The disaggregated split is structurally and visibly exact when both lanes use fixed placement and exact arithmetic: 8/8 replies matched the warm exact control.",
+    "performance": "The exact split is slower for this workload: 13.54 completion tok/s versus 19.20 tok/s for the warm exact single-lane control. It is not the serving choice for many parallel workers on B550.",
+    "reason": "Session-file serialization/restoration and duplicated lane work outweigh cross-lane overlap. Each lane is serial because session files refuse --batch. The final decode lane remained the bottleneck at 16.99 s busy versus 12.05 s for prefill.",
+    "future_boundary": "A competitive split needs a lightweight per-request KV/page transfer and batch-aware decode admission; the current full-session file is a correctness lane and diagnostic, not a production disaggregation transport."
+  },
+  "checks": {
+    "python_unit": "python3 -m unittest -v tools.test_disaggregated_handoff_bench: 4/4 passed",
+    "ruff": "ruff check and ruff format --check on the new benchmark and test passed",
+    "cuda_snapshot_test": "CUDA_VISIBLE_DEVICES=0 conversation_snapshot_test: 4097 checks passed",
+    "exact_identity": "8/8 control and split reply texts matched",
+    "gpu_cleanup": "Both GPUs returned to 1 MiB and 0% utilization; /dev/shm returned to 0 GiB used",
+    "just_quality": "passed; aggregate_passed=true in build/reports/quality/receipt.json"
+  },
+  "raw_local_evidence_dir": "build/disaggregated-rco/b550-remote",
+  "remote_session_archive": "/mnt/resmp-24tb/strata-scratch-migrated/rco-disaggregated-sessions-20261024 (9.7 GiB)",
+  "raw_result_sha256": {
+    "own288-disagg-exact-control-warm-c4-r2-w256.json": "aafb63b33858e76d9c52195d79224b4a5a4a9fd6863160e3e30e3fe3c1165182",
+    "own288-disagg-exact-split-c4-r2-w256.json": "37fe262deef31686fc1ef70c917af0394718350cbe435597447067eaa9522855",
+    "own288-disagg-exact-split-c4-r2-w256-cpu10-6.json": "2b3d1be5bd08c863503be25c9387d164f78d1d03ee40d02f91da726b02e6a6b2",
+    "own288-disagg-split-c4-r2-w256.json": "7b680d53439b0ab7654a6568b7f2964b046ef10a729803ee450a884bb89ed417",
+    "own288-disagg-split-c4-r2-w256-cpu-split.json": "c478f9b6b2248e404c3786894116e5bf85a901a82d685e8ef3898358553c6448",
+    "handoff-probe-v7-exact.json": "f0ab0a6cb376a4a74fd91d12ab7582b12728595a84b097f5e16187566f8c4094"
+  },
+  "non_claims": [
+    "This is not a quality result: the model outputs on this synthetic workload are often incoherent, and no perplexity, KL, NLL, coding-score, or long-session quality claim is made.",
+    "Visible text equality is not token/logit identity; HTTP did not expose token IDs. It is an exact-output sanity control under pinned placement.",
+    "The workload is one burst of eight serial-per-lane requests, not interleaved medians or a long-duration serving soak.",
+    "The split cannot use the current parallel batch path because session files refuse --batch; it does not solve many concurrent workers by itself.",
+    "The 22.56-tok/s unpinned split is rejected because zero of eight outputs matched its control.",
+    "No default route, CCR policy, public artifact, or upstream repository changed."
+  ],
+  "passed": true
+}

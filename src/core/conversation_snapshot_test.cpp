@@ -174,6 +174,11 @@ void full_session(int fmt, int mode, int experts) {
               x.checkpoints.size()==y.checkpoints.size() && equal(x.kv[0],y.kv[0]) && equal(x.kv.back(),y.kv.back()),
               "streamed file equals captured file");
         check(slurp(p1)==slurp(p2),"streamed file is byte-identical to the captured file");
+        check(conversation_snapshot_sources(meta,sources,view,ss,g,nullptr,err),"disk-save sources without a draft");
+        check(meta.kv.empty() && sources.size()+1==b.kv.size(),"a missing draft is not serialized as K/V");
+        SessionReadLimits limits;
+        check(conversation_session_read_limits(limits,ss,g,nullptr,96,3,err),"read limits without a draft");
+        check(limits.max_kv_layers==sources.size(),"no-draft read limits exclude the draft layer");
         std::error_code ec;
         fs::remove_all(dir,ec);
         auto empty_ids=std::vector<int32_t>{};

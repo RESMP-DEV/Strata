@@ -1299,13 +1299,14 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
             native_quantize_q8_1(x, xq_, n_in, n, cs);
             il_ready = false;
         };
-        auto mm = [&](const WeightRef* w, float* out, int n_in, int n_out, const float* x, int64_t ldx) {
-            if (w->native_data == nullptr) {
+        auto mm_on = [&](const WeightRef* w, float* out, int n_in, int n_out, const float* x, int64_t ldx,
+                         cudaStream_t stream) {
+            if (w->native_data == nullptr || w->kind == core::WeightKind::Bf16InF32) {
                 if (w->kind != core::WeightKind::Bf16InF32 || w->data == nullptr) {
                     err = "verify: a projection has neither native GGUF blocks nor a resident BF16 tensor";
                     return;
                 }
-                bf16_gemv_fp32_mmvf_multi(x, ldx, (const uint16_t*) w->data, out, n_out, n_in, n_out, n, cs);
+                bf16_gemv_fp32_mmvf_multi(x, ldx, (const uint16_t*) w->data, out, n_out, n_in, n_out, n, stream);
                 return;
             }
             if (g_mmvq_il() && strata::kernels::native_mmvq_il_supported(w->native_type, n, n_out)) {
@@ -1313,10 +1314,13 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                     strata::kernels::native_q8_1_interleave(xq_, xil_, n_in, n, cs);
                     il_ready = true;
                 }
-                strata::kernels::native_mmvq_il(w->native_type, w->native_data, xq_, xil_, out, n_in, n_out, n, cs);
+                strata::kernels::native_mmvq_il(w->native_type, w->native_data, xq_, xil_, out, n_in, n_out, n, stream);
             } else {
-                native_mmvq(w->native_type, w->native_data, xq_, out, n_in, n_out, n, cs);
+                native_mmvq(w->native_type, w->native_data, xq_, out, n_in, n_out, n, stream);
             }
+        };
+        auto mm = [&](const WeightRef* w, float* out, int n_in, int n_out, const float* x, int64_t ldx) {
+            mm_on(w, out, n_in, n_out, x, ldx, cs);
         };
         try {
             if (!is_qsa_layer(g, l)) {
@@ -1356,9 +1360,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                     }
                     if (!branch(pfork_, cs, side2_, "fork")) return false;
                     mm(wqkv, qkv + (size_t) tb * C, (int) N, (int) C, xm, N);
-                    if (g_il) strata::kernels::native_mmvq_il(wg->native_type, wg->native_data, xq_, xil_, z_ + (size_t) tb * ZV,
-                                                              (int) N, (int) ZV, n, side2_);
-                    else native_mmvq(wg->native_type, wg->native_data, xq_, z_ + (size_t) tb * ZV, (int) N, (int) ZV, n, side2_);
+                    mm_on(wg, z_ + (size_t) tb * ZV, (int) N, (int) ZV, xm, N, side2_);
                     if (cudaEventRecord(pjoin_, side2_) != cudaSuccess) { err = "verify: the gate projection's branch could not join"; return false; }
                 }
                 if (br) {   // STRATA_DF_BRANCH: a/b and z beside q/k/v and the conv; all of them read only this layer's input
@@ -1367,8 +1369,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                                  (const float*) wsa->data, gate + (size_t) tb * HV, beta + (size_t) tb * HV, (int) N,
                                  (int) HV, n, df_side_[0]);
                     fork(1);
-                    native_mmvq(wg->native_type, wg->native_data, xq_, z_ + (size_t) tb * ZV, (int) N, (int) ZV, n,
-                                df_side_[1]);
+                    mm_on(wg, z_ + (size_t) tb * ZV, (int) N, (int) ZV, xm, N, df_side_[1]);
                 }
                 const bool fuse_ab = fuse_convab_on() && !br && !batch_rec_ && !prof_on_ && !sidem;   // the side mixer computes the gates on its branch
                 if (!side_proj) mm(wqkv, qkv + (size_t) tb * C, (int) N, (int) C, xm, N);   // with side_proj: above, first
@@ -1505,8 +1506,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                 const bool qbr = br && qb;
                 if (qbr) {
                     fork(0);
-                    native_mmvq(wq->native_type, wq->native_data, xq_, qfull_ + tb * NH * 2 * HD, (int) N,
-                                (int) (NH * 2 * HD), n, df_side_[0]);
+                    mm_on(wq, qfull_ + tb * NH * 2 * HD, (int) N, (int) (NH * 2 * HD), xm, N, df_side_[0]);
                     copy_rows_strided(qcur_ + tb * NH * HD, qfull_ + tb * NH * 2 * HD, (int64_t) n * NH, HD, 2 * HD,
                                       df_side_[0]);
                     norm_rope_on(qcur_ + tb * NH * HD, wqn, (int) (n * NH), (int) HD, pos_ + tb * NH, df_side_[0]);
@@ -1587,8 +1587,7 @@ bool Verifier::record_window(int T, cudaStream_t cs, std::string& err) {
                     if (ns == cs) mm(wq, qfull_ + tb * NH * 2 * HD, (int) N, (int) (NH * 2 * HD), xm, N);
                     else if (q_il) strata::kernels::native_mmvq_il(wq->native_type, wq->native_data, xq_, xil_,
                                                                    qfull_ + tb * NH * 2 * HD, (int) N, (int) (NH * 2 * HD), n, ns);
-                    else native_mmvq(wq->native_type, wq->native_data, xq_, qfull_ + tb * NH * 2 * HD, (int) N,
-                                     (int) (NH * 2 * HD), n, ns);
+                    else mm_on(wq, qfull_ + tb * NH * 2 * HD, (int) N, (int) (NH * 2 * HD), xm, N, ns);
                     if (qb) {
                         if (fuse_nr) {   // the q/gate split reads q straight out of the q|gate rows (stride 2 * HD)
                             native_qsa_rms_norm_rope(qfull_ + tb * NH * 2 * HD, (int) (2 * HD), (const float*) wqn->data,

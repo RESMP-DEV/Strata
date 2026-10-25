@@ -3077,3 +3077,38 @@ only 464 MiB free and one GPU was effectively full.  These are one-shot burst
 results, and no perplexity or held-out quality claim is made.  Full hashes,
 rounds, metrics, configurations, logs, and non-claims are in
 [high-cache parallel agent evidence](../evidence/high-cache-parallel-agent-bench-2026-10-24.json).
+
+### Own-288 prefill/decode handoff, 2026-10-24
+
+The own-288 RCO/Coder artifact now has a real cross-process prefill/decode
+handoff lane.  The only available transfer is a full model-bound session file:
+one serial single-GPU engine prefills and publishes the conversation, and a
+second serial engine restores it before decoding.  This is a turn-boundary
+handoff with a short decode-side tail re-read, not a literal mid-prompt or
+mid-generation boundary.  The disaggregated KV tier is not that transport: its
+session identity is process-scoped and it refuses batch and layer split.
+
+Two source defects had to be repaired first.  Session SAVE passed the default
+MTP drafter state even when no drafter was loaded, producing an invalid K/V
+extent; nullable-draft source/read-limit overloads now omit that layer.  The
+newer verifier also sent source-precision BF16 tensors down a Q8 MMVQ side
+branch when their native descriptor was non-null.  Its stream-aware projection
+helper now selects BF16 MMVF from the tensor kind.  The resulting branch engine
+saved 65 tokens to a 237,094,484-byte file in 351 ms, restored in 234 ms,
+reused 58 of 65 prompt tokens, and reproduced the control text exactly.
+
+`tools/disaggregated_handoff_bench.py` pipelines the two serial lanes.  With
+four workers, two rounds, a 256-word pinned shared prefix, 32 output tokens,
+fixed 5,000-slot expert placement, exact IQ reduction, and disjoint CPU
+affinity, the split matched all eight warm-control replies.  It reached 91.68
+percent decode-side prompt reuse but only 13.54 completion tok/s; the warm
+exact single-lane control reached the same 91.68 percent reuse at 19.20 tok/s.
+The final split spent 16.99 seconds busy in decode and 12.05 in prefill, with
+10.13 seconds of overlap.  An unpinned 22.56-tok/s split was rejected because
+zero of eight outputs matched its control.  Full-session serialization and
+duplicated lane work outweigh overlap, and session files cannot combine with
+`--batch`, so this lane is a correctness/diagnostic boundary rather than the
+serving choice for many parallel agents.  A competitive split needs a
+lightweight per-request KV/page transfer and batch-aware admission.  The
+complete configs, repairs, diagnostics, hashes, and non-claims are in
+[own-288 handoff evidence](../evidence/own-coder-disaggregated-handoff-2026-10-24.json).
