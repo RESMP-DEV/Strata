@@ -1,0 +1,154 @@
+{
+  "agent": "Codex parent",
+  "artifacts": {
+    "control_result": "build/reports/strata/mtp-feature-trace-v1/clean-ab/control-result.json",
+    "trace": "build/reports/strata/mtp-feature-trace-v1/clean-ab/anchor0-offset1.stfh",
+    "trace_result": "build/reports/strata/mtp-feature-trace-v1/clean-ab/trace2-result.json",
+    "trace_validation": "build/reports/strata/mtp-feature-trace-v1/clean-ab/trace2-validation.json"
+  },
+  "build_repair": {
+    "cause": "CUDA injected /usr/lib/gcc/x86_64-linux-gnu/13 before the GCC 15 compiler directory, so -lstdc++ selected the older runtime without that symbol.",
+    "failure": "The first CUDA link failed with undefined __cxa_call_terminate from libstrata_prefill.a even after adding -lstdc++.",
+    "repair": "CMake resolves the compiler-matched libstdc++.so from CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES and links that absolute path.",
+    "result": "cmake --build build/sm86 --target strata -j16 completed and produced an 81 MiB binary.",
+    "selected_runtime": "/usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so"
+  },
+  "clean_overhead_ab": {
+    "control": {
+      "decode_ms": 155.1,
+      "full_engine_elapsed_seconds": 313.21326518058777,
+      "prompt_ms": 3723.4,
+      "target_token": 271
+    },
+    "interpretation": "Cold one-request capture overhead, not a serving-throughput claim; full elapsed time includes model load and is not the comparison metric.",
+    "protocol": "identical one-request command on an idle B550; trace-off first, then trace-on",
+    "request_delta": {
+      "decode_fraction": 0.1147646699266383,
+      "decode_ms": 17.8,
+      "prompt_fraction": 0.3931338272654294,
+      "prompt_ms": 1463.3
+    },
+    "trace": {
+      "decode_ms": 172.9,
+      "full_engine_elapsed_seconds": 250.53300881385803,
+      "prompt_ms": 5186.7,
+      "target_token": 271
+    }
+  },
+  "implementation": {
+    "bounded_capture": "device rows are copied to the host in 64-row slices",
+    "default_path": "unchanged when --dump-mtp-features is absent",
+    "format": "STFH v1",
+    "header": "64 bytes, self-describing magic/version/sizes/kind bitmap/endianness/element size/width/layers/vocab",
+    "payload": "little-endian row-major f32 wide residual rows",
+    "record_header": "48 bytes with kind, seam, request ordinal, absolute position, rows, width, per-seam sequence, and payload bytes",
+    "refusals": [
+      "qwen35 engine path",
+      "Metal path",
+      "incompatible container fields"
+    ],
+    "seams": [
+      "prompt chunk",
+      "post-verify committed window"
+    ]
+  },
+  "live_probe": {
+    "engine_sha256": "0c572ed6d7c1f225bae2cb8000af88a7fcf8fad4b742463d51111a78a2c4c8ac",
+    "gpu": "one NVIDIA GeForce RTX 3090 Ti, CUDA0",
+    "host": "b550",
+    "initial_gpu1_attempt": "failed before READY because nvidia-smi exposed only GPU0; no trace was claimed from that attempt",
+    "model_executed_shard_sha256": "3c69f42a305c15209893f0e1c8b70ffcbc9dd8346cdd7c781e7edefbe42b2915",
+    "request": {
+      "anchor_index": 0,
+      "draft_offset": 1,
+      "draft_token": 198,
+      "outcome": "draft rejected by the target, as expected for this anchor",
+      "prefix_tokens": 33,
+      "target_token": 271
+    },
+    "runtime_flags": "--prompt-cache 0 --expert-cache 1 --spec 2 --mtp ... --mtp-max-t 4 --prefill 72 --max-context 256 --kv int8 --ple-io direct --gpu 0",
+    "target": {
+      "repo": "Qwen/Qwen3.8-Flash-Next",
+      "revision": "812d96e10a0dd82b69d749e68693698cf6c36daa"
+    }
+  },
+  "non_claims": [
+    "STFH capture is not a drafter, router, training run, or acceptance improvement.",
+    "One request does not establish stability across batching, layer splits, Metal, HIP, concurrency, or long contexts.",
+    "The overhead A/B is a cold single-request probe and is not serving throughput.",
+    "No target-quality or generation-distribution claim is made."
+  ],
+  "question": "Can Strata capture the Flash-Next wide residual state at the exact prompt-chunk and post-verify seams a draft head consumes, without changing the default runtime path?",
+  "recorded_at": "2026-11-18T07:05:00Z",
+  "schema_version": 1,
+  "source": {
+    "base_revision": "1bcf980f4b801edb49484d7463dbd832a8c2cb6d",
+    "branch": "feature/mtp-feature-trace",
+    "build_fix_revision": "1aede06f",
+    "dirty_paths": [
+      "docs/architecture.md",
+      "evidence/mtp-feature-trace-2026-11-18.json"
+    ],
+    "implementation_revision": "d37e4fc2",
+    "repository": "RESMP-DEV/Strata"
+  },
+  "trace_validation": {
+    "bytes": 1351840,
+    "finite_range": [
+      -10.793985366821289,
+      10.94434928894043
+    ],
+    "floats": 337920,
+    "header": {
+      "element_bytes": 4,
+      "layers": 48,
+      "record_header_bytes": 48,
+      "version": 1,
+      "vocab": 248320,
+      "width": 10240
+    },
+    "nonfinite_floats": 0,
+    "records": [
+      {
+        "payload_bytes": 1310720,
+        "position": 0,
+        "request": 1,
+        "rows": 32,
+        "seam": "prompt_chunk"
+      },
+      {
+        "payload_bytes": 40960,
+        "position": 32,
+        "request": 1,
+        "rows": 1,
+        "seam": "post_verify"
+      }
+    ],
+    "repeat": "two independent live captures produced the same SHA-256",
+    "sha256": "9989bc75749974a97620b97d81259cc2407dc687754dac91205c65dbc9d090d5"
+  },
+  "verification": [
+    {
+      "command": "cmake -S . -B build/mtp-feature -DSTRATA_BUILD_TESTS=ON && cmake --build build/mtp-feature --target mtp_features_trace_test -j 8 && ctest --test-dir build/mtp-feature -R mtp_features_trace_test --output-on-failure",
+      "exit_code": 0,
+      "name": "macos_contract_test"
+    },
+    {
+      "command": "ctest --test-dir build/sm86 -R mtp_features_trace_test --output-on-failure",
+      "exit_code": 0,
+      "name": "b550_contract_test",
+      "result": "1/1 passed"
+    },
+    {
+      "binary_sha256": "0c572ed6d7c1f225bae2cb8000af88a7fcf8fad4b742463d51111a78a2c4c8ac",
+      "command": "cmake -S . -B build/sm86 -DSTRATA_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=86 -DSTRATA_BUILD_TESTS=ON && cmake --build build/sm86 --target strata -j16",
+      "exit_code": 0,
+      "name": "b550_cuda_build"
+    },
+    {
+      "command": "just quality",
+      "exit_code": 0,
+      "name": "repository_quality"
+    }
+  ]
+}

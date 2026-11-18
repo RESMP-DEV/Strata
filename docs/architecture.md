@@ -3009,3 +3009,31 @@ the authenticated Strix jump; port 18098 closed and both GPUs returned to 1 MiB.
 The intended follow-on concept is the equivalent disaggregated prefill artifact
 for the Flash-Next family, not this dense 27B release. See
 [Qwen27B NVFP4 rollback](../evidence/qwen27b-nvfp4-prefiller-rollback-2026-10-24.json).
+
+### MTP wide-residual STFH capture, 2026-11-18
+
+The Flash-Next drafting lane now has an opt-in way to capture the target state
+that a draft layer actually consumes. `--dump-mtp-features PATH` writes STFH
+v1: a self-describing 64-byte header, 48-byte record headers, and little-endian
+f32 payloads containing the 10,240-wide residual rows at every prompt-chunk and
+post-verify seam. Each record names its request ordinal, absolute position,
+row count, width, per-seam sequence, and payload size. The qwen35 and Metal
+paths refuse the flag rather than silently ignoring it, and the default path
+without the flag installs no trace and copies nothing.
+
+The first B550 CUDA build exposed a host-runtime link defect rather than a GPU
+failure: CUDA injected the GCC 13 library directory before the compiler's own
+GCC 15 directory, so `-lstdc++` selected a runtime without
+`__cxa_call_terminate`. CMake now resolves the compiler-matched runtime from
+`CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES`. The resulting SM86 engine is SHA-256
+`0c572ed6...`; the synthetic STFH contract test passes on both macOS and B550.
+
+A live one-request Flash-Next probe wrote two records for a 33-token prefix:
+32 prompt-chunk rows at position 0 and one post-verify row at position 32,
+for 337,920 finite floats. Two independent captures produced the identical
+SHA-256 `9989bc75...`. On an idle host, the trace added 1,463.3 ms to the
+cold 33-token prompt and 17.8 ms to the one-token decode (39.3% and 11.5% for
+that request). Those are capture-cost observations, not serving throughput.
+The failed first attempt to use CUDA1 is also recorded: `nvidia-smi` exposed
+only GPU0 at that moment. Full commands, hashes, validation, and non-claims
+are in [MTP feature trace](../evidence/mtp-feature-trace-2026-11-18.json).
