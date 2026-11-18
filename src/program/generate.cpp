@@ -89,6 +89,7 @@
 #include "strata/core/device.hpp"
 #include "strata/core/emulate.hpp"
 #include "strata/routing/trace.hpp"
+#include "strata/trace/mtp_features.hpp"
 #ifndef NOMINMAX
 #define NOMINMAX   // gguf_reader.hpp includes windows.h
 #endif
@@ -509,6 +510,10 @@ struct Options {
     /// Literal batched `Prefill::run` routing, in the phase-specific format documented in
     /// `docs/PREFILLER.md`. Empty (the default) leaves the prompt routing callback null.
     std::string dump_prefill_routing;
+    /// The Stage 1 MTP feature trace (STFH v1): the target's wide residual rows at every prompt chunk and every
+    /// verify window, with the request ordinal and absolute position that align row 0. Residual-only; it adds no
+    /// logits and changes no arithmetic. Empty (the default) installs no trace and copies nothing.
+    std::string dump_mtp_features;
     bool no_capture = false;          // run the layers directly instead of replaying graphs
     bool no_pool = false;             // skip the CPU expert pool: the GPU-only floor
     bool sync_every_layer = false;
@@ -883,6 +888,9 @@ void usage() {
                  "  --dump-routing PATH  write the routed expert ids and weights per layer per position (P0.S8)\n"
                  "  --dump-prefill-routing PATH\n"
                  "                       write literal batched Prefill::run routing in a phase-specific format\n"
+                 "  --dump-mtp-features PATH\n"
+                 "                       write the STFH v1 feature trace: wide residual rows per prompt chunk and\n"
+                 "                       verify window, aligned by request ordinal and absolute position\n"
                  "  --no-capture         run the layers directly instead of replaying graphs\n"
                  "  --shared-late        A/B: shared expert after the CPU pool (default: overlapped with it)\n"
                  "  --keep-canonical     A/B: also load canonical copies of natively served tensors (more VRAM)\n"
@@ -2362,7 +2370,17 @@ int main(int argc, char** argv) {
         } catch (const std::exception&) {
             // not readable here: the normal path below reports it
         }
-        if (qwen35) return strata::qwen35::run(argc, argv);
+        if (qwen35) {
+            // The STFH feature trace hangs off THIS engine's prompt and verify seams; the qwen35 engine has neither,
+            // and its serve loop would only warn that it is ignoring the flag.  Refuse it instead.
+            for (int k = 1; k < argc; ++k)
+                if (std::strcmp(argv[k], "--dump-mtp-features") == 0) {
+                    std::fprintf(stderr,
+                                 "strata generate: --dump-mtp-features is unsupported on the qwen35 engine path\n");
+                    return 2;
+                }
+            return strata::qwen35::run(argc, argv);
+        }
         break;
     }
 #endif
@@ -2427,6 +2445,7 @@ int main(int argc, char** argv) {
         else if (a == "--dump-halves") o.dump_halves = next("--dump-halves");
         else if (a == "--dump-routing") o.dump_routing = next("--dump-routing");
         else if (a == "--dump-prefill-routing") o.dump_prefill_routing = next("--dump-prefill-routing");
+        else if (a == "--dump-mtp-features") o.dump_mtp_features = next("--dump-mtp-features");
         else if (a == "--ple-gguf") o.ple_gguf = next("--ple-gguf");
         else if (a == "--no-ple") o.no_ple = true;
         else if (a == "--ple-io") { o.ple_io = next("--ple-io"); o.ple_io_explicit = true; }
@@ -2934,6 +2953,11 @@ int main(int argc, char** argv) {
     if (!o.dump_prefill_routing.empty() && o.batch > 0) {
         std::fprintf(stderr, "strata generate: --dump-prefill-routing refuses --batch: a yielded or partial prompt "
                              "can resume with a new request ID. Capture one contiguous request at a time.\n");
+        return 2;
+    }
+    if (!o.dump_mtp_features.empty() && o.batch > 0) {
+        std::fprintf(stderr, "strata generate: --dump-mtp-features refuses --batch: concurrent slots have no single "
+                             "request ordinal or contiguous position run. Capture one request at a time.\n");
         return 2;
     }
     if (!o.kv_tier.empty() && (o.batch > 0 || multi_gpu)) {
@@ -6780,6 +6804,56 @@ int main(int argc, char** argv) {
         return 2;
 #endif
     }
+    strata::trace::MtpFeatureTrace mtp_features;
+    const uint64_t mtp_trace_width = (uint64_t) g.hc * (uint64_t) g.n_embd;
+    // The two seams hand over DEVICE rows.  Copy them in bounded host slices so a long prompt chunk never allocates
+    // its whole residual set, and switch to the device that owns the rows first (a layer split's last stage).  A
+    // `device` of -1 means the caller already runs with that device current (a Prefill::on_chunk callback).
+    auto capture_mtp_residual = [&](uint32_t seam, int64_t position, int64_t rows, const float* device_rows,
+                                    int device, std::string& e) -> bool {
+        if (!mtp_features.enabled() || rows <= 0) return true;
+        if (device_rows == nullptr) {
+            e = "--dump-mtp-features: the residual rows are null";
+            return false;
+        }
+        if (rows > (int64_t) UINT32_MAX) {
+            e = "--dump-mtp-features: the residual row count does not fit the record header";
+            return false;
+        }
+        if (!mtp_features.begin_residual(seam, position, (uint32_t) rows, e)) return false;
+        strata::core::OnDevice on(device);
+        constexpr int64_t kSliceRows = 64;
+        static thread_local std::vector<float> host_rows;
+        host_rows.resize((size_t) std::min<int64_t>(rows, kSliceRows) * (size_t) mtp_trace_width);
+        for (int64_t r0 = 0; r0 < rows; r0 += kSliceRows) {
+            const int64_t nr = std::min<int64_t>(kSliceRows, rows - r0);
+            const size_t floats = (size_t) nr * (size_t) mtp_trace_width;
+            if (cudaMemcpy(host_rows.data(), device_rows + (size_t) r0 * (size_t) mtp_trace_width,
+                           floats * sizeof(float), cudaMemcpyDeviceToHost) != cudaSuccess) {
+                e = std::string("--dump-mtp-features: the residual copy failed: ") +
+                    cudaGetErrorString(cudaGetLastError());
+                mtp_features.abort(e);
+                return false;
+            }
+            if (!mtp_features.append_rows(host_rows.data(), (uint32_t) nr, e)) return false;
+        }
+        return mtp_features.end_residual(e);
+    };
+    if (!o.dump_mtp_features.empty()) {
+#if defined(STRATA_GPU_METAL)
+        std::fprintf(stderr, "strata generate: --dump-mtp-features is unsupported on the Metal path\n");
+        return 2;
+#endif
+        std::string trace_err;
+        if (!mtp_features.open(o.dump_mtp_features, mtp_trace_width, (uint64_t) g.n_layers,
+                               (uint64_t) n_vocab, trace_err)) {
+            std::fprintf(stderr, "strata generate: %s\n", trace_err.c_str());
+            return 1;
+        }
+        std::fprintf(stderr, "strata generate: MTP feature trace %s: %llu floats per position, residual records at "
+                             "prompt chunks and post-verify windows\n",
+                     o.dump_mtp_features.c_str(), (unsigned long long) mtp_trace_width);
+    }
     strata::core::PoolFn pool_fn = o.no_pool ? nullptr : &drive_pool;
     // The hit hook rides the same switch as the pool: with no pool there is no `parts` staging to
     // write into, and a hit path with nowhere to write is a wrong token rather than an error.
@@ -9530,6 +9604,11 @@ int main(int argc, char** argv) {
         // come from Q8_1 x Q8_0 MMQ rather than mmvq: drafts may differ, the target's tokens never.
         static const bool split_mtp_batch = strata::program::draft_kv::split_env_on(std::getenv("STRATA_SPLIT_MTP_BATCH"));
         sp.on_chunk = [&](const float* R_rows, int64_t T, int64_t p0, std::string& e) -> bool {
+            // the trace reads the chunk's rows before the drafter consumes them; the callback already holds the
+            // device that produced them (a layer split moves this callback to the last stage)
+            if (mtp_features.enabled() &&
+                !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPromptChunk, p0, T, R_rows, -1, e))
+                return false;
             std::vector<int32_t> nxt((size_t) T);
             for (int64_t t = 0; t < T; ++t) nxt[(size_t) t] = (int32_t) cur[(size_t) (p0 + t + 1)];
             // E-9: batched through the prompt path when it can (a layer split: only with STRATA_SPLIT_MTP_BATCH=1)
@@ -11657,6 +11736,11 @@ int main(int argc, char** argv) {
                 save_profile("periodic");
             if (line == "QUIT") break;
             if (!o.dump_prefill_routing.empty()) prefill_routing.begin_request();
+            if (mtp_features.enabled() && !mtp_features.begin_request(err)) {
+                std::printf("ERR %s\n", err.c_str());
+                std::fflush(stdout);
+                continue;
+            }
             // the watchdog watches a request from here until this iteration ends, whichever way it ends
             struct BusyScope {
                 BusyScope() {
@@ -12812,6 +12896,10 @@ int main(int argc, char** argv) {
                             if (!v.pl_finish(nullptr, e)) return fail(e);
                             if (nonfinite_hit(v, "prompt")) return fail("non-finite logits (#879)");
                             const Win& w = wins[f1];
+                            if (mtp_features.enabled() &&
+                                !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPostVerify, w.q, w.T,
+                                                      v.final_R_all(), v.device(), e))
+                                return fail(e);
                             for (int t = 0; t < w.T; ++t) nx[(size_t) t] = (int32_t) cur[(size_t) (w.q + t + 1)];
                             if (!mtp.prefill(v.final_R(0), nx.data(), w.T, w.q, e, false)) return fail(e);
                             {
@@ -12867,6 +12955,11 @@ int main(int argc, char** argv) {
                         e = "non-finite logits (#879)";
                         return false;
                     }
+                    // every row of a prompt window commits, so the window's full residual set belongs to the trace
+                    if (mtp_features.enabled() &&
+                        !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPostVerify, q, T, ver.final_R_all(),
+                                              stage_ver_p(n_stages - 1, 0).device(), e))
+                        return false;
                     // STRATA_LOGPOS=<path>: the teacher-forced log-probability of every token read here (every
                     // token is committed and nxt[t] is the prompt's own next token), appended to <path>; the last
                     // column is the log-probability of STRATA_LOGPOS_EXTRA (default 248046, <|im_end|>), so the
@@ -14360,6 +14453,11 @@ int main(int argc, char** argv) {
                     chain_kind = 0;
                     int a = 0;
                     while (a < A.T - 1 && A.tok[a + 1] == outp[(size_t) a]) ++a;
+                    // the committed prefix is the part of the window that belongs to the sequence
+                    if (mtp_features.enabled() &&
+                        !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPostVerify, A.p, a + 1,
+                                              V1(A).final_R_all(), V1(A).device(), err))
+                        return die(err);
                     if (!V1(A).pl_commit_async(a + 1, err)) return die(err);
                     for (int i = 0; i <= a; ++i) consumed.push_back(A.tok[i]);
                     draft_offered += A.T - 1;
@@ -14668,6 +14766,13 @@ int main(int argc, char** argv) {
                 }
                 int a = merged ? T - 1 : 0;   // a merged window commits every row, as the prompt windows do
                 while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
+                // the committed prefix is the part of the window that belongs to the sequence
+                if (mtp_features.enabled() &&
+                    !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPostVerify, p, a + 1, ver.final_R_all(),
+                                          stage_ver_p(n_stages - 1, 0).device(), err)) {
+                    std::printf("ERR %s\n", err.c_str());
+                    return 1;
+                }
                 if (from_sfx) { ++sfx_windows; sfx_drafts += T - 1; sfx_ok += a; }
                 if (chain_n > 0) { ++chain_windows; chain_drafts += chain_n; chain_ok += std::max(0, a - (T_mtp - 1)); }
                 if (!from_sfx && !first_window)
@@ -15212,6 +15317,17 @@ int main(int argc, char** argv) {
                         (long long) prefill_routing.routed_positions,
                         (unsigned long long) prefill_routing.last_request_id);
         }
+        if (!o.dump_mtp_features.empty()) {
+            if (!mtp_features.close(err)) {
+                std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+                return 1;
+            }
+            std::printf("%-24s %s (%llu residual records, %llu floats, %llu captured requests)\n",
+                        "mtp features dumped", o.dump_mtp_features.c_str(),
+                        (unsigned long long) mtp_features.records(),
+                        (unsigned long long) mtp_features.payload_floats(),
+                        (unsigned long long) mtp_features.last_request_id());
+        }
 #if defined(STRATA_GPU_METAL)
         // the stdin reader (detached above) may still take in_mu when the server closes the pipe after QUIT; on macOS
         // locking that mutex once this scope has destroyed it throws (the engine ended with an abort): end here
@@ -15302,12 +15418,16 @@ int main(int argc, char** argv) {
                 return prefill_routing.callback(layer, pos0, tokens, top_k, ids, weights, e);
             };
         }
-        if (!o.mtp.empty()) {
-            if (!mtp.bind(wt, &native_head, nullptr, err)) {
+        if (!o.mtp.empty() || mtp_features.enabled()) {
+            if (!o.mtp.empty() && !mtp.bind(wt, &native_head, nullptr, err)) {
                 std::fprintf(stderr, "strata generate: %s\n", err.c_str());
                 return 1;
             }
             prefill.on_chunk = [&](const float* R_rows, int64_t T, int64_t p0, std::string& e) -> bool {
+                if (mtp_features.enabled() &&
+                    !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPromptChunk, p0, T, R_rows, -1, e))
+                    return false;
+                if (o.mtp.empty()) return true;   // --dump-mtp-features alone: the rows are the only work here
                 // cell i pairs R_i with the token at i + 1 (every such token is in the prompt)
                 std::vector<int32_t> nxt((size_t) T);
                 for (int64_t t = 0; t < T; ++t) nxt[(size_t) t] = (int32_t) o.tokens[(size_t) (p0 + t + 1)];
@@ -16009,6 +16129,13 @@ int main(int argc, char** argv) {
             }
             int a = 0;
             while (a < T - 1 && window[(size_t) a + 1] == outv[(size_t) a]) ++a;
+            // the committed prefix is the part of the window that belongs to the sequence
+            if (mtp_features.enabled() &&
+                !capture_mtp_residual(strata::trace::kMtpFeaturesSeamPostVerify, p, a + 1, ver.final_R_all(),
+                                      ver.device(), err)) {
+                std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+                return 1;
+            }
             if (first_window) {
                 first_window = false;
                 ttft_ms = std::chrono::duration<double, std::milli>(Clock::now() - t_start).count();
@@ -16346,6 +16473,18 @@ int main(int argc, char** argv) {
     }
 
     if (dump != nullptr) std::printf("%-24s %s\n", "logits dumped", o.dump_logits.c_str());
+
+    if (!o.dump_mtp_features.empty()) {
+        if (!mtp_features.close(err)) {
+            std::fprintf(stderr, "strata generate: %s\n", err.c_str());
+            return 1;
+        }
+        std::printf("%-24s %s (%llu residual records, %llu floats, %llu captured requests)\n",
+                    "mtp features dumped", o.dump_mtp_features.c_str(),
+                    (unsigned long long) mtp_features.records(),
+                    (unsigned long long) mtp_features.payload_floats(),
+                    (unsigned long long) mtp_features.last_request_id());
+    }
 
     strata::core::session_graphs_free(gr);
     strata::core::doorbell_free(db);
