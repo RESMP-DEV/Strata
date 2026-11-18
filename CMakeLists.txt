@@ -790,6 +790,18 @@ if(STRATA_ENABLE_CUDA OR STRATA_ENABLE_HIP)
   add_executable(strata src/program/generate.cpp)
   target_include_directories(strata PRIVATE ${_strata_gpu_include_directories})
   target_link_libraries(strata PRIVATE strata_engine strata_prefill strata_spec ${_strata_gpu_runtime_target})
+  # CUDA injects an older GCC library directory before the C++ compiler's own
+  # runtime directory.  A bare -lstdc++ can therefore select a libstdc++ lacking
+  # __cxa_call_terminate.  Resolve the compiler-matched runtime explicitly.
+  if(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    find_library(STRATA_HOST_STDCXX
+      NAMES stdc++
+      PATHS ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}
+      NO_DEFAULT_PATH
+      REQUIRED
+    )
+    target_link_libraries(strata PRIVATE ${STRATA_HOST_STDCXX})
+  endif()
 
   # NEW-MODELS-PLAN.md T1: Qwen3.6-35B-A3B's reference path (one GPU, the model resident, plain kernels), checked
   # against llama.cpp by tools/qwen35/; the engine itself does not run the family yet
